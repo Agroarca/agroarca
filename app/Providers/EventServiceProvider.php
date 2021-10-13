@@ -2,10 +2,14 @@
 
 namespace App\Providers;
 
+use App\Models\User;
 use Illuminate\Auth\Events\Registered;
 use Illuminate\Auth\Listeners\SendEmailVerificationNotification;
 use Illuminate\Foundation\Support\Providers\EventServiceProvider as ServiceProvider;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Event;
+use JeroenNoten\LaravelAdminLte\Events\DarkModeWasToggled;
+use JeroenNoten\LaravelAdminLte\Events\ReadingDarkModePreference;
 
 class EventServiceProvider extends ServiceProvider
 {
@@ -27,6 +31,33 @@ class EventServiceProvider extends ServiceProvider
      */
     public function boot()
     {
-        //
+        Event::listen(
+            ReadingDarkModePreference::class,
+            [$this, 'handleReadingDarkModeEvt']
+        );
+
+        Event::listen(
+            DarkModeWasToggled::class,
+            [$this, 'handleDarkModeWasToggledEvt']
+        );
+    }
+
+    public function handleReadingDarkModeEvt(ReadingDarkModePreference $event)
+    {
+        $darkmode = Auth::user()->darkmode;
+
+        if ($darkmode) {
+            $event->darkMode->enable();
+        } else {
+            $event->darkMode->disable();
+        }
+    }
+
+    public function handleDarkModeWasToggledEvt(DarkModeWasToggled $event)
+    {
+        $darkmode = $event->darkMode->isEnabled();
+        $user = Auth::user();
+        $user->darkmode = $darkmode;
+        $user->save();
     }
 }
