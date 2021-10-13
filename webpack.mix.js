@@ -1,5 +1,11 @@
 const mix = require('laravel-mix');
+mix.disableNotifications();
 
+mix.webpackConfig({
+    stats: {
+        warnings: false,
+    }
+});
 /*
  |--------------------------------------------------------------------------
  | Mix Asset Management
@@ -16,3 +22,6 @@ mix.js('resources/js/app.js', 'public/js').postCss('resources/css/app.css', 'pub
     require('tailwindcss'),
     require('autoprefixer'),
 ]);
+
+mix.sass('resources/sass/vendor.scss', 'public/css/vendor.css');
+mix.postCss('resources/css/site.css', 'public/css/site.css');
