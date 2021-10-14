@@ -23,5 +23,6 @@ mix.js('resources/js/app.js', 'public/js').postCss('resources/css/app.css', 'pub
     require('autoprefixer'),
 ]);
 
-mix.sass('resources/sass/vendor.scss', 'public/css/vendor.css');
-mix.postCss('resources/css/site.css', 'public/css/site.css');
+mix.sass('resources/sass/vendor.scss', 'public/css/vendor.css')
+mix.postCss('resources/css/site.css', 'public/css/site.css')
+mix.js('resources/js/inputmask.js', 'public/js/inputmask.js')
