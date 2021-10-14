@@ -229,6 +229,17 @@ return [
             'type'         => 'darkmode-widget',
             'topnav_right' => true,
         ],
+        [
+            'text' => 'Cadastros',
+            'icon' => 'fas fa-clipboard-list',
+            'submenu' => [
+                [
+                    'text' => 'Estados',
+                    'icon' => 'fa fa-map-signs',
+                    'route' => 'admin.cadastros.estado',
+                ]
+            ]
+        ]
        /* [
             'type'         => 'navbar-notification',
             'id'           => 'my-notification',      // An ID attribute (required).
