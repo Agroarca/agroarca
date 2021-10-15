@@ -6,5 +6,7 @@
     <body>
         <div class="reference"></div>
         <x-site.header></x-site.header>
+
+        {{ $slot }}
     </body>
 </html>

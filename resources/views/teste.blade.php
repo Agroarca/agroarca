@@ -1,3 +1,3 @@
-<x-site-layout>
+<x-site>
 
-</x-site-layout>
+</x-site>
