@@ -4,6 +4,8 @@
     @isset($css)
         {{ $css }}
     @endisset
+
+    <link rel="stylesheet" href="{{ mix('css/vendor.css') }}">
 @endpush
 
 @section('content_header')

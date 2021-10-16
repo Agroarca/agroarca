@@ -10,12 +10,12 @@ class EstadoController extends Controller
 {
     public function inicio(){
         $estados = Estado::orderBy('nome')->paginate(10);
-        return view('admin.cadastros.estado.inicio', compact('estados'));
+        return view('admin.cadastros.estados.inicio', compact('estados'));
     }
 
     public function editar($id){
         $estado = Estado::findOrFail($id);
-        return view('admin.cadastros.estado.editar', compact('estado'));
+        return view('admin.cadastros.estados.editar', compact('estado'));
     }
 
     public function atualizar(Request $request, $id){
@@ -23,6 +23,6 @@ class EstadoController extends Controller
         $estado->icms = $request->input('icms');
         $estado->save();
 
-        return redirect()->route('admin.cadastros.estado');
+        return redirect()->route('admin.cadastros.estados');
     }
 }

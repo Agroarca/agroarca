@@ -4,8 +4,10 @@
     <x-slot name='header'>
         <h1>Estado {{ $estado->nome }}</h1>
     </x-slot>
+
     <div class="card card-default">
-        <form>
+        <form action="{{ route('admin.cadastros.estados.atualizar', [$estado->id]) }}" method="POST">
+            @csrf
             <div class="card-body">
                 <div class="form-group">
                     <label for="nome">Nome:</label>
@@ -18,7 +20,7 @@
                 <div class="form-group">
                     <label for="icms">ICMS:</label>
                     <div class="input-group">
-                        <input type="text" name="uf" class="form-control mask-percentual" value="{{ $estado->icms }}" />
+                        <input type="text" name="icms" class="form-control mask-percentual" value="{{ $estado->icms }}" />
                         <div class="input-group-append">
                             <span class="input-group-text">%</span>
                         </div>

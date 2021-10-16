@@ -45,8 +45,8 @@
             @endif
         </div>
         <div>
-            <label for="name">Nome</label>
-            <input id="name" type="text" name="name" value="{{ old('name') }}" required>
+            <label for="nome">Nome</label>
+            <input id="nome" type="text" name="nome" value="{{ old('nome') }}" required>
         </div>
         <div>
             <label for="email">E-mail</label>
