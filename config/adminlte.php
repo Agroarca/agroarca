@@ -236,7 +236,12 @@ return [
                 [
                     'text' => 'Estados',
                     'icon' => 'fa fa-map-signs',
-                    'route' => 'admin.cadastros.estado',
+                    'route' => 'admin.cadastros.estados',
+                ],
+                [
+                    'text' => 'Usuarios',
+                    'icon' => 'fas fa-users',
+                    'route' => 'admin.cadastros.usuarios',
                 ]
             ]
         ]

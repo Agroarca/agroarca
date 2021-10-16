@@ -2,7 +2,7 @@
 
 namespace Tests\Feature\Auth;
 
-use App\Models\User;
+use App\Models\Cadastros\Usuario;
 use App\Providers\RouteServiceProvider;
 use Illuminate\Auth\Events\Verified;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -16,18 +16,18 @@ class EmailVerificationTest extends TestCase
 
     public function test_email_verification_screen_can_be_rendered()
     {
-        $user = User::factory()->create([
+        $user = Usuario::factory()->create([
             'email_verified_at' => null,
         ]);
 
-        $response = $this->actingAs($user)->get('/verify-email');
+        $response = $this->actingAs($user)->get('/verificar-email');
 
         $response->assertStatus(200);
     }
 
     public function test_email_can_be_verified()
     {
-        $user = User::factory()->create([
+        $user = Usuario::factory()->create([
             'email_verified_at' => null,
         ]);
 
@@ -48,7 +48,7 @@ class EmailVerificationTest extends TestCase
 
     public function test_email_is_not_verified_with_invalid_hash()
     {
-        $user = User::factory()->create([
+        $user = Usuario::factory()->create([
             'email_verified_at' => null,
         ]);
 
