@@ -2,7 +2,6 @@
 
 namespace App\Providers;
 
-use App\Models\User;
 use Illuminate\Auth\Events\Registered;
 use Illuminate\Auth\Listeners\SendEmailVerificationNotification;
 use Illuminate\Foundation\Support\Providers\EventServiceProvider as ServiceProvider;
@@ -60,8 +59,8 @@ class EventServiceProvider extends ServiceProvider
     public function handleDarkModeWasToggledEvt(DarkModeWasToggled $event)
     {
         $darkmode = $event->darkMode->isEnabled();
-        $user = Auth::user();
-        $user->darkmode = $darkmode;
-        $user->save();
+        $usuario = Auth::user();
+        $usuario->darkmode = $darkmode;
+        $usuario->save();
     }
 }
