@@ -1,13 +1,6 @@
 <x-admin>
     <x-slot name='header'>
-        <div class="row">
-            <div class="col-sm-8">
-                <h1>Usuarios</h1>
-            </div>
-            <div class="col-sm-4 pt-3 pt-sm-0">
-                <button class="btn btn-primary float-sm-right"><i class="fas fa-plus-circle pr-1"></i> Nova Lista de Preço</button>
-            </div>
-        </div>
+        <h1>Usuarios</h1>
     </x-slot>
 
     <div class="card card-default">

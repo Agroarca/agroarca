@@ -5,7 +5,7 @@ namespace Database\Seeders;
 use App\Models\Cadastros\Estado;
 use Illuminate\Database\Seeder;
 
-class EstadoSeeder extends Seeder
+class EstadosSeeder extends Seeder
 {
     /**
      * Run the database seeds.
