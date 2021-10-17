@@ -5,7 +5,7 @@ namespace Database\Seeders;
 use App\Models\Cadastros\Estado;
 use Illuminate\Database\Seeder;
 
-class EstadoSeeder extends Seeder
+class EstadosSeeder extends Seeder
 {
     /**
      * Run the database seeds.
@@ -261,7 +261,6 @@ class EstadoSeeder extends Seeder
         );
 
         foreach ($estados as $estado){
-
             $insere = new Estado();
             $insere->id = $estado['id'];
             $insere->nome = $estado['title'];

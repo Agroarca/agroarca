@@ -239,10 +239,15 @@ return [
                     'route' => 'admin.cadastros.estados',
                 ],
                 [
+                    'text' => 'Cidades',
+                    'icon' => 'fas fa-city',
+                    'route' => 'admin.cadastros.cidades',
+                ],
+                [
                     'text' => 'Usuarios',
                     'icon' => 'fas fa-users',
                     'route' => 'admin.cadastros.usuarios',
-                ]
+                ],
             ]
         ]
        /* [

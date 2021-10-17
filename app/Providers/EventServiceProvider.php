@@ -43,13 +43,13 @@ class EventServiceProvider extends ServiceProvider
 
     public function handleReadingDarkModeEvt(ReadingDarkModePreference $event)
     {
-        $darkmode = false;
+        $modo_escuro = false;
 
         if(Auth::user() != null){
-            $darkmode = Auth::user()->darkmode;
+            $modo_escuro = Auth::user()->modo_escuro;
         }
 
-        if ($darkmode) {
+        if ($modo_escuro) {
             $event->darkMode->enable();
         } else {
             $event->darkMode->disable();
@@ -58,9 +58,9 @@ class EventServiceProvider extends ServiceProvider
 
     public function handleDarkModeWasToggledEvt(DarkModeWasToggled $event)
     {
-        $darkmode = $event->darkMode->isEnabled();
+        $modo_escuro = $event->darkMode->isEnabled();
         $usuario = Auth::user();
-        $usuario->darkmode = $darkmode;
+        $usuario->modo_escuro = $modo_escuro;
         $usuario->save();
     }
 }

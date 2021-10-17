@@ -2,7 +2,6 @@
 
 namespace Database\Seeders;
 
-use EstadoSeeder;
 use Illuminate\Database\Seeder;
 
 class DatabaseSeeder extends Seeder
@@ -15,8 +14,8 @@ class DatabaseSeeder extends Seeder
     public function run()
     {
         $this->call([
-            EstadoSeeder::class,
-            //CidadeSeeder::class,
+            EstadosSeeder::class,
+            CidadesSeeder::class,
         ]);
     }
 }
