@@ -13,6 +13,13 @@ class Estado extends Model
     protected $fillable = ['nome', 'uf', 'icms'];
     public $timestamps = false;
 
+    // Função Helper para construir selects com todos os estados
+    public static function selectTodos(){
+        return Estado::all()->mapWithKeys(function($estado, $id){
+            return [ $estado->id => "$estado->uf - $estado->nome" ];
+        });
+    }
+
     public function cidades(){
         return $this->hasMany(Cidade::class);
     }

@@ -261,7 +261,6 @@ class EstadosSeeder extends Seeder
         );
 
         foreach ($estados as $estado){
-
             $insere = new Estado();
             $insere->id = $estado['id'];
             $insere->nome = $estado['title'];
