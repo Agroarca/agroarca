@@ -31,7 +31,12 @@ class AddCamposUsuarios extends Migration
     public function down()
     {
         Schema::table('usuarios', function (Blueprint $table) {
-            //
+            $table->dropColumn('tipo_pessoa');
+            $table->dropColumn('cpf');
+            $table->dropColumn('cnpj');
+            $table->dropColumn('celular');
+            $table->dropColumn('status');
+            $table->dropColumn('tipo');
         });
     }
 }
