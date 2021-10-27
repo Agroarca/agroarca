@@ -249,6 +249,17 @@ return [
                     'route' => 'admin.cadastros.usuarios',
                 ],
             ]
+        ],
+        [
+            'text' => 'Estoque',
+            'icon' => 'fas fa-boxes',
+            'submenu' => [
+                [
+                    'text' => 'Marcas',
+                    'icon' => 'fas fa-tags',
+                    'route' => 'admin.estoque.marcas',
+                ],
+            ]
         ]
        /* [
             'type'         => 'navbar-notification',
