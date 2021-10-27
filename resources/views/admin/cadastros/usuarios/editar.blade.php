@@ -49,4 +49,12 @@
             </div>
         </form>
     </div>
+    <div class="card card-default">
+        <div class="card-header">
+            <h2 class="card-title">Endereços do Usuário</h2>
+        </div>
+        <div class="card-body table-responsive">
+            @include('admin.cadastros.usuarios.enderecos.listar', ['enderecos' => $usuario->enderecos, 'usuario' => $usuario])
+        </div>
+    </div>
 </x-admin>

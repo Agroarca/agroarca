@@ -3,6 +3,8 @@
 use App\Http\Controllers\Cadastros\CidadeController;
 use App\Http\Controllers\Cadastros\EstadoController;
 use App\Http\Controllers\Cadastros\UsuarioController;
+use App\Http\Controllers\Cadastros\UsuarioEnderecoController;
+use App\Models\Cadastros\UsuarioEndereco;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -37,6 +39,14 @@ Route::middleware(['auth'])->prefix('admin')->name('admin')->group(function(){
         Route::prefix('usuarios')->name('.usuarios')->group(function (){
             Route::get('', [UsuarioController::class, 'inicio'])->name('');
             Route::get('editar/{id}', [UsuarioController::class, 'editar'])->name('.editar');
+
+            Route::prefix('{userId}/enderecos')->name('.enderecos')->group(function (){
+                Route::get('criar/', [UsuarioEnderecoController::class, 'criar'])->name('.criar');
+                Route::post('salvar/', [UsuarioEnderecoController::class, 'salvar'])->name('.salvar');
+                Route::get('editar/{id}', [UsuarioEnderecoController::class, 'editar'])->name('.editar');
+                Route::post('atualizar/{id}', [UsuarioEnderecoController::class, 'atualizar'])->name('.atualizar');
+                Route::get('excluir/{id}', [UsuarioEnderecoController::class, 'excluir'])->name('.excluir');
+            });
         });
     });
 });
