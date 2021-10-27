@@ -6,6 +6,7 @@ use App\Http\Controllers\Cadastros\UsuarioController;
 use App\Http\Controllers\Cadastros\UsuarioEnderecoController;
 use App\Http\Controllers\Estoque\CategoriaController;
 use App\Http\Controllers\Estoque\MarcaController;
+use App\Http\Controllers\Estoque\TipoProdutoController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -69,6 +70,15 @@ Route::middleware(['auth'])->prefix('admin')->name('admin')->group(function(){
             Route::get('editar/{id}', [CategoriaController::class, 'editar'])->name('.editar');
             Route::post('atualizar/{id}', [CategoriaController::class, 'atualizar'])->name('.atualizar');
             Route::get('excluir/{id}', [CategoriaController::class, 'excluir'])->name('.excluir');
+        });
+
+        Route::prefix('produto/tipos')->name('.tiposProduto')->group(function (){
+            Route::get('', [TipoProdutoController::class, 'inicio'])->name('');
+            Route::get('criar/', [TipoProdutoController::class, 'criar'])->name('.criar');
+            Route::post('salvar/', [TipoProdutoController::class, 'salvar'])->name('.salvar');
+            Route::get('editar/{id}', [TipoProdutoController::class, 'editar'])->name('.editar');
+            Route::post('atualizar/{id}', [TipoProdutoController::class, 'atualizar'])->name('.atualizar');
+            Route::get('excluir/{id}', [TipoProdutoController::class, 'excluir'])->name('.excluir');
         });
 
     });

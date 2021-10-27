@@ -264,6 +264,11 @@ return [
                     'icon' => 'fas fa-folder-open',
                     'route' => 'admin.estoque.categorias',
                 ],
+                [
+                    'text' => 'Tipos de Produto',
+                    'icon' => 'fas fa-shapes',
+                    'route' => 'admin.estoque.tiposProduto',
+                ],
             ]
         ]
        /* [
