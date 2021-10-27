@@ -4,8 +4,8 @@ use App\Http\Controllers\Cadastros\CidadeController;
 use App\Http\Controllers\Cadastros\EstadoController;
 use App\Http\Controllers\Cadastros\UsuarioController;
 use App\Http\Controllers\Cadastros\UsuarioEnderecoController;
+use App\Http\Controllers\Estoque\CategoriaController;
 use App\Http\Controllers\Estoque\MarcaController;
-use App\Models\Cadastros\UsuarioEndereco;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -60,6 +60,15 @@ Route::middleware(['auth'])->prefix('admin')->name('admin')->group(function(){
             Route::get('editar/{id}', [MarcaController::class, 'editar'])->name('.editar');
             Route::post('atualizar/{id}', [MarcaController::class, 'atualizar'])->name('.atualizar');
             Route::get('excluir/{id}', [MarcaController::class, 'excluir'])->name('.excluir');
+        });
+
+        Route::prefix('categorias')->name('.categorias')->group(function (){
+            Route::get('', [CategoriaController::class, 'inicio'])->name('');
+            Route::get('criar/', [CategoriaController::class, 'criar'])->name('.criar');
+            Route::post('salvar/', [CategoriaController::class, 'salvar'])->name('.salvar');
+            Route::get('editar/{id}', [CategoriaController::class, 'editar'])->name('.editar');
+            Route::post('atualizar/{id}', [CategoriaController::class, 'atualizar'])->name('.atualizar');
+            Route::get('excluir/{id}', [CategoriaController::class, 'excluir'])->name('.excluir');
         });
 
     });

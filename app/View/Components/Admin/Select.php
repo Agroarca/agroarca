@@ -11,9 +11,10 @@ class Select extends Component
     public $values;
     public $selected;
     public $placeholder;
+    public $selectPlaceholder;
     public $class;
 
-    public function __construct($name, $values, $placeholder = null, $selected = null, $id = null, $class = null)
+    public function __construct($name, $values, $placeholder = null, $selected = null, $id = null, $class = null, $selectPlaceholder = false)
     {
         $this->id = $id ?? $name;
         $this->name = $name;
@@ -21,6 +22,7 @@ class Select extends Component
         $this->selected = null;
         $this->placeholder = $placeholder;
         $this->class = $class;
+        $this->selectPlaceholder = $selectPlaceholder;
 
         foreach($values as $key => $value){
             if($selected == $key){

@@ -5,7 +5,7 @@
     {{ $attributes }}
 >
     @if ($placeholder)
-        <option disabled {{ empty($selected) ? 'selected' : '' }}>{{ $placeholder }}</option>
+        <option {{ $selectPlaceholder ? '' : 'disabled' }} {{ empty($selected) ? 'selected' : '' }} value="">{{ $placeholder }}</option>
     @endif
 
     @foreach ($values as $key => $value)

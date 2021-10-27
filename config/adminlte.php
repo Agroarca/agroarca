@@ -259,6 +259,11 @@ return [
                     'icon' => 'fas fa-tags',
                     'route' => 'admin.estoque.marcas',
                 ],
+                [
+                    'text' => 'Categorias',
+                    'icon' => 'fas fa-folder-open',
+                    'route' => 'admin.estoque.categorias',
+                ],
             ]
         ]
        /* [
