@@ -4,7 +4,6 @@ namespace App\Models\Cadastros;
 
 use App\Enums\Cadastros\Usuarios\TipoPessoaEnum;
 use App\Helpers\Formatter;
-use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
@@ -49,5 +48,9 @@ class Usuario extends Authenticatable
 
     public function getNomeTipoPessoaAttribute(){
         return ($this->tipo_pessoa == TipoPessoaEnum::PessoaJuridica) ? "Pessoa Jurídica" : "Pessoa Física";
+    }
+
+    public function enderecos(){
+        return $this->hasMany(UsuarioEndereco::class);
     }
 }

@@ -18,7 +18,7 @@
         </div>
         <div class="profile-container">
             <i class="fas fa-user"></i>
-            <span>Minha Conta</span>
+            <a href="{{ route('dashboard') }}">Minha Conta</a>
         </div>
     </div>
 
