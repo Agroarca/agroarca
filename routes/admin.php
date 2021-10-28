@@ -6,6 +6,7 @@ use App\Http\Controllers\Cadastros\UsuarioController;
 use App\Http\Controllers\Cadastros\UsuarioEnderecoController;
 use App\Http\Controllers\Estoque\CategoriaController;
 use App\Http\Controllers\Estoque\MarcaController;
+use App\Http\Controllers\Estoque\ProdutoController;
 use App\Http\Controllers\Estoque\TipoProdutoController;
 use Illuminate\Support\Facades\Route;
 
@@ -53,6 +54,15 @@ Route::middleware(['auth'])->prefix('admin')->name('admin')->group(function(){
     });
 
     Route::namespace('Estoque')->prefix('estoque')->name('.estoque')->group(function(){
+
+        Route::prefix('produtos')->name('.produtos')->group(function (){
+            Route::get('', [ProdutoController::class, 'inicio'])->name('');
+            Route::get('criar/', [ProdutoController::class, 'criar'])->name('.criar');
+            Route::post('salvar/', [ProdutoController::class, 'salvar'])->name('.salvar');
+            Route::get('editar/{id}', [ProdutoController::class, 'editar'])->name('.editar');
+            Route::post('atualizar/{id}', [ProdutoController::class, 'atualizar'])->name('.atualizar');
+            Route::get('excluir/{id}', [ProdutoController::class, 'excluir'])->name('.excluir');
+        });
 
         Route::prefix('marcas')->name('.marcas')->group(function (){
             Route::get('', [MarcaController::class, 'inicio'])->name('');

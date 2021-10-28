@@ -255,6 +255,11 @@ return [
             'icon' => 'fas fa-boxes',
             'submenu' => [
                 [
+                    'text' => 'Produtos',
+                    'icon' => 'fas fa-pallet',
+                    'route' => 'admin.estoque.produtos',
+                ],
+                [
                     'text' => 'Marcas',
                     'icon' => 'fas fa-tags',
                     'route' => 'admin.estoque.marcas',

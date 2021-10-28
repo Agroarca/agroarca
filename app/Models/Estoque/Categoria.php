@@ -18,4 +18,8 @@ class Categoria extends Model
     public function categorias(){
         return $this->hasMany(Categoria::class, 'categoria_mae_id');
     }
+
+    public function produtos(){
+        return $this->hasMany(Produto::class);
+    }
 }
