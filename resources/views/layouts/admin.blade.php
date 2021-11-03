@@ -6,6 +6,7 @@
     @endisset
 
     <link rel="stylesheet" href="{{ mix('css/vendor.css') }}">
+    <link rel="stylesheet" href="{{ mix('css/style.css') }}">
 @endpush
 
 @section('content_header')
@@ -30,6 +31,15 @@
     @once
         @prepend('js')
             <script src="{{ mix('js/inputmask.js') }}"></script>
+        @endprepend
+    @endonce
+@endif
+
+{{-- Inclui o script de CropperJS dinamicamente --}}
+@hasSection('CropperJS')
+    @once
+        @prepend('js')
+            <script src="{{ mix('js/cropper.js') }}"></script>
         @endprepend
     @endonce
 @endif

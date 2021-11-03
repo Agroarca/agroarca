@@ -16,10 +16,10 @@
         <div class="arca-container">
             <i class="fas fa-shopping-cart"></i>
         </div>
-        <div class="profile-container">
+        <a class="profile-container" href="{{ route('dashboard') }}">
             <i class="fas fa-user"></i>
-            <a href="{{ route('dashboard') }}">Minha Conta</a>
-        </div>
+            Minha Conta
+        </a>
     </div>
 
     <div class="menu-content">

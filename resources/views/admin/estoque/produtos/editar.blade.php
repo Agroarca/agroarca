@@ -54,4 +54,6 @@
             </div>
         </div>
     </form>
+
+    @include('admin.estoque.produtos.imagens', ['produto' => $produto])
 </x-admin>

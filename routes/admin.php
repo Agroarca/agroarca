@@ -7,6 +7,7 @@ use App\Http\Controllers\Cadastros\UsuarioEnderecoController;
 use App\Http\Controllers\Estoque\CategoriaController;
 use App\Http\Controllers\Estoque\MarcaController;
 use App\Http\Controllers\Estoque\ProdutoController;
+use App\Http\Controllers\Estoque\ProdutoImagemController;
 use App\Http\Controllers\Estoque\TipoProdutoController;
 use Illuminate\Support\Facades\Route;
 
@@ -62,6 +63,11 @@ Route::middleware(['auth'])->prefix('admin')->name('admin')->group(function(){
             Route::get('editar/{id}', [ProdutoController::class, 'editar'])->name('.editar');
             Route::post('atualizar/{id}', [ProdutoController::class, 'atualizar'])->name('.atualizar');
             Route::get('excluir/{id}', [ProdutoController::class, 'excluir'])->name('.excluir');
+
+            Route::prefix('{produto_id}/imagens')->name('.imagens')->group(function (){
+                Route::post('upload/', [ProdutoImagemController::class, 'upload'])->name('.upload');
+                Route::get('delete/{id}', [ProdutoImagemController::class, 'delete'])->name('.delete');
+            });
         });
 
         Route::prefix('marcas')->name('.marcas')->group(function (){

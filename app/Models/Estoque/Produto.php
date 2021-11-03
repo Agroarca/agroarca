@@ -30,4 +30,8 @@ class Produto extends Model
     public function categoria(){
         return $this->belongsTo(Categoria::class);
     }
+
+    public function imagens(){
+        return $this->hasMany(ProdutoImagem::class);
+    }
 }

@@ -13,8 +13,11 @@ class ProdutoRequest extends FormRequest
 
     public function rules()
     {
+        $this->sanitize();
+        $id = $this->route('id') ?? 0;
+
         return [
-            'codigo' => 'string|nullable|max:20',
+            'codigo' => "alpha_dash|nullable|max:20|unique:produtos,codigo,{$id}",
             'nome' => 'string|required|min:3|max:50',
             'descricao' => 'string|required|min:20|max:1000',
             'marca_id' => 'integer|required|exists:marcas,id',
@@ -33,5 +36,11 @@ class ProdutoRequest extends FormRequest
             'tipo_produto_id' => 'Tipo de Produto',
             'categoria_id' => 'Categoria',
         ];
+    }
+
+    public function sanitize(){
+        if($this->has('codigo')){
+            $this->merge(['codigo' => mb_strtoupper($this->input('codigo'))]);
+        }
     }
 }
