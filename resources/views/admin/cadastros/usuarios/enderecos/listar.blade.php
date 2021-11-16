@@ -16,6 +16,9 @@
                         <a href="{{ route('admin.cadastros.usuarios.enderecos.editar', [$usuario->id, $endereco->id]) }}" class="btn btn-primary" data-toggle="tooltip" data-placement="top" title="Editar">
                             <i class="fas fa-pen"></i>
                         </a>
+                        <a href="{{ route('admin.cadastros.usuarios.enderecos.excluir', [$usuario->id, $endereco->id]) }}" class="btn btn-danger" data-toggle="tooltip" data-placement="top" title="Excluir">
+                            <i class="fas fa-times"></i>
+                        </a>
                     </td>
                 </tr>
             @endforeach

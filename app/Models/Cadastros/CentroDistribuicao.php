@@ -1,0 +1,30 @@
+<?php
+
+namespace App\Models\Cadastros;
+
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Model;
+
+class CentroDistribuicao extends Model
+{
+    use HasFactory;
+
+    protected $table = 'fornecedor_centros_distribuicao';
+    protected $fillable = [
+        'nome',
+        'representante',
+        'cnpj',
+        'telefone',
+        'inscricao_estadual',
+        'usuario_id',
+        'usuario_endereco_id'
+    ];
+
+    public function usuario(){
+        return $this->belongsTo(Usuario::class);
+    }
+
+    public function usuarioEndereco(){
+        return $this->belongsTo(UsuarioEndereco::class);
+    }
+}

@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Site\CategoriaController;
 use App\Http\Controllers\Site\ProdutoController;
 use Illuminate\Support\Facades\Route;
 
@@ -22,8 +23,6 @@ Route::name('site')->group(function(){
     });
 
     Route::prefix('categoria')->name('.categoria')->group(function(){
-        Route::get('{id}',function(){
-            return 'categoria';
-        })->name('');
+        Route::get('{id?}', [CategoriaController::class, 'categoria'])->name('');
     });
 });

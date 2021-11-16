@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Cadastros\CentroDistribuicaoController;
 use App\Http\Controllers\Cadastros\CidadeController;
 use App\Http\Controllers\Cadastros\EstadoController;
 use App\Http\Controllers\Cadastros\UsuarioController;
@@ -9,6 +10,7 @@ use App\Http\Controllers\Estoque\MarcaController;
 use App\Http\Controllers\Estoque\ProdutoController;
 use App\Http\Controllers\Estoque\ProdutoImagemController;
 use App\Http\Controllers\Estoque\TipoProdutoController;
+use App\Models\Cadastros\CentroDistribuicao;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -50,6 +52,15 @@ Route::middleware(['auth'])->prefix('admin')->name('admin')->group(function(){
                 Route::get('editar/{id}', [UsuarioEnderecoController::class, 'editar'])->name('.editar');
                 Route::post('atualizar/{id}', [UsuarioEnderecoController::class, 'atualizar'])->name('.atualizar');
                 Route::get('excluir/{id}', [UsuarioEnderecoController::class, 'excluir'])->name('.excluir');
+            });
+
+            Route::prefix('{user_id}/centrosDistribuicao')->name('.centrosDistribuicao')->group(function(){
+                Route::get('', [CentroDistribuicaoController::class, 'inicio'])->name('');
+                Route::get('criar/', [CentroDistribuicaoController::class, 'criar'])->name('.criar');
+                Route::post('salvar/', [CentroDistribuicaoController::class, 'salvar'])->name('.salvar');
+                Route::get('editar/{id}', [CentroDistribuicaoController::class, 'editar'])->name('.editar');
+                Route::post('atualizar/{id}', [CentroDistribuicaoController::class, 'atualizar'])->name('.atualizar');
+                Route::get('excluir/{id}', [CentroDistribuicaoController::class, 'excluir'])->name('.excluir');
             });
         });
     });

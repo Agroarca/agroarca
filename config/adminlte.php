@@ -234,6 +234,11 @@ return [
             'icon' => 'fas fa-clipboard-list',
             'submenu' => [
                 [
+                    'text' => 'Usuarios',
+                    'icon' => 'fas fa-users',
+                    'route' => 'admin.cadastros.usuarios',
+                ],
+                [
                     'text' => 'Estados',
                     'icon' => 'fa fa-map-signs',
                     'route' => 'admin.cadastros.estados',
@@ -242,11 +247,6 @@ return [
                     'text' => 'Cidades',
                     'icon' => 'fas fa-city',
                     'route' => 'admin.cadastros.cidades',
-                ],
-                [
-                    'text' => 'Usuarios',
-                    'icon' => 'fas fa-users',
-                    'route' => 'admin.cadastros.usuarios',
                 ],
             ]
         ],

@@ -52,9 +52,23 @@
     <div class="card card-default">
         <div class="card-header">
             <h2 class="card-title">Endereços do Usuário</h2>
+            <div class="card-tools">
+                <a href="{{ route('admin.cadastros.usuarios.enderecos.criar', $usuario->id) }}" class="btn btn-primary float-sm-right"><i class="fas fa-plus-circle pr-1"></i>Novo Endereço</a>
+            </div>
         </div>
         <div class="card-body table-responsive">
             @include('admin.cadastros.usuarios.enderecos.listar', ['enderecos' => $usuario->enderecos, 'usuario' => $usuario])
+        </div>
+    </div>
+    <div class="card card-default">
+        <div class="card-header">
+            <h2 class="card-title">Centros de Distribuição</h2>
+            <div class="card-tools">
+                <a href="{{ route('admin.cadastros.usuarios.centrosDistribuicao.criar', $usuario->id) }}" class="btn btn-primary float-sm-right"><i class="fas fa-plus-circle pr-1"></i>Novo Centro de Distribuição</a>
+            </div>
+        </div>
+        <div class="card-body table-responsive">
+            @include('admin.cadastros.usuarios.centros_distribuicao.listar', ['centrosDistribuicao' => $usuario->centrosDistribuicao, 'usuario' => $usuario])
         </div>
     </div>
 </x-admin>

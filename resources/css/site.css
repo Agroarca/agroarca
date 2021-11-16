@@ -8,6 +8,13 @@
 
 @font-face {
     font-family: "Poppins";
+    src: url("/fonts/poppins/Poppins-Medium.ttf");
+    font-display: swap;
+    font-weight: 500;
+}
+
+@font-face {
+    font-family: "Poppins";
     src: url("/fonts/poppins/Poppins-SemiBold.ttf");
     font-display: swap;
     font-weight: 600;
@@ -245,4 +252,56 @@ section {
 
 .produto .mais-infos .descricao-longa p{
     margin:0;
+}
+
+.listagem .produtos{
+    grid-template-columns: repeat(4, 25%);
+    grid-template-rows: repeat(1, auto);
+    display: grid;
+    padding: .75rem 0;
+}
+
+.listagem .produto{
+    display: flex;
+    flex-direction: column;
+    margin: auto;
+    width: 90%;
+    margin-bottom: 3rem;
+    border-radius: 20px;
+    overflow: hidden;
+    box-shadow: 0 16px 22px rgba(0, 0, 0, 0.09) !important;
+    color: unset;
+    text-decoration: unset;
+}
+
+.listagem .titulo-produto{
+    font-family: "Poppins", Arial, Helvetica, sans-serif;
+    padding: 1.5rem;
+    font-weight: 500;
+}
+
+.listagem .preco-produto{
+    font-family: "Poppins", Arial, Helvetica, sans-serif;
+    margin-top: 1rem;
+    padding: 1rem 1.5rem;
+    color: var(--verde-claro);
+    font-size: 24px;
+    font-weight: 600;
+}
+
+.listagem .btn-produto{
+    background-color: var(--branco);
+    color: var(--verde-claro);
+    border: 2px solid var(--verde-claro);
+    border-radius: 12px;
+    text-decoration: none;
+    margin: 1.5rem;
+    padding: 1rem;
+    text-align: center;
+    font-size: 16px;
+}
+
+.listagem .produto:hover .btn-produto{
+    background-color: var(--verde-claro);
+    color: var(--branco);
 }

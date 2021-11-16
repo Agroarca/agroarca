@@ -53,4 +53,8 @@ class Usuario extends Authenticatable
     public function enderecos(){
         return $this->hasMany(UsuarioEndereco::class);
     }
+
+    public function centrosDistribuicao(){
+        return $this->hasMany(CentroDistribuicao::class);
+    }
 }
