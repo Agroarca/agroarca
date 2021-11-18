@@ -35,4 +35,12 @@ class CentroDistribuicaoRequest extends FormRequest
             'usuario_endereco_id' => 'integer|required|exists:usuario_enderecos,id'
         ];
     }
+
+    protected function prepareForValidation()
+    {
+        $this->merge([
+            'cnpj' => preg_replace('/\D/', '', $this->input('cnpj')),
+            'telefone' => preg_replace('/\D/', '', $this->input('telefone'))
+        ]);
+    }
 }
