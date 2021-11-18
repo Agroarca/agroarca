@@ -260,6 +260,11 @@ return [
                     'route' => 'admin.estoque.produtos',
                 ],
                 [
+                    'text' => 'Produtos Ofertados',
+                    'icon' => 'fas fa-cash-register',
+                    'route' => 'admin.estoque.produtoFornecedor',
+                ],
+                [
                     'text' => 'Marcas',
                     'icon' => 'fas fa-tags',
                     'route' => 'admin.estoque.marcas',
