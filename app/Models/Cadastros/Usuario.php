@@ -57,4 +57,8 @@ class Usuario extends Authenticatable
     public function centrosDistribuicao(){
         return $this->hasMany(CentroDistribuicao::class);
     }
+
+    public function listasPreco(){
+        return $this->hasMany(ListaPreco::class);
+    }
 }

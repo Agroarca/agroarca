@@ -280,6 +280,17 @@ return [
                     'route' => 'admin.estoque.tiposProduto',
                 ],
             ]
+        ],
+        [
+            'text' => 'Pedidos',
+            'icon' => 'fas fa-shopping-cart',
+            'submenu' => [
+                [
+                    'text' => 'Listas de Preço',
+                    'icon' => 'fas fa-money-bill-wave',
+                    'route' => 'admin.pedidos.listas_preco',
+                ],
+            ]
         ]
        /* [
             'type'         => 'navbar-notification',

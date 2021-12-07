@@ -2,6 +2,7 @@
 
 namespace App\Models\Estoque;
 
+use App\Models\Pedidos\ItemListaPreco;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
@@ -33,5 +34,9 @@ class Produto extends Model
 
     public function imagens(){
         return $this->hasMany(ProdutoImagem::class);
+    }
+
+    public function itensListaPreco(){
+        return $this->hasMany(ItemListaPreco::class);
     }
 }

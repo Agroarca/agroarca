@@ -1,8 +1,8 @@
 <?php
 
-
 namespace App\Helpers;
 
+use Carbon\Carbon;
 use InvalidArgumentException;
 
 class Formatter
@@ -47,5 +47,13 @@ class Formatter
         }
 
         return "($matches[1]) $matches[2]$matches[3]-$matches[4]";
+    }
+
+    public function date($date){
+        return Carbon::parse($date)->format('d/m/Y');
+    }
+
+    public function datetime($datetime){
+        return Carbon::parse($datetime)->format('d/m/Y H:i:s');
     }
 }
