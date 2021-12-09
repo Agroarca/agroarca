@@ -15,6 +15,7 @@
         "alpinejs": "^2.7.3",
         "autoprefixer": "^10.1.0",
         "axios": "^0.21",
+        "cropperjs": "^1.5.12",
         "font-awesome": "^4.7.0",
         "inputmask": "^5.0.6",
         "laravel-mix": "^6.0.6",

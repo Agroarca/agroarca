@@ -36,6 +36,6 @@ class UsuarioEnderecoController extends Controller
 
     public function excluir($userId, $id){
         UsuarioEndereco::where('usuario_id', $userId)->findOrFail($id)->delete();
-        return redirect()->route('admin.cadastros.usuarios.enderecos');
+        return redirect()->route('admin.cadastros.usuarios.editar', $userId);
     }
 }

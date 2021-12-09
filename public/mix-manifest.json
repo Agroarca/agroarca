@@ -1,6 +1,8 @@
 {
     "/js/app.js": "/js/app.js",
     "/js/inputmask.js": "/js/inputmask.js",
+    "/js/cropper.js": "/js/cropper.js",
+    "/css/style.css": "/css/style.css",
     "/css/site.css": "/css/site.css",
     "/css/app.css": "/css/app.css",
     "/css/vendor.css": "/css/vendor.css"

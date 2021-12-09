@@ -13,9 +13,7 @@ use Illuminate\Support\Facades\Route;
 |
 */
 
-Route::get('/', function () {
-    return view('teste');
-});
+
 
 Route::get('/dashboard', function () {
     return view('dashboard');
@@ -23,3 +21,4 @@ Route::get('/dashboard', function () {
 
 require __DIR__.'/auth.php';
 require __DIR__.'/admin.php';
+require __DIR__.'/site.php';
