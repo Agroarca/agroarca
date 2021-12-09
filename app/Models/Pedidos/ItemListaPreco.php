@@ -9,7 +9,7 @@ use Illuminate\Database\Eloquent\Model;
 class ItemListaPreco extends Model
 {
     use HasFactory;
-    protected $table = 'listas_preco';
+    protected $table = 'itens_lista_preco';
     protected $fillable = [
         'preco_quilo',
         'estoque_total',

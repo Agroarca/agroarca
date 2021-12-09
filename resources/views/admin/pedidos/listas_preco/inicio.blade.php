@@ -34,6 +34,9 @@
                             <td>{{ Formatter::datetime($listaPreco->data_fim) }}</td>
                             <td class="d-none d-md-table-cell">{{ $listaPreco->ajuste_mensal }} %</td>
                             <td>
+                                <a href="{{ route('admin.pedidos.listas_preco.itens', [$listaPreco->id]) }}" class="btn btn-primary" data-toggle="tooltip" data-placement="top" title="Visualizar Itens">
+                                    <i class="fas fa-list-ol"></i>
+                                </a>
                                 <a href="{{ route('admin.pedidos.listas_preco.editar', [$listaPreco->id]) }}" class="btn btn-primary" data-toggle="tooltip" data-placement="top" title="Editar">
                                     <i class="fas fa-pen"></i>
                                 </a>

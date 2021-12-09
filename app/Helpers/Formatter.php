@@ -49,11 +49,15 @@ class Formatter
         return "($matches[1]) $matches[2]$matches[3]-$matches[4]";
     }
 
-    public function date($date){
+    public static function date($date){
         return Carbon::parse($date)->format('d/m/Y');
     }
 
-    public function datetime($datetime){
+    public static function datetime($datetime){
         return Carbon::parse($datetime)->format('d/m/Y H:i:s');
+    }
+
+    public static function preco($preco){
+        return 'R$ ' . number_format($preco, 2, ',', '.');
     }
 }

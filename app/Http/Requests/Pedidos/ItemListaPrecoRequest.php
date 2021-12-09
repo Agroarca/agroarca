@@ -31,7 +31,7 @@ class ItemListaPrecoRequest extends FormRequest
     public function rules()
     {
         return [
-            'preco_quilo' => 'decimal|required|greater_than:0',
+            'preco_quilo' => 'numeric|required|greater_than:0',
             'estoque_disponivel' => 'integer|nullable|min:0',
             'produto_id' => 'integer|required|exists:produtos,id',
             'lista_preco_id' => 'integer|required|exists:listas_preco,id'

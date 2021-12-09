@@ -8,9 +8,9 @@ use App\Http\Controllers\Cadastros\UsuarioEnderecoController;
 use App\Http\Controllers\Estoque\CategoriaController;
 use App\Http\Controllers\Estoque\MarcaController;
 use App\Http\Controllers\Estoque\ProdutoController;
-use App\Http\Controllers\Estoque\ProdutoFornecedorController;
 use App\Http\Controllers\Estoque\ProdutoImagemController;
 use App\Http\Controllers\Estoque\TipoProdutoController;
+use App\Http\Controllers\Pedidos\ItemListaPrecoController;
 use App\Http\Controllers\Pedidos\ListaPrecoController;
 use Illuminate\Support\Facades\Route;
 
@@ -108,15 +108,6 @@ Route::middleware(['auth'])->prefix('admin')->name('admin')->group(function(){
             Route::post('atualizar/{id}', [TipoProdutoController::class, 'atualizar'])->name('.atualizar');
             Route::get('excluir/{id}', [TipoProdutoController::class, 'excluir'])->name('.excluir');
         });
-
-        Route::prefix('fornecedor/produtos')->name('.produtoFornecedor')->group(function (){
-            Route::get('', [ProdutoFornecedorController::class, 'inicio'])->name('');
-            Route::get('criar/', [ProdutoFornecedorController::class, 'criar'])->name('.criar');
-            Route::post('salvar/', [ProdutoFornecedorController::class, 'salvar'])->name('.salvar');
-            Route::get('editar/{id}', [ProdutoFornecedorController::class, 'editar'])->name('.editar');
-            Route::post('atualizar/{id}', [ProdutoFornecedorController::class, 'atualizar'])->name('.atualizar');
-            Route::get('excluir/{id}', [ProdutoFornecedorController::class, 'excluir'])->name('.excluir');
-        });
     });
 
     Route::namespace('Pedidos')->prefix('pedidos')->name('.pedidos')->group(function(){
@@ -128,6 +119,15 @@ Route::middleware(['auth'])->prefix('admin')->name('admin')->group(function(){
             Route::get('editar/{id}', [ListaPrecoController::class, 'editar'])->name('.editar');
             Route::post('atualizar/{id}', [ListaPrecoController::class, 'atualizar'])->name('.atualizar');
             Route::get('excluir/{id}', [ListaPrecoController::class, 'excluir'])->name('.excluir');
+
+            Route::prefix('{lista_preco_id}/itemListaPreco')->name('.itens')->group(function() {
+                Route::get('', [ItemListaPrecoController::class, 'inicio'])->name('');
+                Route::get('criar/', [ItemListaPrecoController::class, 'criar'])->name('.criar');
+                Route::post('salvar/', [ItemListaPrecoController::class, 'salvar'])->name('.salvar');
+                Route::get('editar/{id}', [ItemListaPrecoController::class, 'editar'])->name('.editar');
+                Route::post('atualizar/{id}', [ItemListaPrecoController::class, 'atualizar'])->name('.atualizar');
+                Route::get('excluir/{id}', [ItemListaPrecoController::class, 'excluir'])->name('.excluir');
+            });
         });
     });
 });
