@@ -19,8 +19,8 @@
             <table class="table table-stripped table-hover">
                 <thead>
                     <th>Produto</th>
-                    <th>Estoque Vendido</th>
-                    <th>Estoque Disponível</th>
+                    <th class="d-none d-md-table-cell">Estoque Vendido</th>
+                    <th class="d-none d-md-table-cell">Estoque Disponível</th>
                     <th>Preço por KG.</th>
                     <th>Ações</th>
                 </thead>
@@ -28,8 +28,8 @@
                     @foreach ($itensListaPreco as $item)
                         <tr>
                             <td>{{ $item->produto->nome }}</td>
-                            <td>{{ $item->estoque_vendido }}</td>
-                            <td>{{ $item->estoque_disponivel }}</td>
+                            <td class="d-none d-md-table-cell">{{ $item->estoque_vendido }} Kg.</td>
+                            <td class="d-none d-md-table-cell">{{ $item->estoque_disponivel }} Kg.</td>
                             <td>{{ Formatter::preco($item->preco_quilo) }}</td>
                             <td>
                                 <a href="{{ route('admin.pedidos.listas_preco.itens.editar', [$listaPreco->id, $item->id]) }}" class="btn btn-primary" data-toggle="tooltip" data-placement="top" title="Editar">

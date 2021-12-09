@@ -1,3 +1,5 @@
+@section('InputMask', true)
+
 <x-admin>
     <x-slot name='header'>
         <h1>Novo Centro de Distribuição</h1>
@@ -21,13 +23,13 @@
 
                 <div class="form-group">
                     <label for="cnpj">CNPJ:</label>
-                    <input type="text" name="cnpj" value="{{ old('cnpj') }}" @class(['form-control', 'is-invalid' => $errors->has('cnpj')]) />
+                    <input type="text" name="cnpj" value="{{ old('cnpj') }}" @class(['form-control mask-cnpj', 'is-invalid' => $errors->has('cnpj')]) />
                     <x-admin.form-error property='cnpj'></x-admin.form-error>
                 </div>
 
                 <div class="form-group">
                     <label for="telefone">Telefone:</label>
-                    <input type="text" name="telefone" value="{{ old('telefone') }}" @class(['form-control', 'is-invalid' => $errors->has('telefone')]) />
+                    <input type="text" name="telefone" value="{{ old('telefone') }}" @class(['form-control mask-telefone', 'is-invalid' => $errors->has('telefone')]) />
                     <x-admin.form-error property='telefone'></x-admin.form-error>
                 </div>
 
