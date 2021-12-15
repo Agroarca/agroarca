@@ -34,7 +34,8 @@ class ItemListaPrecoRequest extends FormRequest
             'preco_quilo' => 'numeric|required|greater_than:0',
             'estoque_disponivel' => 'integer|nullable|min:0',
             'produto_id' => 'integer|required|exists:produtos,id',
-            'lista_preco_id' => 'integer|required|exists:listas_preco,id'
+            'lista_preco_id' => 'integer|required|exists:listas_preco,id',
+            'centro_distribuicao_id' => 'integer|required|exists:fornecedor_centros_distribuicao,id'
         ];
     }
 
@@ -45,6 +46,7 @@ class ItemListaPrecoRequest extends FormRequest
             'estoque_disponivel' => 'Estoque Disponível',
             'produto_id' => 'Produto',
             'lista_preco_id' => 'Lista de Preço',
+            'centro_distribuicao_id' => 'Centro de Distribuição',
         ];
     }
 }

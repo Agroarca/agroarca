@@ -19,6 +19,7 @@
             <table class="table table-stripped table-hover">
                 <thead>
                     <th>Produto</th>
+                    <th class="d-none d-md-table-cell">Centro de Distribuição</th>
                     <th class="d-none d-md-table-cell">Estoque Vendido</th>
                     <th class="d-none d-md-table-cell">Estoque Disponível</th>
                     <th>Preço por KG.</th>
@@ -28,6 +29,7 @@
                     @foreach ($itensListaPreco as $item)
                         <tr>
                             <td>{{ $item->produto->nome }}</td>
+                            <td class="d-none d-md-table-cell">{{ $item->centroDistribuicao->nome }}</td>
                             <td class="d-none d-md-table-cell">{{ $item->estoque_vendido }} Kg.</td>
                             <td class="d-none d-md-table-cell">{{ $item->estoque_disponivel }} Kg.</td>
                             <td>{{ Formatter::preco($item->preco_quilo) }}</td>

@@ -30,6 +30,10 @@ class Usuario extends Authenticatable
         'tipo'
     ];
 
+    public function getNameAttribute(){
+        return $this->nome;
+    }
+
     public function getCpfFormatadoAttribute(){
         return Formatter::cpf($this->cpf);
     }

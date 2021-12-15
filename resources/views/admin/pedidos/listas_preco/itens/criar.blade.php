@@ -19,6 +19,11 @@
                     <x-admin.form-error property='produto_id'></x-admin.form-error>
                 </div>
                 <div class="form-group">
+                    <label for="centro_distribuicao_id">Centro de Distribuição:</label>
+                    <x-admin.select name='centro_distribuicao_id' :values="$listaPreco->fornecedor->centrosDistribuicao->pluck('nome', 'id')->toArray()" :selected="old('centro_distribuicao_id')" placeholder="Selecione o Centro de Distribuição" :class="['form-control', 'is-invalid' => $errors->has('centro_distribuicao_id')]"></x-admin.select>
+                    <x-admin.form-error property='centro_distribuicao_id'></x-admin.form-error>
+                </div>
+                <div class="form-group">
                     <label for="estoque_disponivel"  data-toggle="tooltip" data-placement="top" title="Estoque total que pode ser vendido, deixe em branco para não ter limite"><i class="fas fa-info-circle"></i> Estoque Disponível (Kg):</label>
                     <input type="text" name="estoque_disponivel" value="{{ old('estoque_disponivel') }}" @class(['form-control mask-quilo', 'is-invalid' => $errors->has('estoque_disponivel')]) />
                     <x-admin.form-error property='estoque_disponivel'></x-admin.form-error>

@@ -2,6 +2,7 @@
 
 namespace App\Models\Pedidos;
 
+use App\Models\Cadastros\CentroDistribuicao;
 use App\Models\Estoque\Produto;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -16,7 +17,8 @@ class ItemListaPreco extends Model
         'estoque_vendido',
         'estoque_disponivel',
         'produto_id',
-        'lista_preco_id'
+        'lista_preco_id',
+        'centro_distribuicao_id'
     ];
 
     public function listaPreco(){
@@ -25,5 +27,9 @@ class ItemListaPreco extends Model
 
     public function produto(){
         return $this->belongsTo(Produto::class);
+    }
+
+    public function centroDistribuicao(){
+        return $this->belongsTo(CentroDistribuicao::class);
     }
 }

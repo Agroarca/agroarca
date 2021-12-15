@@ -2,6 +2,7 @@
 
 namespace App\Models\Cadastros;
 
+use App\Models\Pedidos\ItemListaPreco;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
@@ -26,5 +27,9 @@ class CentroDistribuicao extends Model
 
     public function usuarioEndereco(){
         return $this->belongsTo(UsuarioEndereco::class);
+    }
+
+    public function itensListaPreco(){
+        return $this->hasMany(ItemListaPreco::class);
     }
 }

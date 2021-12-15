@@ -13,11 +13,17 @@
             @csrf
             <div class="card-body">
                 <input type="hidden" name="lista_preco_id" value="{{ $listaPreco->id }}">
+                <input type="hidden" name="produto_id" value="{{ $itemListaPreco->produto_id }}">
+                <input type="hidden" name="centro_distribuicao_id" value="{{ $itemListaPreco->centro_distribuicao_id }}">
                 <div class="form-group">
-                    <input type="hidden" name="produto_id" value="{{ $itemListaPreco->produto_id }}">
                     <label for="produto">Produto:</label>
-                    <x-admin.select name='produto' disabled :values="Produto::where('id', $itemListaPreco->produto_id)->pluck('nome', 'id')->toArray()" :selected="$itemListaPreco->produto_id" placeholder="Selecione o Produto" :class="['form-control', 'is-invalid' => $errors->has('produto')]"></x-admin.select>
+                    <x-admin.select name='produto' disabled :values="Produto::where('id', $itemListaPreco->produto_id)->pluck('nome', 'id')->toArray()" :selected="$itemListaPreco->produto_id" placeholder="Selecione o Produto" :class="['form-control', 'is-invalid' => $errors->has('produto_id')]"></x-admin.select>
                     <x-admin.form-error property='produto_id'></x-admin.form-error>
+                </div>
+                <div class="form-group">
+                    <label for="centro_distribuicao">Centro de Distribuição:</label>
+                    <x-admin.select name='centro_distribuicao' disabled :values="$listaPreco->fornecedor->centrosDistribuicao->where('id', $itemListaPreco->centro_distribuicao_id)->pluck('nome', 'id')->toArray()" :selected="$itemListaPreco->centro_distribuicao_id" placeholder="Selecione o Centro de Distribuição" :class="['form-control', 'is-invalid' => $errors->has('centro_distribuicao_id')]"></x-admin.select>
+                    <x-admin.form-error property='centro_distribuicao_id'></x-admin.form-error>
                 </div>
                 <div class="form-group">
                     <label for="estoque_disponivel"  data-toggle="tooltip" data-placement="top" title="Estoque total que pode ser vendido, deixe em branco para não ter limite"><i class="fas fa-info-circle"></i> Estoque Disponível (Kg):</label>
