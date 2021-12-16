@@ -72,7 +72,7 @@
                 </div>
                 <div>
                     <label for="password_confirmation">Confirmar Senha:</label>
-                    <input id="password_confirmation" type="password" name="password_confirmation" value="old('email')" required>
+                    <input id="password_confirmation" type="password" name="password_confirmation" required>
                 </div>
 
                 <div class="botoes">

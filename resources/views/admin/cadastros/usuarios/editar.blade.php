@@ -24,7 +24,7 @@
                 </div>
                 <div class="form-group">
                     <label for="tipo_pessoa">Tipo de Pessoa:</label>
-                    <input type="text" name="tipo_pessoa" class="form-control" value="{{ $usuario->tipo_pessoa }}" disabled />
+                    <input type="text" name="tipo_pessoa" class="form-control" value="{{ $usuario->nomeTipoPessoa }}" disabled />
                 </div>
                 <div class="form-group">
                     <label for="cpf">CPF:</label>

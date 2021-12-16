@@ -18,7 +18,7 @@ class Telefone implements Rule
         $telefone = preg_replace('/\D/', '', (string) $value);
 
         // Verifica quantidade de dígitos
-        if (!preg_match('/\d{10}\d?/', $telefone)) {
+        if (!preg_match('/^\d{2}9?\d{8}$/', $telefone)) {
             return false;
         }
 
@@ -32,6 +32,6 @@ class Telefone implements Rule
      */
     public function message()
     {
-        return 'O telefone digitado é inválido';
+        return 'O :attribute digitado é inválido';
     }
 }
