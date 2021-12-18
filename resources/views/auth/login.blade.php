@@ -1,5 +1,5 @@
 <x-site>
-    <div class="login container">
+    <div class="auth login container">
         <div class="form">
             <form method="POST" action="{{ route('login') }}">
                 @csrf
@@ -78,7 +78,6 @@
                 <div class="botoes">
                     <button class="btn" type="submit">Registrar</button>
                 </div>
-
             </form>
         </div>
     </div>

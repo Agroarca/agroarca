@@ -1,36 +1,27 @@
 <x-site>
-    <x-auth-card>
-        <x-slot name="logo">
-            <a href="/">
-                <x-application-logo class="w-20 h-20 fill-current text-gray-500" />
-            </a>
-        </x-slot>
-
-        <div class="mb-4 text-sm text-gray-600">
-            {{ __('This is a secure area of the application. Please confirm your password before continuing.') }}
+    <div class="auth confirm-password container">
+        <div class="form">
+            <form method="POST" action="{{ route('password.confirm')}}">
+                @csrf
+                <h2>Confirmar Senha:</h2>
+                <span class="subtitle">Essa é uma área restrita do site. Confirme sua senha para continuar</span>
+                <div>
+                    @if($errors->any())
+                        <ul>
+                            @foreach ($errors->all() as $error)
+                                <li>{{ $error }}</li>
+                            @endforeach
+                        </ul>
+                    @endif
+                </div>
+                <div>
+                    <label for="password">Senha:</label>
+                    <input id="password" type="password" name="password" required autofocus autocomplete="current-password">
+                </div>
+                <div class="botoes">
+                    <button type="submit" class="btn">Confirmar Senha</button>
+                </div>
+            </form>
         </div>
-
-        <!-- Validation Errors -->
-        <x-auth-validation-errors class="mb-4" :errors="$errors" />
-
-        <form method="POST" action="{{ route('password.confirm') }}">
-            @csrf
-
-            <!-- Password -->
-            <div>
-                <x-label for="password" :value="__('Password')" />
-
-                <x-input id="password" class="block mt-1 w-full"
-                                type="password"
-                                name="password"
-                                required autocomplete="current-password" />
-            </div>
-
-            <div class="flex justify-end mt-4">
-                <x-button>
-                    {{ __('Confirm') }}
-                </x-button>
-            </div>
-        </form>
-    </x-auth-card>
+    </div>
 </x-site>

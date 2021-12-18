@@ -42,6 +42,7 @@
     --cinza-claro-secundario: #f9f9f9;
     --preto: #141414;
     --borda: #d4d4d4;
+    --subtitulo: #686868;
 }
 
 .reference {
@@ -62,6 +63,17 @@ body {
     padding: 0;
     margin: 0;
     color: var(--preto);
+}
+
+.link{
+    color: var(--verde-claro);
+    font-family: "Poppins", Arial, Helvetica, sans-serif;
+    font-weight: 500;
+    text-decoration: none;
+}
+
+.link:hover{
+    color: var(--verde-escuro);
 }
 
 .flex-column {
@@ -319,32 +331,47 @@ section {
 /* LOGIN E REGISTRO */
 /********************/
 
-.login{
+.auth{
     display: flex;
     flex-direction: row;
+    justify-content: center;
 }
 
-.form{
+.auth .form{
     display: flex;
     flex-direction: column;
+    font-size: 18px;
+    max-width: 500px;
+    padding: 60px 0;
+}
+
+.login .form{
     width: 50%;
     padding: 60px 86px;
-    font-size: 18px;
 }
-.login h2{
+
+.auth h2{
     font-family: "Poppins", Arial, Helvetica, sans-serif;
     font-weight: 600;
     font-size: 28px;
 }
 
-.login label{
+.auth .subtitle{
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--subtitulo);
+    margin-bottom: 24px;
+    display: block;
+}
+
+.auth label{
     display: inline-block;
     margin-bottom: .5rem;
 }
 
-.login input[type=text],
-.login input[type=email],
-.login input[type=password]{
+.auth input[type=text],
+.auth input[type=email],
+.auth input[type=password]{
     font-size: 18px;
     display: block;
     width: 100%;
@@ -357,28 +384,28 @@ section {
     transition: border-color .15s ease-in-out;
 }
 
-.login input[type=checkbox]{
+.auth input[type=checkbox]{
     height: 1.5rem;
     width: 1.5rem;
     background: var(--verde-claro);
 }
 
-.login input:focus{
+.auth input:focus{
     border-color: var(--cinza-escuro);
 }
 
-.login .check-label{
+.auth .check-label{
     display: inline-flex;
     align-items: center;
 }
 
-.login .botoes{
+.auth .botoes{
     display: flex;
     flex-direction: column;
     align-items: center;
 }
 
-.login .btn{
+.auth .btn{
     background-color: var(--verde-claro);
     font-size: 18px;
     padding: 1.3rem 2.8rem;
@@ -395,19 +422,19 @@ section {
     margin-top: 20px;
 }
 
-.login .btn:hover{
+.auth .btn:hover{
     color: var(--verde-escuro);
 }
 
-.login .link{
+.auth .link{
     margin-top: 20px;
 }
 
-.login .register{
+.auth .register{
     position: relative;
 }
 
-.login .register:before{
+.auth .register:before{
     content: "";
     border-left:4px solid var(--verde-claro);
     height: 50%;
