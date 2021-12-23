@@ -27,7 +27,8 @@ class AddCdItemListaPreco extends Migration
     public function down()
     {
         Schema::table('itens_lista_preco', function (Blueprint $table) {
-            //
+            $table->dropForeign(['centro_distribuicao_id']);
+            $table->dropColumn('centro_distribuicao_id');
         });
     }
 }

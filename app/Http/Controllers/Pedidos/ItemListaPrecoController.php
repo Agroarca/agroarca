@@ -33,7 +33,7 @@ class ItemListaPrecoController extends Controller
 
     public function atualizar(ItemListaPrecoRequest $request, $lista_preco_id, $id) {
         $itemListaPreco = ItemListaPreco::where('lista_preco_id', $lista_preco_id)->findOrFail($id);
-        $itemListaPreco->update($request->only('preco_quilo', 'estoque_disponivel'));
+        $itemListaPreco->update($request->only('preco_quilo', 'estoque_disponivel', 'base_frete'));
         return redirect()->route('admin.pedidos.listas_preco.itens', $lista_preco_id);
     }
 

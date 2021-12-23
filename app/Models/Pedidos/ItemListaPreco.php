@@ -18,7 +18,8 @@ class ItemListaPreco extends Model
         'estoque_disponivel',
         'produto_id',
         'lista_preco_id',
-        'centro_distribuicao_id'
+        'centro_distribuicao_id',
+        'base_frete'
     ];
 
     public function listaPreco(){

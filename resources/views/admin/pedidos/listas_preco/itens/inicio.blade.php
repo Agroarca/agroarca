@@ -23,6 +23,7 @@
                     <th class="d-none d-md-table-cell">Estoque Vendido</th>
                     <th class="d-none d-md-table-cell">Estoque Disponível</th>
                     <th>Preço por KG.</th>
+                    <th class="d-none d-md-table-cell">Base do Frete</th>
                     <th>Ações</th>
                 </thead>
                 <tbody>
@@ -33,6 +34,7 @@
                             <td class="d-none d-md-table-cell">{{ $item->estoque_vendido }} Kg.</td>
                             <td class="d-none d-md-table-cell">{{ $item->estoque_disponivel }} Kg.</td>
                             <td>{{ Formatter::preco($item->preco_quilo) }}</td>
+                            <td class="d-none d-md-table-cell">{{ Formatter::preco($item->base_frete) }}</td>
                             <td>
                                 <a href="{{ route('admin.pedidos.listas_preco.itens.editar', [$listaPreco->id, $item->id]) }}" class="btn btn-primary" data-toggle="tooltip" data-placement="top" title="Editar">
                                     <i class="fas fa-pen"></i>
