@@ -14,7 +14,7 @@ class GoogleGeocodingController extends Controller
     public $baseUrl = 'https://maps.googleapis.com/maps/api/geocode/json';
 
     public function consultarEndereco(GoogleGeocoding $endereco){
-        $address = urlencode("$endereco->endereco, $endereco->numero") . ";components=postalcode:$endereco->cep";
+        $address = urlencode("$endereco->endereco $endereco->numero") . ";components=postalcode:$endereco->cep";
 
         $client = new Client([
             'base_uri' => $this->baseUrl,
