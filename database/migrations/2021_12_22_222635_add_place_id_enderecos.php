@@ -4,7 +4,7 @@ use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
-class ChangeComplementoNull extends Migration
+class AddPlaceIdEnderecos extends Migration
 {
     /**
      * Run the migrations.
@@ -14,7 +14,10 @@ class ChangeComplementoNull extends Migration
     public function up()
     {
         Schema::table('usuario_enderecos', function (Blueprint $table) {
-            $table->string('complemento', 100)->nullable()->change();
+            $table->text('google_place_id')->nullable();
+            $table->date('google_pace_id_updated')->nullable();
+            $table->double('latitude')->nullable();
+            $table->double('longitude')->nullable();
         });
     }
 
@@ -26,7 +29,10 @@ class ChangeComplementoNull extends Migration
     public function down()
     {
         Schema::table('usuario_enderecos', function (Blueprint $table) {
-            $table->string('complemento', 100)->change();
+            $table->dropColumn('google_place_id');
+            $table->dropColumn('google_pace_id_updated');
+            $table->dropColumn('latitude');
+            $table->dropColumn('longitude');
         });
     }
 }

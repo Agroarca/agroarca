@@ -32,6 +32,7 @@ class ItemListaPrecoRequest extends FormRequest
     {
         return [
             'preco_quilo' => 'numeric|required|greater_than:0',
+            'base_frete' => 'numeric|nullable|min:0',
             'estoque_disponivel' => 'integer|nullable|min:0',
             'produto_id' => 'integer|required|exists:produtos,id',
             'lista_preco_id' => 'integer|required|exists:listas_preco,id',
@@ -42,7 +43,8 @@ class ItemListaPrecoRequest extends FormRequest
     public function attributes()
     {
         return [
-            'preco_quilo ' => 'Preço por Quilo',
+            'preco_quilo' => 'Preço por Quilo',
+            'base_frete' => 'Base de Frete',
             'estoque_disponivel' => 'Estoque Disponível',
             'produto_id' => 'Produto',
             'lista_preco_id' => 'Lista de Preço',

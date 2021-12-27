@@ -33,6 +33,11 @@
                     <input type="text" name="preco_quilo" value="{{ old('preco_quilo') }}" @class(['form-control mask-preco', 'is-invalid' => $errors->has('preco_quilo')]) />
                     <x-admin.form-error property='preco_quilo'></x-admin.form-error>
                 </div>
+                <div class="form-group">
+                    <label for="base_frete" data-toggle="tooltip" data-placement="top" title="Valor base do cálculo do frete. o cálculo será o Valor de Base * A quantidade em Kg do produto * Distância em Km"><i class="fas fa-info-circle"></i> Base do Frete (por Kg por Km):</label>
+                    <input type="text" name="base_frete" value="{{ old('base_frete') }}" @class(['form-control mask-preco', 'is-invalid' => $errors->has('base_frete')]) />
+                    <x-admin.form-error property='base_frete'></x-admin.form-error>
+                </div>
             </div>
             <div class="card-footer">
                 <button type="submit" class="btn btn-primary">Criar</button>

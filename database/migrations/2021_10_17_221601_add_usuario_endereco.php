@@ -16,6 +16,7 @@ class AddUsuarioEndereco extends Migration
         Schema::create('usuario_enderecos', function (Blueprint $table) {
             $table->id();
 
+
             $table->string('nome', 100);
             $table->string('endereco', 100);
             $table->string('bairro', 100);
