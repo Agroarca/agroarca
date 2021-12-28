@@ -22,6 +22,9 @@ class DistanciasController extends Controller
         $this->placeIdRefresh = env('GOOGLE_PLACE_ID_REFRESH_DAYS');
     }
 
+    /*
+    * Calcula a distância em metros entre a $origem e o $destino
+    */
     public function calcularDistancia($origem, $destino){
         $this->verificarAtualizarPlaceId($origem);
         $this->verificarAtualizarPlaceId($destino);
