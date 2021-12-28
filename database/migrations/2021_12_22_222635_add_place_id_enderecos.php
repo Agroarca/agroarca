@@ -15,7 +15,7 @@ class AddPlaceIdEnderecos extends Migration
     {
         Schema::table('usuario_enderecos', function (Blueprint $table) {
             $table->text('google_place_id')->nullable();
-            $table->date('google_pace_id_updated')->nullable();
+            $table->date('google_place_id_updated')->nullable();
             $table->double('latitude')->nullable();
             $table->double('longitude')->nullable();
         });
@@ -30,7 +30,7 @@ class AddPlaceIdEnderecos extends Migration
     {
         Schema::table('usuario_enderecos', function (Blueprint $table) {
             $table->dropColumn('google_place_id');
-            $table->dropColumn('google_pace_id_updated');
+            $table->dropColumn('google_place_id_updated');
             $table->dropColumn('latitude');
             $table->dropColumn('longitude');
         });

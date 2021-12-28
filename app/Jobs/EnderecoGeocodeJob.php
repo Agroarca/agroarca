@@ -4,6 +4,7 @@ namespace App\Jobs;
 
 use App\Classes\Interfaces\GoogleGeocoding;
 use App\Http\Controllers\Api\GoogleGeocodingController;
+use App\Http\Controllers\Frete\DistanciasController;
 use App\Models\Cadastros\UsuarioEndereco;
 use Carbon\Carbon;
 use Illuminate\Contracts\Queue\ShouldBeUnique;
@@ -28,21 +29,7 @@ class EnderecoGeocodeJob implements ShouldQueue, ShouldBeUnique
 
     public function handle()
     {
-        $updated = Carbon::parse($this->endereco->google_pace_id_updated);
-        $now = Carbon::now();
-        if($this->endereco->google_pace_id_updated && $updated->diffInDays($now) < env('GOOGLE_PLACE_ID_REFRESH_DAYS')){
-            return;
-        }
-
-        $controller = new GoogleGeocodingController();
-        $endereco = new GoogleGeocoding($this->endereco->endereco, $this->endereco->numero, $this->endereco->cep);
-        $retorno = $controller->consultarEndereco($endereco);
-
-        if($retorno){
-            $this->endereco->google_place_id = $retorno->placeId;
-            $this->endereco->latitude = $retorno->latitude;
-            $this->endereco->longitude = $retorno->longitude;
-            $this->endereco->save();
-        }
+        $controller = new DistanciasController();
+        $controller->verificarAtualizarPlaceId($this->endereco);
     }
 }

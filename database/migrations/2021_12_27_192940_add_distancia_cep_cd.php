@@ -4,7 +4,7 @@ use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
-class CreateCep extends Migration
+class AddDistanciaCepCd extends Migration
 {
     /**
      * Run the migrations.
@@ -13,14 +13,15 @@ class CreateCep extends Migration
      */
     public function up()
     {
-        Schema::create('ceps', function (Blueprint $table) {
+        Schema::create('distancia_cep_cd', function (Blueprint $table) {
             $table->id();
 
             $table->string('cep', 8);
-            $table->text('google_place_id')->nullable();
-            $table->date('google_place_id_updated')->nullable();
-            $table->double('latitude')->nullable();
-            $table->double('longitude')->nullable();
+
+            $table->foreignId('endereco_id');
+            $table->foreign('endereco_id')->references('id')->on('usuario_enderecos')->onDelete('cascade');
+
+            $table->decimal('distancia', 12, 2);
 
             $table->timestamps();
         });
@@ -33,6 +34,6 @@ class CreateCep extends Migration
      */
     public function down()
     {
-        Schema::dropIfExists('ceps');
+        Schema::dropIfExists('distancia_cep_cd');
     }
 }

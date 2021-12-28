@@ -24,7 +24,7 @@ class UsuarioEndereco extends Model
         'cidade_id',
         'usuario_id',
         'google_place_id',
-        'google_pace_id_updated',
+        'google_place_id_updated',
         'latitude',
         'longitude'
     ];
@@ -39,7 +39,7 @@ class UsuarioEndereco extends Model
 
     public function setGooglePlaceIdAttribute($value){
         $this->attributes['google_place_id'] = $value;
-        $this->attributes['google_pace_id_updated'] = Carbon::now()->toDate();
+        $this->attributes['google_place_id_updated'] = Carbon::now()->toDate();
     }
 
     public function cidade(){

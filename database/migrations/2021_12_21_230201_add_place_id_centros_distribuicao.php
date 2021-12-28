@@ -15,7 +15,7 @@ class AddPlaceIdCentrosDistribuicao extends Migration
     {
         Schema::table('fornecedor_centros_distribuicao', function (Blueprint $table) {
             $table->text('google_place_id')->nullable();
-            $table->date('google_pace_id_updated')->nullable();
+            $table->date('google_place_id_updated')->nullable();
         });
     }
 
@@ -28,7 +28,7 @@ class AddPlaceIdCentrosDistribuicao extends Migration
     {
         Schema::table('fornecedor_centros_distribuicao', function (Blueprint $table) {
             $table->dropColumn('google_place_id');
-            $table->dropColumn('google_pace_id_updated');
+            $table->dropColumn('google_place_id_updated');
         });
     }
 }
