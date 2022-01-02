@@ -7,12 +7,12 @@ use App\Models\Estoque\Categoria;
 use App\Models\Estoque\Produto;
 use Illuminate\Http\Request;
 
-class CategoriaController extends Controller
+class CategoriaController extends ListagemController
 {
     public function categoria($id = null){
         $categoria = Categoria::find($id);
         $categorias = $this->categorias($id);
-        $produtos = Produto::whereIn('categoria_id', $categorias)->paginate(20);
+        $produtos = $this->queryBase()->whereIn('categoria_id', $categorias)->paginate($this->perPage);
         return view('site.listagem.listagem', compact('produtos'), compact('categoria'));
     }
 
