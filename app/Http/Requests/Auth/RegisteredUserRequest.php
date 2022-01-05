@@ -74,6 +74,9 @@ class RegisteredUserRequest extends FormRequest
             $attributes['tipo_pessoa'] = TipoPessoaEnum::PessoaJuridica;
         }
 
+        $celular = preg_replace('/\D/', '', (string) $this->input('celular'));
+        $attributes['celular'] = $celular;
+
         $this->merge($attributes);
     }
 }

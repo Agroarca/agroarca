@@ -7,7 +7,7 @@
                     @include('site.produto.imagens', ['imagens' => $produto->imagens])
                 </div>
                 <div class="infos">
-                    @include('site.produto.infos', ['produto' => $produto])
+                    @include('site.produto.infos', ['produto' => $produto, 'precoProduto' => $precoProduto])
                 </div>
             </div>
             @if ($produto->descricao_longa)

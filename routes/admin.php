@@ -1,17 +1,17 @@
 <?php
 
-use App\Http\Controllers\Cadastros\CentroDistribuicaoController;
-use App\Http\Controllers\Cadastros\CidadeController;
-use App\Http\Controllers\Cadastros\EstadoController;
-use App\Http\Controllers\Cadastros\UsuarioController;
-use App\Http\Controllers\Cadastros\UsuarioEnderecoController;
-use App\Http\Controllers\Estoque\CategoriaController;
-use App\Http\Controllers\Estoque\MarcaController;
-use App\Http\Controllers\Estoque\ProdutoController;
-use App\Http\Controllers\Estoque\ProdutoImagemController;
-use App\Http\Controllers\Estoque\TipoProdutoController;
-use App\Http\Controllers\Pedidos\ItemListaPrecoController;
-use App\Http\Controllers\Pedidos\ListaPrecoController;
+use App\Http\Controllers\Admin\Cadastros\CentroDistribuicaoController;
+use App\Http\Controllers\Admin\Cadastros\CidadeController;
+use App\Http\Controllers\Admin\Cadastros\EstadoController;
+use App\Http\Controllers\Admin\Cadastros\UsuarioController;
+use App\Http\Controllers\Admin\Cadastros\UsuarioEnderecoController;
+use App\Http\Controllers\Admin\Estoque\CategoriaController;
+use App\Http\Controllers\Admin\Estoque\MarcaController;
+use App\Http\Controllers\Admin\Estoque\ProdutoController;
+use App\Http\Controllers\Admin\Estoque\ProdutoImagemController;
+use App\Http\Controllers\Admin\Estoque\TipoProdutoController;
+use App\Http\Controllers\Admin\Pedidos\ItemListaPrecoController;
+use App\Http\Controllers\Admin\Pedidos\ListaPrecoController;
 use Illuminate\Support\Facades\Route;
 
 /*

@@ -46,4 +46,12 @@ class UsuarioEnderecoRequest extends FormRequest
             'cidade_id' => 'Cidade'
         ];
     }
+
+    protected function prepareForValidation()
+    {
+        $cep = preg_replace('/\D/', '', (string) $this->input('cep'));
+        $attributes['cep'] = $cep;
+
+        $this->merge($attributes);
+    }
 }
