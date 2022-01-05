@@ -39,7 +39,7 @@ class DistanciasController extends Controller
 
         $distance = $this->consultarDistancia($origem, $destino);
 
-        if(!$distance){
+        if(!is_numeric($distance)){
             throw new Exception("Não foi possível consultar as distâncias na Api do Google");
         }
 

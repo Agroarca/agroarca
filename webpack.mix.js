@@ -23,6 +23,8 @@ mix.js('resources/js/app.js', 'public/js').postCss('resources/css/app.css', 'pub
     require('autoprefixer'),
 ]);
 
+mix.js('resources/js/site.js', 'public/js');
+
 mix.sass('resources/sass/vendor.scss', 'public/css/vendor.css')
 mix.postCss('resources/css/style.css', 'public/css/style.css')
 mix.postCss('resources/css/site.css', 'public/css/site.css')
