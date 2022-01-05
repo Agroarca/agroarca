@@ -26,7 +26,6 @@ class EnderecoGeocodeJob implements ShouldQueue, ShouldBeUnique
         return $this->endereco->id;
     }
 
-
     public function handle()
     {
         $controller = new DistanciasController();
