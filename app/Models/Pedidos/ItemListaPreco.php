@@ -4,8 +4,10 @@ namespace App\Models\Pedidos;
 
 use App\Models\Cadastros\CentroDistribuicao;
 use App\Models\Estoque\Produto;
+use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\DB;
 
 class ItemListaPreco extends Model
 {
@@ -32,5 +34,14 @@ class ItemListaPreco extends Model
 
     public function centroDistribuicao(){
         return $this->belongsTo(CentroDistribuicao::class);
+    }
+
+    public function calculaPreco($data){
+        $lista = $this->listaPreco;
+
+        $data = new Carbon($data);
+        $referencia = new Carbon($lista->data);
+
+        return DB::select('SELECT juroItemListaPreco(?, ?, ?, ?) AS valor', [$referencia, $data, $lista->ajuste_mensal, $this->preco_quilo])[0]->valor;
     }
 }
