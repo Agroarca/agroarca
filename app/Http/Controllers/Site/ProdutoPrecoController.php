@@ -73,7 +73,7 @@ class ProdutoPrecoController extends Controller
         }
 
         $item = $this->getItem($produto);
-        $produtoPreco->preco_quilo = $item->preco_quilo;
+        $produtoPreco->preco_quilo = $item->calculaPreco();
         $produtoPreco->item_lista_preco_id = $item->id;
         return $produtoPreco;
     }
