@@ -36,12 +36,8 @@ class ItemListaPreco extends Model
         return $this->belongsTo(CentroDistribuicao::class);
     }
 
-    public function calculaPreco($data){
-        $lista = $this->listaPreco;
-
+    public function calculaPreco($data = null){
         $data = new Carbon($data);
-        $referencia = new Carbon($lista->data);
-
-        return DB::select('SELECT juroItemListaPreco(?, ?, ?, ?) AS valor', [$referencia, $data, $lista->ajuste_mensal, $this->preco_quilo])[0]->valor;
+        return DB::select('SELECT juroItemListaPreco(?, ?) AS valor', [$this->id, $data])[0]->valor;
     }
 }

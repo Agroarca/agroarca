@@ -30,7 +30,7 @@ class ProdutoPrecoController extends Controller
                 $distancia = $controller->calcularDistancia($cep, $item->centroDistribuicao->usuarioEndereco);
 
                 $produtoPreco = new ProdutoPreco();
-                $produtoPreco->preco_quilo = $item->preco_quilo;
+                $produtoPreco->preco_quilo = $item->calculaPreco();
                 $produtoPreco->frete_quilo = $item->base_frete * ($distancia / 1000);
                 $produtoPreco->preco_total = $produtoPreco->preco_quilo + $produtoPreco->frete_quilo;
                 $produtoPreco->item_lista_preco_id = $item->id;
@@ -43,10 +43,10 @@ class ProdutoPrecoController extends Controller
 
         }
 
-        $itens = $produto->itensListaPreco()->orderBy('preco_quilo')->limit($this->limit)->get();
+        $itens = $this->getItens($produto);
         foreach($itens as $item){
             $produtoPreco = new ProdutoPreco();
-            $produtoPreco->preco_quilo = $item->preco_quilo;
+            $produtoPreco->preco_quilo = $item->calculaPreco();
             $produtoPreco->item_lista_preco_id = $item->id;
             $precos[] = $produtoPreco;
         }
@@ -64,7 +64,7 @@ class ProdutoPrecoController extends Controller
 
             if($item){
                 $distancia = $controller->calcularDistancia($cep, $item->centroDistribuicao->usuarioEndereco);
-                $produtoPreco->preco_quilo = $item->preco_quilo;
+                $produtoPreco->preco_quilo = $item->calculaPreco();
                 $produtoPreco->frete_quilo = $item->base_frete * ($distancia / 1000);
                 $produtoPreco->preco_total = $produtoPreco->preco_quilo + $produtoPreco->frete_quilo;
                 $produtoPreco->item_lista_preco_id = $item->id;
@@ -72,7 +72,7 @@ class ProdutoPrecoController extends Controller
             }
         }
 
-        $item = $produto->itensListaPreco()->orderBy('preco_quilo')->first();
+        $item = $this->getItem($produto);
         $produtoPreco->preco_quilo = $item->preco_quilo;
         $produtoPreco->item_lista_preco_id = $item->id;
         return $produtoPreco;
@@ -90,7 +90,9 @@ class ProdutoPrecoController extends Controller
                 })
                 ->join('fornecedor_centros_distribuicao', 'itens_lista_preco.centro_distribuicao_id', '=', 'fornecedor_centros_distribuicao.id')
                 ->join('usuario_enderecos', 'fornecedor_centros_distribuicao.usuario_endereco_id', '=', 'usuario_enderecos.id')
-                ->orderByRaw('(itens_lista_preco.preco_quilo + itens_lista_preco.base_frete * distanciaGeografica(?, ?, usuario_enderecos.latitude, usuario_enderecos.longitude))', [$cep->latitude, $cep->longitude])
+                ->join('listas_preco', 'itens_lista_preco.lista_preco_id', '=', 'listas_preco.id')
+                ->whereRaw('sysdate() between listas_preco.data_inicio and listas_preco.data_fim')
+                ->orderByRaw('(juroItemListaPreco(itens_lista_preco.id, sysdate()) + itens_lista_preco.base_frete * distanciaGeografica(?, ?, usuario_enderecos.latitude, usuario_enderecos.longitude))', [$cep->latitude, $cep->longitude])
                 ->first();
     }
 
@@ -106,7 +108,34 @@ class ProdutoPrecoController extends Controller
                 })
                 ->join('fornecedor_centros_distribuicao', 'itens_lista_preco.centro_distribuicao_id', '=', 'fornecedor_centros_distribuicao.id')
                 ->join('usuario_enderecos', 'fornecedor_centros_distribuicao.usuario_endereco_id', '=', 'usuario_enderecos.id')
-                ->orderByRaw('(itens_lista_preco.preco_quilo + itens_lista_preco.base_frete * distanciaGeografica(?, ?, usuario_enderecos.latitude, usuario_enderecos.longitude))', [$cep->latitude, $cep->longitude])
+                ->join('listas_preco', 'itens_lista_preco.lista_preco_id', '=', 'listas_preco.id')
+                ->whereRaw('sysdate() between listas_preco.data_inicio and listas_preco.data_fim')
+                ->orderByRaw('(juroItemListaPreco(itens_lista_preco.id, sysdate()) + itens_lista_preco.base_frete * distanciaGeografica(?, ?, usuario_enderecos.latitude, usuario_enderecos.longitude))', [$cep->latitude, $cep->longitude])
+                ->limit($this->limit)
+                ->get();
+    }
+
+    private function getItem(Produto $produto){
+        return $produto->itensListaPreco()
+                ->where(function($query){
+                    $query->whereNull('estoque_disponivel')
+                        ->orWhere('estoque_disponivel', '>', 0);
+                })
+                ->join('listas_preco', 'itens_lista_preco.lista_preco_id', '=', 'listas_preco.id')
+                ->whereRaw('sysdate() between listas_preco.data_inicio and listas_preco.data_fim')
+                ->orderByRaw('(juroItemListaPreco(itens_lista_preco.id, sysdate()))')
+                ->first();
+    }
+
+    private function getItens(Produto $produto){
+        return $produto->itensListaPreco()
+                ->where(function($query){
+                    $query->whereNull('estoque_disponivel')
+                        ->orWhere('estoque_disponivel', '>', 0);
+                })
+                ->join('listas_preco', 'itens_lista_preco.lista_preco_id', '=', 'listas_preco.id')
+                ->whereRaw('sysdate() between listas_preco.data_inicio and listas_preco.data_fim')
+                ->orderByRaw('(juroItemListaPreco(itens_lista_preco.id, sysdate()))')
                 ->limit($this->limit)
                 ->get();
     }

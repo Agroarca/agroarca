@@ -1,9 +1,7 @@
 <?php
 
 use Illuminate\Database\Migrations\Migration;
-use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Schema;
 
 class AddFunctionJurosItemListaPreco extends Migration
 {
@@ -15,7 +13,7 @@ class AddFunctionJurosItemListaPreco extends Migration
     public function up()
     {
         DB::unprepared('
-        create function juroItemListaPreco(dataReferencia date, data date, ajuste_mensal double, preco double)
+        create function calcJuroItemListaPreco(dataReferencia date, data date, ajuste_mensal double, preco double)
         returns double deterministic
         begin
             declare dias integer;
@@ -41,6 +39,6 @@ class AddFunctionJurosItemListaPreco extends Migration
      */
     public function down()
     {
-        DB::unprepared('drop function if exists juroItemListaPreco;');
+        DB::unprepared('drop function if exists calcJuroItemListaPreco;');
     }
 }
