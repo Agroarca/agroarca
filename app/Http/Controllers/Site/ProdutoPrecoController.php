@@ -8,6 +8,7 @@ use App\Http\Controllers\Frete\DistanciasController;
 use App\Models\Cadastros\UsuarioEndereco;
 use App\Models\Estoque\Produto;
 use App\Models\Frete\Cep;
+use Illuminate\Support\Facades\DB;
 
 class ProdutoPrecoController extends Controller
 {
@@ -86,7 +87,7 @@ class ProdutoPrecoController extends Controller
         return $produto->itensListaPreco()
                 ->where(function($query){
                     $query->whereNull('estoque_disponivel')
-                        ->orWhere('estoque_disponivel', '>', 0);
+                        ->orWhere('estoque_disponivel', '>', DB::raw(0));
                 })
                 ->join('fornecedor_centros_distribuicao', 'itens_lista_preco.centro_distribuicao_id', '=', 'fornecedor_centros_distribuicao.id')
                 ->join('usuario_enderecos', 'fornecedor_centros_distribuicao.usuario_endereco_id', '=', 'usuario_enderecos.id')
@@ -104,7 +105,7 @@ class ProdutoPrecoController extends Controller
         return $produto->itensListaPreco()
                 ->where(function($query){
                     $query->whereNull('estoque_disponivel')
-                        ->orWhere('estoque_disponivel', '>', 0);
+                        ->orWhere('estoque_disponivel', '>', DB::raw(0));
                 })
                 ->join('fornecedor_centros_distribuicao', 'itens_lista_preco.centro_distribuicao_id', '=', 'fornecedor_centros_distribuicao.id')
                 ->join('usuario_enderecos', 'fornecedor_centros_distribuicao.usuario_endereco_id', '=', 'usuario_enderecos.id')
@@ -119,7 +120,7 @@ class ProdutoPrecoController extends Controller
         return $produto->itensListaPreco()
                 ->where(function($query){
                     $query->whereNull('estoque_disponivel')
-                        ->orWhere('estoque_disponivel', '>', 0);
+                        ->orWhere('estoque_disponivel', '>', DB::raw(0));
                 })
                 ->join('listas_preco', 'itens_lista_preco.lista_preco_id', '=', 'listas_preco.id')
                 ->whereRaw('sysdate() between listas_preco.data_inicio and listas_preco.data_fim')
@@ -131,7 +132,7 @@ class ProdutoPrecoController extends Controller
         return $produto->itensListaPreco()
                 ->where(function($query){
                     $query->whereNull('estoque_disponivel')
-                        ->orWhere('estoque_disponivel', '>', 0);
+                        ->orWhere('estoque_disponivel', '>', DB::raw(0));
                 })
                 ->join('listas_preco', 'itens_lista_preco.lista_preco_id', '=', 'listas_preco.id')
                 ->whereRaw('sysdate() between listas_preco.data_inicio and listas_preco.data_fim')
