@@ -8,7 +8,9 @@
 
     <div class="main container">
         <div class="logo-container">
-            <img class="logo" src="{{ asset('img/logo.png') }}">
+            <a href="{{ url('/') }}">
+                <img class="logo" src="{{ asset('img/logo.png') }}">
+            </a>
         </div>
         <div class="search-container">
             <input type="text" class="search">
