@@ -33,6 +33,11 @@ class ListagemController extends Controller
                         ->from('itens_lista_preco as i2')
                         ->whereColumn('i2.produto_id', 'itens_lista_preco.produto_id');
             });
+        },
+        'imagens' => function($query) {
+            $query->whereIn('produto_imagens.id', function ($subQuery){
+                $subQuery->selectRaw('min(pi.id) from produto_imagens as pi group by pi.produto_id');
+            });
         }]);
     }
 }

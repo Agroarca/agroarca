@@ -21,6 +21,7 @@ Route::name('site')->group(function(){
     Route::prefix('produto')->name('.produto')->group(function(){
         Route::get('{id}', [ProdutoController::class, 'produto'])->name('');
         Route::post('{id}/cep', [ProdutoController::class, 'atualizarCep'])->name('.cep');
+        Route::post('{id}/adicionar', [ProdutoController::class, 'adicionarItem'])->name('.adicionar');
     });
 
     Route::prefix('categoria')->name('.categoria')->group(function(){

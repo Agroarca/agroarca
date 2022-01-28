@@ -4,6 +4,7 @@ namespace App\Models\Cadastros;
 
 use App\Enums\Cadastros\Usuarios\TipoPessoaEnum;
 use App\Helpers\Formatter;
+use App\Models\Pedidos\Pedido;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
@@ -64,5 +65,9 @@ class Usuario extends Authenticatable
 
     public function listasPreco(){
         return $this->hasMany(ListaPreco::class);
+    }
+
+    public function pedidos(){
+        return $this->hasMany(Pedido::class);
     }
 }

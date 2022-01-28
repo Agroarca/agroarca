@@ -16,3 +16,9 @@
         <input type="submit">
     </form>
 </div>
+<div class="adicionar">
+    <form method="POST" action="{{ route('site.produto.adicionar', $produto->id) }}">
+        @csrf
+        <input type="submit" value="Adicionar">
+    </form>
+</div>
