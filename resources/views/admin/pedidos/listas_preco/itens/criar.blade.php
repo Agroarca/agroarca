@@ -39,12 +39,12 @@
                     <x-admin.form-error property='base_frete'></x-admin.form-error>
                 </div>
                 <div class="form-group">
-                    <label for="data_inicial_entrega" data-toggle="tooltip" data-placement="top" title="Data Inicial que pode ser selecionada para o item ser entregue"><i class="fas fa-info-circle"></i> Data Inicial de Entrega:</label>
+                    <label for="data_inicial_entrega" data-toggle="tooltip" data-placement="top" title="Data Inicial que pode ser selecionada para o item ser entregue, Deixe em brnaco para permitir qualquer data"><i class="fas fa-info-circle"></i> Data Inicial de Entrega:</label>
                     <input type="datetime-local" name="data_inicial_entrega" value="{{ old('data_inicial_entrega') }}" @class(['form-control', 'is-invalid' => $errors->has('data_inicial_entrega')]) />
                     <x-admin.form-error property='data_inicial_entrega'></x-admin.form-error>
                 </div>
                 <div class="form-group">
-                    <label for="data_final_entrega" data-toggle="tooltip" data-placement="top" title="Data Final que pode ser selecionada para o item ser entregue"><i class="fas fa-info-circle"></i> Data Final de Entrega:</label>
+                    <label for="data_final_entrega" data-toggle="tooltip" data-placement="top" title="Data Final que pode ser selecionada para o item ser entregue, Deixe em brnaco para permitir qualquer data"><i class="fas fa-info-circle"></i> Data Final de Entrega:</label>
                     <input type="datetime-local" name="data_final_entrega" value="{{ old('data_final_entrega') }}" @class(['form-control', 'is-invalid' => $errors->has('data_final_entrega')]) />
                     <x-admin.form-error property='data_final_entrega'></x-admin.form-error>
                 </div>
