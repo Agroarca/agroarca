@@ -18,6 +18,7 @@ class Produto extends Model
         'marca_id',
         'tipo_produto_id',
         'categoria_id',
+        'icms_padrao'
     ];
 
     public function marca(){
@@ -38,5 +39,9 @@ class Produto extends Model
 
     public function itensListaPreco(){
         return $this->hasMany(ItemListaPreco::class);
+    }
+
+    public function icmsEstado(){
+        return $this->hasMany(ICMSProdutoEstado::class);
     }
 }

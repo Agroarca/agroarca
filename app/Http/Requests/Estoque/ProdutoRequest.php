@@ -22,7 +22,8 @@ class ProdutoRequest extends FormRequest
             'descricao' => 'string|required|min:20|max:1000',
             'marca_id' => 'integer|required|exists:marcas,id',
             'tipo_produto_id' => 'integer|required|exists:tipos_produto,id',
-            'categoria_id' => 'integer|required|exists:categorias,id'
+            'categoria_id' => 'integer|required|exists:categorias,id',
+            'icms_padrao' => 'required|numeric|min:0|max:100',
         ];
     }
 
@@ -35,6 +36,7 @@ class ProdutoRequest extends FormRequest
             'marca_id' => 'Marca',
             'tipo_produto_id' => 'Tipo de Produto',
             'categoria_id' => 'Categoria',
+            'icms_padrao' => 'ICMS Padrão',
         ];
     }
 

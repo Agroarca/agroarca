@@ -6,6 +6,7 @@ use App\Http\Controllers\Admin\Cadastros\EstadoController;
 use App\Http\Controllers\Admin\Cadastros\UsuarioController;
 use App\Http\Controllers\Admin\Cadastros\UsuarioEnderecoController;
 use App\Http\Controllers\Admin\Estoque\CategoriaController;
+use App\Http\Controllers\Admin\Estoque\ICMSProdutoEstadoController;
 use App\Http\Controllers\Admin\Estoque\MarcaController;
 use App\Http\Controllers\Admin\Estoque\ProdutoController;
 use App\Http\Controllers\Admin\Estoque\ProdutoImagemController;
@@ -76,10 +77,17 @@ Route::middleware(['auth'])->prefix('admin')->name('admin')->group(function(){
             Route::post('atualizar/{id}', [ProdutoController::class, 'atualizar'])->name('.atualizar');
             Route::get('excluir/{id}', [ProdutoController::class, 'excluir'])->name('.excluir');
 
+            Route::prefix('{produto_id}/icms')->name('.icms')->group(function (){
+                Route::post('adicionar/', [ICMSProdutoEstadoController::class, 'adicionar'])->name('.adicionar');
+                Route::post('atualizar/', [ICMSProdutoEstadoController::class, 'atualizar'])->name('.atualizar');
+                Route::get('excluir/{id}', [ICMSProdutoEstadoController::class, 'excluir'])->name('.excluir');
+            });
+
             Route::prefix('{produto_id}/imagens')->name('.imagens')->group(function (){
                 Route::post('upload/', [ProdutoImagemController::class, 'upload'])->name('.upload');
                 Route::get('delete/{id}', [ProdutoImagemController::class, 'delete'])->name('.delete');
             });
+
         });
 
         Route::prefix('marcas')->name('.marcas')->group(function (){

@@ -9,6 +9,14 @@
         <h1>Editar Produto {{ $produto->nome }}</h1>
     </x-slot>
 
+    @if(count($pendencias))
+        <div class="alert alert-warning">
+            @foreach ($pendencias as $pendencia)
+                <span>{{ $pendencia }}</span><br>
+            @endforeach
+        </div>
+    @endif
+
     <form action="{{ route('admin.estoque.produtos.atualizar', $produto->id) }}" method="POST">
         <div class="card card-default">
             @csrf
@@ -55,5 +63,6 @@
         </div>
     </form>
 
+    @include('admin.estoque.produtos.icms', ['produto' => $produto])
     @include('admin.estoque.produtos.imagens', ['produto' => $produto])
 </x-admin>

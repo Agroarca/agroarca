@@ -10,7 +10,7 @@ class Estado extends Model
     use HasFactory;
 
     protected $table = 'estados';
-    protected $fillable = ['nome', 'uf', 'icms'];
+    protected $fillable = ['nome', 'uf'];
     public $timestamps = false;
 
     // Função Helper para construir selects com todos os estados

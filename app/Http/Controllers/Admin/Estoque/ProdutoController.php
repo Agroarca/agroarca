@@ -18,18 +18,25 @@ class ProdutoController extends Controller
     }
 
     public function salvar(ProdutoRequest $request) {
-        Produto::create($request->all());
-        return redirect()->route('admin.estoque.produtos');
+        $produto = Produto::create($request->all());
+        return redirect()->route('admin.estoque.produtos.editar', $produto->id);
     }
 
     public function editar($id) {
-        $produto = Produto::findOrFail($id);
-        return view('admin.estoque.produtos.editar', compact('produto'));
+        $pendencias = [];
+
+        $produto = Produto::with('icmsEstado')->findOrFail($id);
+
+        if(!($produto->icms_padrao > 0)){
+            $pendencias[] = "Preencha o ICMS Padrão do produto";
+        }
+
+        return view('admin.estoque.produtos.editar', compact('produto'), compact('pendencias'));
     }
 
     public function atualizar(ProdutoRequest $request, $id) {
         Produto::findOrFail($id)->update($request->all());
-        return redirect()->route('admin.estoque.produtos');
+        return redirect()->route('admin.estoque.produtos.editar', $id);
     }
 
     public function excluir($id) {
