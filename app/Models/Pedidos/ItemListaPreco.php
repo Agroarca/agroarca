@@ -21,7 +21,10 @@ class ItemListaPreco extends Model
         'produto_id',
         'lista_preco_id',
         'centro_distribuicao_id',
-        'base_frete'
+        'base_frete',
+        'data_inicial_entrega',
+        'data_final_entrega',
+        'minimo_dias_entrega'
     ];
 
     public function listaPreco(){

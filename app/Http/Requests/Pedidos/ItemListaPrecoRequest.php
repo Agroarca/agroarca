@@ -32,8 +32,11 @@ class ItemListaPrecoRequest extends FormRequest
     {
         return [
             'preco_quilo' => 'numeric|required|greater_than:0',
-            'base_frete' => 'numeric|nullable|min:0',
+            'base_frete' => 'numeric|required|min:0',
             'estoque_disponivel' => 'integer|nullable|min:0',
+            'data_inicial_entrega' => 'date|nullable',
+            'data_final_entrega' => 'date|nullable',
+            'minimo_dias_entrega' => 'integer|required|min:0',
             'produto_id' => 'integer|required|exists:produtos,id',
             'lista_preco_id' => 'integer|required|exists:listas_preco,id',
             'centro_distribuicao_id' => 'integer|required|exists:fornecedor_centros_distribuicao,id'
@@ -49,6 +52,9 @@ class ItemListaPrecoRequest extends FormRequest
             'produto_id' => 'Produto',
             'lista_preco_id' => 'Lista de Preço',
             'centro_distribuicao_id' => 'Centro de Distribuição',
+            'data_inicial_entrega' => 'Data Inicial de Entrega',
+            'data_final_entrega' => 'Data Final de Entrega',
+            'minimo_dias_entrega' => 'Min. Dias Entrega',
         ];
     }
 }

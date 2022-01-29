@@ -38,6 +38,21 @@
                     <input type="text" name="base_frete" value="{{ old('base_frete') }}" @class(['form-control mask-preco', 'is-invalid' => $errors->has('base_frete')]) />
                     <x-admin.form-error property='base_frete'></x-admin.form-error>
                 </div>
+                <div class="form-group">
+                    <label for="data_inicial_entrega" data-toggle="tooltip" data-placement="top" title="Data Inicial que pode ser selecionada para o item ser entregue"><i class="fas fa-info-circle"></i> Data Inicial de Entrega:</label>
+                    <input type="datetime-local" name="data_inicial_entrega" value="{{ old('data_inicial_entrega') }}" @class(['form-control', 'is-invalid' => $errors->has('data_inicial_entrega')]) />
+                    <x-admin.form-error property='data_inicial_entrega'></x-admin.form-error>
+                </div>
+                <div class="form-group">
+                    <label for="data_final_entrega" data-toggle="tooltip" data-placement="top" title="Data Final que pode ser selecionada para o item ser entregue"><i class="fas fa-info-circle"></i> Data Final de Entrega:</label>
+                    <input type="datetime-local" name="data_final_entrega" value="{{ old('data_final_entrega') }}" @class(['form-control', 'is-invalid' => $errors->has('data_final_entrega')]) />
+                    <x-admin.form-error property='data_final_entrega'></x-admin.form-error>
+                </div>
+                <div class="form-group">
+                    <label for="minimo_dias_entrega" data-toggle="tooltip" data-placement="top" title="Mínimo de dias a partir do dia corrente que pode ser selecionada uma data para entrega"><i class="fas fa-info-circle"></i> Min. Dias Entrega:</label>
+                    <input type="text" name="minimo_dias_entrega" value="{{ old('minimo_dias_entrega') }}" @class(['form-control mask-integer', 'is-invalid' => $errors->has('minimo_dias_entrega')]) />
+                    <x-admin.form-error property='minimo_dias_entrega'></x-admin.form-error>
+                </div>
             </div>
             <div class="card-footer">
                 <button type="submit" class="btn btn-primary">Criar</button>

@@ -3091,6 +3091,11 @@ Inputmask({
   groupSeparator: ''
 }).mask('.mask-quilo');
 Inputmask({
+  "alias": "integer",
+  rightAlign: false,
+  groupSeparator: ''
+}).mask('.mask-integer');
+Inputmask({
   "regex": "\\(\\d{2}\\) \\d{8}\\d?",
   inputmode: 'tel'
 }).mask('.mask-telefone');
