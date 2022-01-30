@@ -16,7 +16,7 @@
             <input type="text" class="search">
         </div>
         <div class="arca-container">
-            <i class="fas fa-shopping-cart"></i>
+            <a href="{{ route('site.carrinho') }}"><i class="fas fa-shopping-cart"></i></a>
         </div>
         <a class="profile-container" href="{{ route('dashboard') }}">
             <i class="fas fa-user"></i>
