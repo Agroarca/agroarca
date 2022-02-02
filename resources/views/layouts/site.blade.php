@@ -14,7 +14,6 @@
     {{ $slot }}
 
     <script src="{{ asset('bootstrap5/js/bootstrap.js') }}"></script>
-    <script src="{{ asset('js/jquery3.6.0.js') }}"></script>
 </body>
 
 </html>
