@@ -3,9 +3,7 @@
 namespace App\Http\Controllers\Site;
 
 use Illuminate\Http\Request;
-use App\Models\Estoque\Produto;
-use App\Models\Estoque\Categoria;
-use Illuminate\Support\Facades\DB;
+
 use App\Http\Controllers\Controller;
 use App\Services\Site\FrontendService;
 
