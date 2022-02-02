@@ -9,7 +9,7 @@ use App\Models\Estoque\Categoria;
 use App\Models\Estoque\Produto;
 use Illuminate\Support\Facades\DB;
 
-class FrontendService
+class ListService
 {
     protected $productModel;
     protected $categoryModel;
@@ -31,11 +31,11 @@ class FrontendService
      *
      * @return void
      */
-    public function queryBase()
+    public static function queryBase()
     {
         // seleciona todos os produtos que estão cadastrados em listas de preço,
         // possuem estoque e tem preço maior que 0
-        return $this->productModel->whereExists(
+        return Produto::whereExists(
             function ($query) {
                 $query->select(DB::raw(1))
                     ->from('itens_lista_preco')
@@ -81,7 +81,7 @@ class FrontendService
      * @param integer|null $id
      * @return void
      */
-    public function getRecursiveCategories(?int $id)
+    public function getAllChildCategories(?int $id)
     {
         $categorias = DB::select('
             with recursive cats (id) as (
