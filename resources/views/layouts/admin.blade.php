@@ -1,45 +1,64 @@
 @extends('adminlte::page')
 
 @push('css')
-    @isset($css)
-        {{ $css }}
-    @endisset
+@isset($css)
+{{ $css }}
+@endisset
 
-    <link rel="stylesheet" href="{{ mix('css/vendor.css') }}">
-    <link rel="stylesheet" href="{{ mix('css/style.css') }}">
+<link rel="stylesheet" href="{{ mix('css/vendor.css') }}">
+<link rel="stylesheet" href="{{ mix('css/style.css') }}">
 @endpush
 
 @section('content_header')
-    @isset($header)
-        {{ $header }}
-    @endisset
+@isset($header)
+{{ $header }}
+@endisset
 @endsection
 
 @section('content')
-    {{ $slot }}
+{{ $slot }}
 @endsection
 
 @push('js')
-    <script src="{{ mix('js/app.js') }}"></script>
-    @isset($js)
-        {{ $js }}
-    @endisset
+<script src="{{ mix('js/app.js') }}"></script>
+@isset($js)
+{{ $js }}
+@endisset
 @endpush
 
 {{-- Inclui o script de inputmask dinamicamente --}}
 @hasSection('InputMask')
-    @once
-        @prepend('js')
-            <script src="{{ mix('js/inputmask.js') }}"></script>
-        @endprepend
-    @endonce
+@once
+@prepend('js')
+<script src="{{ mix('js/inputmask.js') }}"></script>
+@endprepend
+@endonce
+@endif
+
+{{-- Inclui o script de select2 dinamicamente --}}
+@hasSection('select2')
+@once
+@prepend('js')
+<style>
+    .select2-container .select2-selection--single {
+        height: 38px;
+    }
+
+    .select2-container {
+        width: 100% !important;
+        padding: 0;
+    }
+</style>
+<script src="{{ mix('js/select2.js') }}"></script>
+@endprepend
+@endonce
 @endif
 
 {{-- Inclui o script de CropperJS dinamicamente --}}
 @hasSection('CropperJS')
-    @once
-        @prepend('js')
-            <script src="{{ mix('js/cropper.js') }}"></script>
-        @endprepend
-    @endonce
+@once
+@prepend('js')
+<script src="{{ mix('js/cropper.js') }}"></script>
+@endprepend
+@endonce
 @endif
