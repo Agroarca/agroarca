@@ -23,7 +23,7 @@ class ProdutoRequest extends FormRequest
             'marca_id' => 'integer|required|exists:marcas,id',
             'tipo_produto_id' => 'integer|required|exists:tipos_produto,id',
             'categoria_id' => 'integer|required|exists:categorias,id',
-            'icms_padrao' => 'required|numeric|min:0|max:100',
+            'icms_padrao' => 'nullable|numeric|min:0|max:100',
         ];
     }
 
@@ -40,8 +40,9 @@ class ProdutoRequest extends FormRequest
         ];
     }
 
-    public function sanitize(){
-        if($this->has('codigo')){
+    public function sanitize()
+    {
+        if ($this->has('codigo')) {
             $this->merge(['codigo' => mb_strtoupper($this->input('codigo'))]);
         }
     }
