@@ -1,4 +1,24 @@
+/*
+ * |-------------------------------------------------|
+ * |          Compilando Arquivos Estáticos          |
+ * |                                                 |
+ * | Modo de Uso:                                    |
+ * |   npm run dev: compila arquivos em modo dev     |
+ * |                sem arquivos de terceiros        |
+ * |                                                 |
+ * |   npm run watch: compila arquivos em modo dev   |
+ * |                sem arquivos de terceiros e      |
+ * |                fica analisando atualizações     |
+ * |                                                 |
+ * |   npm run dev-all: compila todos os arquivos    |
+ * |                em modo dev, incluindo vendor    |
+ * |                                                 |
+ * |   npm run prod: compila e minifica arquivos     |
+ * |-------------------------------------------------|
+ */
+
 const mix = require("laravel-mix");
+require('laravel-mix-merge-manifest')
 mix.disableNotifications();
 
 mix.webpackConfig({
@@ -10,24 +30,26 @@ mix.webpackConfig({
  |--------------------------------------------------------------------------
  | Mix Asset Management
  |--------------------------------------------------------------------------
- |
- | Mix provides a clean, fluent API for defining some Webpack build steps
- | for your Laravel applications. By default, we are compiling the CSS
- | file for the application as well as bundling up all the JS files.
- |
- */
+*/
 
-mix.js("resources/js/app.js", "public/js").postCss(
-    "resources/css/app.css",
-    "public/css",
-    [require("postcss-import"), require("tailwindcss"), require("autoprefixer")]
-);
+if(process.env.WITHOUT && process.env.WITHOUT == "vendor"){
 
-mix.js("resources/js/site.js", "public/js");
+    mix.postCss("resources/css/style.css", "public/css/")
+       .postCss("resources/css/admin.css", "public/css/")
+       .js("resources/js/script.js", "public/js")
+       .js("resources/js/admin.js", "public/js")
+       .mergeManifest();
 
-mix.sass("resources/sass/vendor.scss", "public/css/vendor.css");
-mix.postCss("resources/css/style.css", "public/css/style.css");
-mix.postCss("resources/css/site.css", "public/css/site.css");
-mix.js("resources/js/inputmask.js", "public/js/inputmask.js");
-mix.js("resources/js/select2.js", "public/js/select2.js");
-mix.js("resources/js/cropper.js", "public/js/cropper.js");
+}else{
+
+    mix.postCss("resources/css/vendor.css", "public/css/")
+       .sass("resources/sass/vendor.scss", "public/css/vendor.css")
+       .postCss("resources/css/vendor-admin.css", "public/css/")
+       .js("resources/js/vendor.js", "public/js")
+       .js("resources/js/vendor-admin.js", "public/js")
+
+       .postCss("resources/css/style.css", "public/css/")
+       .postCss("resources/css/admin.css", "public/css/")
+       .js("resources/js/script.js", "public/js")
+       .js("resources/js/admin.js", "public/js")
+}

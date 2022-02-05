@@ -1,5 +1,3 @@
-@section('InputMask', true)
-
 <x-admin>
     <x-slot name='header'>
         <h1>Novo Centro de Distribuição</h1>

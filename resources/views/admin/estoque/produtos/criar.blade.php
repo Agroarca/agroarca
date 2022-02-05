@@ -3,7 +3,6 @@ use \App\Models\Estoque\Marca;
 use \App\Models\Estoque\TipoProduto;
 use \App\Models\Estoque\Categoria;
 @endphp
-@section('select2', true)
 
 <x-admin>
     <x-slot name='header'>

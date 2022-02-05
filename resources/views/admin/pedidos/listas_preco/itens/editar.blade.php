@@ -1,5 +1,3 @@
-@section('InputMask', true)
-
 @php
     use \App\Models\Estoque\Produto;
 @endphp

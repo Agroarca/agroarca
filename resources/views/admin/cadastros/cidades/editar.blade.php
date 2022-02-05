@@ -1,7 +1,6 @@
 @php
 use \App\Models\Cadastros\Estado;
 @endphp
-@section('select2', true)
 
 <x-admin>
     <x-slot name='header'>

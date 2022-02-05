@@ -1,5 +1,3 @@
-@section('CropperJS', true)
-
 <form action="{{ route('admin.estoque.produtos.imagens.upload', $produto->id) }}" method="POST" enctype="multipart/form-data">
     <div class="card card-default">
         <div class="card-header">
