@@ -1,9 +1,10 @@
 {
     "private": true,
     "scripts": {
-        "dev": "npm run development",
+        "dev-all": "npm -- run development",
+        "dev": "WITHOUT=vendor npm -- run development",
         "development": "mix",
-        "watch": "mix watch",
+        "watch": "WITHOUT=vendor mix watch",
         "watch-poll": "mix watch -- --watch-options-poll=1000",
         "hot": "mix watch --hot",
         "prod": "npm run production",
