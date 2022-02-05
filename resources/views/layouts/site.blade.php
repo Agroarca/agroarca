@@ -1,10 +1,11 @@
 <html>
 
 <head>
-    <link href="{{ mix('css/vendor.css') }}" rel="stylesheet">
-    <link href="{{ mix('css/site.css') }}" rel="stylesheet">
     <link href="{{ asset('bootstrap5/css/bootstrap.css') }}" rel="stylesheet">
-    {{-- <script defer src="{{ mix('js/site.js') }}"></script> --}}
+    <link href="{{ mix('css/vendor.css') }}" rel="stylesheet">
+    <link href="{{ mix('css/style.css') }}" rel="stylesheet">
+
+
 </head>
 
 <body>
@@ -14,6 +15,7 @@
     {{ $slot }}
 
     <script src="{{ asset('bootstrap5/js/bootstrap.js') }}"></script>
+    <script src="{{ mix('js/vendor.js') }}"></script>
+    <script src="{{ mix('js/script.js') }}"></script>
 </body>
-
 </html>

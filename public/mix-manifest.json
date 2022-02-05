@@ -1,11 +1,10 @@
 {
-    "/js/inputmask.js": "/js/inputmask.js",
-    "/js/cropper.js": "/js/cropper.js",
-    "/js/app.js": "/js/app.js",
-    "/js/site.js": "/js/site.js",
+    "/js/vendor.js": "/js/vendor.js",
+    "/js/vendor-admin.js": "/js/vendor-admin.js",
+    "/js/script.js": "/js/script.js",
+    "/js/admin.js": "/js/admin.js",
     "/css/vendor-admin.css": "/css/vendor-admin.css",
-    "/css/site.css": "/css/site.css",
-    "/css/style.css": "/css/style.css",
-    "/css/app.css": "/css/app.css",
-    "/css/vendor.css": "/css/vendor.css"
+    "/css/vendor.css": "/css/vendor.css",
+    "/css/admin.css": "/css/admin.css",
+    "/css/style.css": "/css/style.css"
 }

@@ -18,6 +18,7 @@
  */
 
 const mix = require("laravel-mix");
+require('laravel-mix-merge-manifest')
 mix.disableNotifications();
 
 mix.webpackConfig({
@@ -25,23 +26,30 @@ mix.webpackConfig({
         warnings: false,
     },
 });
-
-if(!process.env.WITHOUT || process.env.WITHOUT != "vendor"){
-    require(`${__dirname}/webpack.vendor.mix.js`);
-}
-
 /*
  |--------------------------------------------------------------------------
  | Mix Asset Management
  |--------------------------------------------------------------------------
- */
+*/
 
-mix.js("resources/js/app.js", "public/js").postCss(
-    "resources/css/app.css",
-    "public/css",
-    [require("postcss-import"), require("autoprefixer")]
-);
+if(process.env.WITHOUT && process.env.WITHOUT == "vendor"){
 
-mix.postCss("resources/css/style.css", "public/css/style.css");
-mix.postCss("resources/css/site.css", "public/css/site.css");
-mix.js("resources/js/site.js", "public/js");
+    mix.postCss("resources/css/style.css", "public/css/")
+       .postCss("resources/css/admin.css", "public/css/")
+       .js("resources/js/script.js", "public/js")
+       .js("resources/js/admin.js", "public/js")
+       .mergeManifest();
+
+}else{
+
+    mix.postCss("resources/css/vendor.css", "public/css/")
+       .sass("resources/sass/vendor.scss", "public/css/vendor.css")
+       .postCss("resources/css/vendor-admin.css", "public/css/")
+       .js("resources/js/vendor.js", "public/js")
+       .js("resources/js/vendor-admin.js", "public/js")
+
+       .postCss("resources/css/style.css", "public/css/")
+       .postCss("resources/css/admin.css", "public/css/")
+       .js("resources/js/script.js", "public/js")
+       .js("resources/js/admin.js", "public/js")
+}

@@ -2,8 +2,6 @@
     use \App\Models\Cadastros\Estado;
 @endphp
 
-@section('InputMask', true)
-
 <x-admin>
     <x-slot name='header'>
         <h1>Editar centro de distribuição {{ $centroDistribuicao->nome }}</h1>

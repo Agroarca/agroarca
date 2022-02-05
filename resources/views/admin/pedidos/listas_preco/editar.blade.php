@@ -1,5 +1,3 @@
-@section('InputMask', true)
-
 <x-admin>
     <x-slot name='header'>
         <h1>Editar Lista de Preço {{ $listaPreco->nome }}</h1>
