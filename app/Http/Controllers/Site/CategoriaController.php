@@ -7,7 +7,7 @@ use Illuminate\Http\Request;
 use App\Http\Controllers\Controller;
 use App\Services\Site\ListService;
 
-class FrontendController extends Controller
+class CategoriaController extends Controller
 {
     protected $listServ;
 
