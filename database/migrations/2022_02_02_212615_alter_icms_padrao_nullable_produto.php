@@ -25,6 +25,8 @@ class AlterIcmsPadraoNullableProduto extends Migration
      */
     public function down()
     {
-        //
+        Schema::table('produtos', function (Blueprint $table) {
+            $table->decimal('icms_padrao', 5, 2)->change();
+        });
     }
 }
