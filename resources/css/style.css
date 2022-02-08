@@ -133,7 +133,7 @@ header .main {
     align-items: center;
     margin-top: 1.7rem;
     margin-bottom: 1.7rem;
-    justify-content: center;
+    justify-content: space-between;
     gap: 30px;
 }
 
@@ -143,19 +143,71 @@ header .main {
     }
 }
 
+.search-container {
+    min-width: 20rem;
+    font-size: 20px;
+}
+
+.search-container input::placeholder {
+    font-size: 24px;
+    padding-bottom: 2rem;
+    color: var(--cinza-escuro);
+}
+
+.search-container button {
+    width: 20%;
+    padding-right: 1.5rem;
+    height: 4rem;
+    border: unset;
+    border-top-right-radius: 1rem;
+    border-bottom-right-radius: 1rem;
+}
+
+.search-container button .fa {
+    color: var(--verde-claro);
+}
+
 header .main .search {
     background-color: var(--cinza-claro);
+    color: var(--cinza-escuro);
     border: none;
     outline: none;
     height: 4rem;
-    width: 35rem;
     font-size: 32px;
     padding: 0 1.5rem;
     border-radius: 1rem;
+    border-top-right-radius: unset;
+    border-bottom-right-radius: unset;
+}
+
+header .main .arca-container .cart-placeholder {
+    background: var(--verde-claro);
+    position: relative;
+    color: var(--branco);
+    top: -15px;
+    right: 16px;
+    border: 3px solid #fff;
+    width: 5px;
+    padding: 9px;
+    height: 15px;
+    display: flex;
+    font-size: 14px;
+    font-weight: bolder;
+    text-align: center;
+    border-radius: 20px;
+    align-content: center;
+    justify-content: center;
+    align-items: center;
+    cursor: pointer;
+}
+
+header .main .arca-container a {
+    color: var(--cinza-escuro);
 }
 
 header .main .arca-container {
     font-size: 32px;
+    width: 25px;
 }
 
 header .main .profile-container {
@@ -221,8 +273,27 @@ nav.breadcrumb .breadcrumb-link {
 }
 
 section {
-    margin-top: 2rem;
+    margin-top: 4rem;
 }
+
+.banner-info{
+    height: 389px;
+    background: linear-gradient(90.67deg, #FCFCFC 43.94%, rgb(241 241 241) 99.4%);
+    border-radius: 30px;
+    padding: 80px;
+    display: flex;
+    flex-direction: column;
+    row-gap: 130px;
+}
+
+.banner-info h2{
+    font-weight: bold;
+}
+
+.banner-info p {
+    color: var(--subtitulo);
+}
+
 
 .produto .detalhe {
     display: flex;
@@ -297,7 +368,8 @@ section {
     grid-template-columns: repeat(4, 25%);
     grid-template-rows: repeat(1, auto);
     display: grid;
-    padding: 0.75rem 0;
+    /* padding: 0.75rem 0; */
+    margin-top: 4rem;
 }
 
 .listagem .produto {
