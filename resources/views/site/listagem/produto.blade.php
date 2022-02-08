@@ -3,8 +3,7 @@
     if(count($produto->imagens) > 0){
         $imagem = $produto->imagens[0];
     }else{
-        throw new Exception($produto->id);
-
+        throw new Exception("Nenhuma imagem encontrada. Produto ID#{$produto->id}");
     }
 @endphp
 
