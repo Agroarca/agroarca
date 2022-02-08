@@ -6,7 +6,7 @@
 
     </div>
 </nav>
-<header class="py-3 mb-4 border-bottom">
+<header class="py-3 mb-4">
 
     <div class="container main">
         <div class="header-item text-decoration-none logo-container">
@@ -15,13 +15,18 @@
             </a>
         </div>
         <div class="header-item search-container">
-            <input type="text" class="search">
+                <input placeholder="Pequisar produtos..." type="text" class="search">
+                <button type="submit"><i class="fa fa-search"></i></button>
         </div>
         <div class="header-item arca-container">
+            <a href="{{ route('site.carrinho') }}"><i class="fas fa-th-large"></i></a>
+        </div>
+        <div class="header-item arca-container ">
             <a href="{{ route('site.carrinho') }}"><i class="fas fa-shopping-cart"></i></a>
+            <span class="cart-placeholder" id="cart-amount">7</span>
         </div>
         <a class="header-item profile-container" href="{{ route('dashboard') }}">
-            <i class="fas fa-user"></i>
+            <i class="fas fa-user-circle"></i>
             Minha Conta
         </a>
     </div>
