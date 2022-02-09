@@ -1,24 +1,22 @@
 <x-site>
-    <section class="content listagem">
-        <div class="container">
-            @isset($categoria)
-                <x-site.breadcrumb-categoria :categoria="$categoria"></x-site.breadcrumb-categoria>
-            @endisset
+    @isset($categoria)
+        <section class="container">
+            <x-site.breadcrumb-categoria :categoria="$categoria"></x-site.breadcrumb-categoria>
+        </section>
+    @endisset
 
-            <div class="container banner-info">
-                <h2>Produtos para plantio...</h2>
-                <p>Encontre aqui as melhores ofertas para o seu plantio.</p>
-            </div>
+    <section class="container banner-info">
+        <h2>Produtos para plantio...</h2>
+        <p>Encontre aqui as melhores ofertas para o seu plantio.</p>
+    </section>
 
-            {{-- @TODO:: Melhorar section title.  --}}
-            {{-- @TODO2:: Quebrar em sections. --}}
-
-            <h2>Produtos</h2>
-            <div class="produtos">
-                @foreach ($produtos as $produto)
-                    @include('site.listagem.produto', $produto)
-                @endforeach
-            </div>
+    <section class="container listagem">
+        {{-- @TODO: Fix vitrine produto fora de grid --}}
+        <h2 class="section-title">Produtos</h2>
+        <div class="produtos">
+            @foreach ($produtos as $produto)
+                @include('site.listagem.produto', $produto)
+            @endforeach
         </div>
     </section>
 </x-site>
