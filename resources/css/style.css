@@ -372,6 +372,39 @@ section {
     /* margin-top: 4rem; */
 }
 
+.recently-viewed .product-showcase-item{
+    display: inline-flex;
+    max-width: 300px;
+    padding: 0 1rem;
+}
+
+.recently-viewed .product-showcase-item .showcase-item-image{
+    background: var(--cinza-claro);
+    height: 117px;
+    width: 139px;
+    border-radius: 20px;
+}
+.recently-viewed .product-showcase-item .showcase-title {
+    font-size: 16px;
+    margin-bottom: 1rem;
+}
+.recently-viewed .product-showcase-item .preco-produto{
+    font-size: 20px;
+    padding: unset;
+}
+
+.recently-viewed .product-showcase-item .product-details{
+    padding-left: 1rem;
+}
+.section-meta .section-nav {
+    cursor: pointer;
+    display: flex;
+    gap: 20px;
+}
+.section-meta .section-nav i:hover, .section-meta .section-nav i:active{
+    color: var(--verde-claro);
+}
+
 section .section-meta {
     margin-bottom: 4rem;
     display: flex;
