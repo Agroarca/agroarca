@@ -115,6 +115,9 @@ Route::middleware(['auth'])->prefix('admin')->name('admin')->group(function(){
             Route::get('editar/{id}', [TipoProdutoController::class, 'editar'])->name('.editar');
             Route::post('atualizar/{id}', [TipoProdutoController::class, 'atualizar'])->name('.atualizar');
             Route::get('excluir/{id}', [TipoProdutoController::class, 'excluir'])->name('.excluir');
+
+            Route::post('adicional/{id}', [TipoProdutoController::class, 'adicional'])->name('.adicional');
+            Route::get('{id}/excluirAdicional/{adicional_id}', [TipoProdutoController::class, 'excluirAdicional'])->name('.excluirAdicional');
         });
     });
 
