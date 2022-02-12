@@ -15,7 +15,7 @@ class TipoProdutoRequest extends FormRequest
     {
         return [
             'nome' => 'string|required|min:3|max:100',
-            'listavel' => 'boolean|required',
+            'listavel' => 'nullable',
         ];
     }
 
@@ -29,9 +29,8 @@ class TipoProdutoRequest extends FormRequest
 
     protected function prepareForValidation()
     {
-        $listavel = $this->input('listavel');
         $this->merge([
-            'listavel' => $listavel ?? false
+            'listavel' => $this->boolean('listavel')
         ]);
     }
 }

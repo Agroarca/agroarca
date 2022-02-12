@@ -25,10 +25,12 @@ Route::name('site')->group(function () {
     });
 
     Route::prefix('categoria')->name('.categoria')->group(function () {
-        Route::get('{id?}', [CategoriaController::class, 'category'])->name('');
+        Route::get('{id?}', [CategoriaController::class, 'categoria'])->name('');
     });
 
     Route::prefix('carrinho')->name('.carrinho')->group(function () {
         Route::get('', [CarrinhoController::class, 'inicio'])->name('');
     });
+
+    Route::get('adicionais/{pedido_item_id}', [ProdutoController::class, 'adicionais'])->name('.adicionaisPedido');
 });
