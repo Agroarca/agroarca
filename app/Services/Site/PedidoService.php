@@ -14,9 +14,9 @@ use Illuminate\Support\Facades\Cookie;
 class PedidoService
 {
 
-    public function getPedido()
+    public static function getPedido()
     {
-        $pedido = $this->getPedidoCookie();
+        $pedido = self::getPedidoCookie();
         if ($pedido) {
             return $pedido;
         }
@@ -30,11 +30,11 @@ class PedidoService
             $pedido = Pedido::create();
         }
 
-        $this->setPedidoCookie($pedido);
+        self::setPedidoCookie($pedido);
         return $pedido;
     }
 
-    private function getPedidoCookie()
+    private static function getPedidoCookie()
     {
         $pedidoId = Cookie::get('pedidoId');
 
@@ -49,7 +49,7 @@ class PedidoService
         return null;
     }
 
-    private function setPedidoCookie(Pedido $pedido)
+    private static function setPedidoCookie(Pedido $pedido)
     {
         $pedidoId = Cookie::get('pedidoId');
         if ($pedido && $pedido->id != $pedidoId) {
@@ -57,7 +57,7 @@ class PedidoService
         }
     }
 
-    public function deletePedido(Pedido $pedido)
+    public static function deletePedido(Pedido $pedido)
     {
         if ($pedido->status != StatusPedido::Aberto) {
             throw new OperacaoIlegalException("Não é permitido excluir um pedido que não esteja aberto");
@@ -67,9 +67,9 @@ class PedidoService
         $pedido->delete();
     }
 
-    public function adicionarItem(ItemListaPreco $item)
+    public static function adicionarItem(ItemListaPreco $item)
     {
-        $pedido = $this->getPedido();
+        $pedido = self::getPedido();
 
         $pedidoItem = PedidoItem::create([
             'pedido_id' => $pedido->id,
@@ -84,7 +84,7 @@ class PedidoService
         return $pedidoItem;
     }
 
-    public function redirecionarAdicionais(ItemListaPreco $item)
+    public static function redirecionarAdicionais(ItemListaPreco $item)
     {
         $tipo = $item->produto->tipoProduto;
         return ($tipo->tiposProdutosAdicionais()->count() > 0);

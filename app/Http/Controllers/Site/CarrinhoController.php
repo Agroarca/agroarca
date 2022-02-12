@@ -3,15 +3,13 @@
 namespace App\Http\Controllers\Site;
 
 use App\Http\Controllers\Controller;
-use App\Http\Controllers\Site\Pedido\PedidoController;
-use Illuminate\Http\Request;
+use App\Services\Site\PedidoService;
 
 class CarrinhoController extends Controller
 {
-    public function inicio(){
-        $pedidoController = new PedidoController();
-        $pedido = $pedidoController->getPedido();
-
+    public function inicio()
+    {
+        $pedido = PedidoService::getPedido();
         return view('site.carrinho.carrinho', compact('pedido'));
     }
 }
