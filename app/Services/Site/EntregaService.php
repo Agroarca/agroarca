@@ -3,15 +3,15 @@
 namespace App\Services\Site;
 
 use App\Models\Cadastros\UsuarioEndereco;
+use App\Models\Frete\Cep;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Cookie;
 
 class EntregaService
 {
 
-    public function getCepEnderecoPadrao()
+    public static function getCepEnderecoPadrao()
     {
-
         //se usuario está logado e possui um endereço padrão
         $endereco_id = request()->cookie('endereco_padrao_id');
         if ($endereco_id && Auth::check()) {
@@ -47,7 +47,7 @@ class EntregaService
         }
     }
 
-    public function atualizarCepCookie($cep)
+    public static function atualizarCepCookie($cep)
     {
         Cookie::queue('cep', $cep);
         Cookie::queue('endereco_padrao_id', null);

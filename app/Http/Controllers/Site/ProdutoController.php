@@ -4,7 +4,6 @@ namespace App\Http\Controllers\Site;
 
 use App\Http\Controllers\Controller;
 use App\Models\Estoque\Produto;
-use App\Models\Pedidos\ItemListaPreco;
 use App\Models\Pedidos\PedidoItem;
 use App\Services\Site\EntregaService;
 use App\Services\Site\ListService;
@@ -13,14 +12,6 @@ use Illuminate\Http\Request;
 
 class ProdutoController extends Controller
 {
-    protected $pedidoService;
-    protected $entregaService;
-
-    public function __construct()
-    {
-        $this->pedidoService = new PedidoService();
-        $this->entregaService = new EntregaService();
-    }
 
     public function produto($id)
     {
@@ -35,7 +26,7 @@ class ProdutoController extends Controller
     public function atualizarCep(Request $request, $produtoId)
     {
         $cep = $request->input('cep') ?? $request->query('cep');
-        $this->entregaService->atualizarCep($cep);
+        EntregaService::atualizarCepCookie($cep);
 
         return redirect()->route('site.produto', $produtoId);
     }
@@ -45,9 +36,9 @@ class ProdutoController extends Controller
         $produto = Produto::findOrFail($produtoId);
         $item = $produto->itensListaPreco()->first();
 
-        $pedidoItem = $this->pedidoService->adicionarItem($item);
+        $pedidoItem = PedidoService::adicionarItem($item);
 
-        if ($this->pedidoService->redirecionarAdicionais($item)) {
+        if (PedidoService::redirecionarAdicionais($item)) {
             return redirect()->route('site.adicionaisPedido', $pedidoItem->id); //TODO
         }
 
