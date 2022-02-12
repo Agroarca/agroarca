@@ -19,7 +19,7 @@
                     @endforeach
                 </div>
                 <div class="form-check" data-toggle="tooltip" data-placement="top" title="Mínimo de dias a partir do dia corrente que pode ser selecionada uma data para entrega">
-                    <input type="checkbox" name="listavel" value="{{ $tipoProduto->listavel }}" @class(['form-check-input', 'is-invalid' => $errors->has('listavel')]) />
+                    <input type="checkbox" name="listavel" value="1" {{ $tipoProduto->listavel ? 'checked' : '' }} @class(['form-check-input', 'is-invalid' => $errors->has('listavel')]) />
                     <label for="listavel" class="form-check-label">Listavel</label>
                     <x-admin.form-error property='listavel'></x-admin.form-error>
                 </div>
