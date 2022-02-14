@@ -68,5 +68,5 @@
         </div>
     </section>
 
-    <section></section>
+    @include('site.adicionais.newsletter')
 </x-site>
