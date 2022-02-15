@@ -50,6 +50,14 @@
 </footer>
 <section class="sub-footer">
     <div class="container">
-        <span>AGRO - © {{ \Carbon\Carbon::now()->format('Y') }} Todos os Direitos Reservados</span>
+        <span>{{ env('APP_NAME') }}  -  © {{ \Carbon\Carbon::now()->format('Y') }} Todos os Direitos Reservados</span>
+        <div class="payment-methods">
+            <span>Formas de pagamento:</span>
+            <ul>
+                <li class="visa">VISA</li>
+                <li class="eth">ETHERIUM</li>
+                <li class="paypal">PAYPAL</li>
+            </ul>
+    </div>
     </div>
 </section>

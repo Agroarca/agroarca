@@ -806,5 +806,29 @@ section.sub-footer {
     border-top: 1px solid var(--cinza-claro);
     display: flex;
     justify-content: center;
+    color: var(--cinza-escuro);
     align-items: center;
+}
+section.sub-footer .container {
+    display: flex;
+    justify-content: space-between;
+}
+section.sub-footer .payment-methods ul {
+    display: inline-flex;
+    list-style: none;
+    gap: 2rem;
+    font-weight: bold;
+    font-style: italic;
+    cursor: pointer;
+}
+.payment-methods .visa {
+    color: #00579f;
+}
+
+.payment-methods .eth {
+    color: #888888;
+}
+
+.payment-methods .paypal {
+    color: #002f88;
 }
