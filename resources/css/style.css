@@ -832,3 +832,97 @@ section.sub-footer .payment-methods ul {
 .payment-methods .paypal {
     color: #002f88;
 }
+
+/********************/
+/* FLASH SALE */
+/********************/
+
+.flash-sale {
+    height: 371px;
+}
+.flash-sale-carousel {
+    display: none;
+}
+.flash-sale-carousel.owl-lodaded {
+    display: block !important;
+}
+
+.flash-sale .flash-sale-info {
+    min-width: 500px;
+}
+.flash-sale #flash-sale-carousel {
+    overflow: hidden;
+}
+.flash-sale .grid-container {
+    background: var(--verde-claro);
+    border-radius: 30px;
+    display: flex;
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: center;
+    padding: 3.5rem;
+    gap: 2rem;
+}
+
+.flash-sale .flash-sale-item {
+    color: var(--branco);
+    overflow: hidden;
+}
+.flash-sale .flash-sale-item h2 {
+    font-size: 48px;
+    font-weight: bold;
+}
+.flash-sale .flash-sale-item .countdown {
+    font-weight: bold;
+    font-size: 40px;
+}
+
+.flash-sale .meta-grid {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 2rem;
+    align-items: center;
+}
+.flash-sale .meta-grid .see-more {
+    text-decoration: unset !important;
+    font-weight: bold;
+    color: var(--branco);
+}
+.flash-sale .meta-grid .section-nav button {
+    border: 0.5px solid var(--branco);
+    color: var(--branco);
+    height: 38px;
+    padding: 0 0.8rem;
+    border-radius: 100px;
+    cursor: pointer;
+    background: unset;
+}
+
+.flash-sale .product-showcase-item {
+    display: inline-flex;
+    max-width: 300px;
+    padding: 1rem;
+    background: var(--branco);
+    border-radius: 15px;
+}
+
+.flash-sale .product-showcase-item .showcase-item-image {
+    background: var(--cinza-claro);
+    height: 117px;
+    width: 139px;
+    border-radius: 20px;
+}
+.flash-sale .product-showcase-item .showcase-title {
+    font-size: 16px;
+    margin-bottom: 1rem;
+    color: var(--preto);
+}
+.flash-sale .product-showcase-item .preco-produto {
+    font-size: 20px;
+    padding: unset;
+    color: var(--verde-escuro);
+}
+
+.flash-sale .product-showcase-item .product-details {
+    padding-left: 1rem;
+}

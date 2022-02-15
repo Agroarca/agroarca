@@ -1,3 +1,0 @@
-<x-site>
-
-</x-site>

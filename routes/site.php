@@ -14,7 +14,10 @@ use Illuminate\Support\Facades\Route;
 */
 
 Route::get('/', function () {
-    return view('teste');
+    // @TODO: Futuramente mover para controller e juntamente das logicas necessarias.
+    $flash_sale = true;
+
+    return view('site.home', compact('flash_sale'));
 })->name('index');
 
 Route::name('site')->group(function () {
