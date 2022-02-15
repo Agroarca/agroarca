@@ -68,5 +68,4 @@
         </div>
     </section>
 
-    @include('site.adicionais.newsletter')
 </x-site>
