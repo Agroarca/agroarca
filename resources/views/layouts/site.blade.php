@@ -14,6 +14,7 @@
 
     {{ $slot }}
 
+    <x-site.footer></x-site.footer>
     {{-- <script src="{{ asset('bootstrap5/js/bootstrap.js') }}"></script> --}}
     <script src="{{ mix('js/script.js') }}"></script>
     <script src="{{ mix('js/vendor.js') }}"></script>

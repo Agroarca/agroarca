@@ -711,3 +711,100 @@ section .section-title {
     left: 0;
     transform: translateY(-50%);
 }
+
+/********************/
+/* FOOTER */
+/********************/
+
+footer {
+    background: var(--branco);
+    min-height: 450px;
+    justify-content: center;
+    align-items: center;
+    display: flex;
+}
+
+footer .container .grid-items {
+    display: flex;
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: center;
+}
+footer .container .grid-items .footer-item.logo-section {
+    width: 380px;
+}
+footer .container .grid-items .footer-item.contact-section {
+    width: 280px;
+}
+footer .contact-section .contact-details {
+    display: flex;
+    gap: 1rem;
+}
+footer .contact-section .contact-details i {
+    font-size: 3.5rem;
+    color: var(--subtitulo);
+}
+footer .contact-section .contact-details .contact-placeholder {
+    display: flex;
+    flex-direction: column;
+}
+footer .contact-section .contact-details .contact-placeholder a {
+    color: var(--verde-claro);
+    font-weight: bold;
+    font-size: 18px;
+    text-decoration: unset !important;
+}
+
+footer .container .grid-items .footer-item .footer-subtitle {
+    font-size: 24px;
+    font-weight: bold;
+    color: var(--preto);
+    margin-bottom: 2rem;
+    display: block;
+    margin-bottom: 2rem;
+}
+footer .container .grid-items .footer-item:not(.logo-section) {
+    height: 280px;
+}
+footer .container .grid-items .footer-item .actions {
+    padding: unset;
+    color: var(--subtitulo);
+}
+footer .container .grid-items .footer-item .actions li {
+    cursor: pointer;
+    list-style: none;
+    text-align: left;
+}
+footer .social-media-items {
+    display: inline-flex;
+    gap: 10px;
+    padding: unset;
+    margin-top: 1rem;
+}
+footer .social-media-items i {
+    font-size: 1.5rem;
+}
+footer .social-media-items li {
+    list-style: none;
+    cursor: pointer;
+    width: 58px;
+    height: 58px;
+    background: var(--cinza-claro);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 12px;
+    color: var(--cinza-escuro);
+}
+footer .social-media-items li:hover {
+    background: rgba(0, 153, 52, 0.23);
+}
+
+section.sub-footer {
+    height: 84px;
+    margin-top: unset;
+    border-top: 1px solid var(--cinza-claro);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
