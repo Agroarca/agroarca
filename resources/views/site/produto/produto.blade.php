@@ -22,4 +22,8 @@
             @endif
         </div>
     </section>
+
+    <x-site.recently-viewed></x-site.recently-viewed>
+
+    @include('site.adicionais.business-values')
 </x-site>
