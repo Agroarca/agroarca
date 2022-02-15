@@ -22,4 +22,6 @@
             @endif
         </div>
     </section>
+
+    <x-site.recently-viewed></x-site.recently-viewed>
 </x-site>
