@@ -926,3 +926,58 @@ section.sub-footer .payment-methods ul {
 .flash-sale .product-showcase-item .product-details {
     padding-left: 1rem;
 }
+
+/********************/
+/* BUSINESS VALUES */
+/********************/
+
+.business-values {
+    margin-top: 8rem;
+    margin-bottom: 8rem;
+}
+
+.business-values ul {
+    display: inline-flex;
+    gap: 1rem;
+    width: 100%;
+    padding: unset;
+    justify-content: center;
+}
+
+.business-values ul li {
+    list-style: none;
+    width: 222px;
+    height: 137px;
+    text-align: center;
+    border-radius: 14px;
+    border: 1px solid var(--cinza-claro);
+    padding: 1rem;
+    padding-top: unset;
+    cursor: pointer;
+}
+.business-values ul li:hover {
+    box-shadow: rgba(0, 0, 0, 0.1) 0px 4px 6px -1px,
+        rgba(0, 0, 0, 0.06) 0px 2px 4px -1px;
+}
+
+.business-values ul li b {
+    display: block;
+    font-weight: bold;
+    color: var(--preto);
+    font-size: 20px;
+}
+
+.business-values ul li span {
+    display: block;
+    color: var(--subtitulo);
+    font-size: 16px;
+    font-weight: 300;
+}
+
+.business-values ul li i {
+    position: relative;
+    bottom: 20px;
+    font-size: 40px;
+    color: var(--verde-claro);
+    box-shadow: rgb(255 255 255) 0 0 20px 12px, rgb(255 255 255) 0px 0 20px 20px;
+}
