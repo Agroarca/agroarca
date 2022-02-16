@@ -6,14 +6,17 @@ use Illuminate\View\Component;
 
 class RecentlyViewed extends Component
 {
+    public $class;
+
     /**
      * Create a new component instance.
      *
      * @return void
      */
-    public function __construct()
+    public function __construct($class = [])
     {
-        //
+        $defaultClasses = ['container'];
+        $this->class = array_merge($defaultClasses, $class);
     }
 
     /**

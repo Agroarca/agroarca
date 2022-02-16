@@ -33,8 +33,6 @@
             </div>
         </div>
 
-        {{-- @TODO: Fix vitrine produto fora de grid --}}
-        {{-- PROBLEMA: width 90%, porem padding ou margin quebra o grid. --}}
         <div class="produtos">
             @foreach ($produtos as $produto)
                 @include('site.listagem.produto', $produto)
@@ -42,6 +40,6 @@
         </div>
     </section>
 
-    <x-site.recently-viewed></x-site.recently-viewed>
+    <x-site.recently-viewed  :class="['recently-viewed-section']"></x-site.recently-viewed>
 
 </x-site>
