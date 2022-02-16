@@ -30,6 +30,7 @@ Route::name('site')->group(function () {
 
     Route::prefix('carrinho')->name('.carrinho')->group(function () {
         Route::get('', [CarrinhoController::class, 'inicio'])->name('');
+        Route::get('remover/{item_id}', [CarrinhoController::class, 'remover'])->name('.remover');
     });
 
     Route::get('adicionais/{pedido_item_id}', [ProdutoController::class, 'adicionais'])->name('.adicionaisPedido');

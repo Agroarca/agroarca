@@ -4,6 +4,7 @@ namespace App\Services\Site;
 
 use App\Enums\Pedidos\StatusPedido;
 use App\Events\Pedido\AddPedidoItem;
+use App\Events\Pedido\RemovePedidoItem;
 use App\Exceptions\OperacaoIlegalException;
 use App\Models\Pedidos\ItemListaPreco;
 use App\Models\Pedidos\Pedido;
@@ -82,6 +83,21 @@ class PedidoService
         AddPedidoItem::dispatch($pedidoItem);
 
         return $pedidoItem;
+    }
+
+    public static function removerItem(PedidoItem $pedidoItem)
+    {
+        $pedido = self::getPedido();
+
+        if ($pedido->status != StatusPedido::Aberto) {
+            throw new OperacaoIlegalException("Não é permitido excluir um item de um pedido que não esteja aberto");
+        }
+
+        if ($pedido->id == $pedidoItem->pedido_id) {
+            $pedidoItem->delete();
+
+            RemovePedidoItem::dispatch();
+        }
     }
 
     public static function redirecionarAdicionais(ItemListaPreco $item)
