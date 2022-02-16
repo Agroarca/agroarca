@@ -2,18 +2,17 @@
 
 namespace App\Services\Site;
 
-use App\Models\Estoque\Categoria;
 use App\Models\Estoque\Produto;
 use App\Models\Pedidos\PedidoItem;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\DB;
 
 class ListService
 {
-    public static function queryBase()
+    protected static function queryProdutoCompravel()
     {
-        // seleciona todos os produtos que estão cadastrados em listas de preço,
-        // possuem estoque e tem preço maior que 0
         return Produto::select('produtos.*')
+            ->whereNotNull('produtos.icms_padrao')
             ->whereExists(
                 function ($query) {
                     $query->select('*')
@@ -26,16 +25,22 @@ class ListService
                             $query->whereNull('estoque_disponivel')
                                 ->orWhere('estoque_disponivel', '>', 0);
                         });
-
-                    //retorna junto os itens de lista de preço com menor valor
                 }
-            )->with([
+            );
+    }
+
+    protected static function queryBaseListas()
+    {
+        return self::queryProdutoCompravel()
+            ->with([
                 'itensListaPreco' => function ($query) {
-                    $query->where('itens_lista_preco.preco_quilo', function ($subQuery) {
-                        $subQuery->selectRaw('min(i2.preco_quilo)')
-                            ->from('itens_lista_preco as i2')
-                            ->whereColumn('i2.produto_id', 'itens_lista_preco.produto_id');
-                    });
+                    $query->select('itens_lista_preco.*')
+                        ->selectRaw('juroItemListaPreco(itens_lista_preco.id, sysdate()) as preco_item')
+                        ->where('itens_lista_preco.preco_quilo', function ($subQuery) {
+                            $subQuery->selectRaw('min(i2.preco_quilo)')
+                                ->from('itens_lista_preco as i2')
+                                ->whereColumn('i2.produto_id', 'itens_lista_preco.produto_id');
+                        });
                 },
                 'imagens' => function ($query) {
                     $query->whereIn('produto_imagens.id', function ($subQuery) {
@@ -47,7 +52,7 @@ class ListService
 
     public static function queryItensAdicionaisPedido(PedidoItem $item)
     {
-        return self::queryBase()
+        return self::queryBaseListas()
             ->whereIn('tipo_produto_id', function ($query) use ($item) {
                 $query->selectRaw(
                     'adic.tipo_produto_adicional_id
@@ -61,40 +66,26 @@ class ListService
             });
     }
 
-    public static function queryListarProdutos()
+    public static function queryListagemProdutos()
     {
-        return self::queryBase()
-            ->join('tipos_produto', 'tipos_produto.id', '=', 'produtos.tipo_produto_id')
-            ->where('tipos_produto.listavel', true);
+        return self::queryBaseListas()
+            ->whereIn('produtos.tipo_produto_id', function ($query) {
+                $query->select('tipos_produto.id')
+                    ->from('tipos_produto')
+                    ->where('tipos_produto.listavel', true);
+            });
     }
 
-    /**
-     * Returns all categories mother's by id, with a recursive procedure by eduardo.
-     *
-     * @param integer|null $id
-     * @return void
-     */
-    public static function getAllChildCategories(?int $id)
+    public static function queryListagemCategoria($categoriaId)
     {
-        $categorias = DB::select('
-            with recursive cats (id) as (
-                select id
-                from categorias
-                where (
-                    @id is null
-                    and categoria_mae_id is null
-                ) or (
-                    @id is not null
-                    and id = @id
-                )
-                union all
-                select cat.id
-                from categorias cat
-                inner join cats on cat.categoria_mae_id = cats.id
-            )
-            select id from cats,
-            (select @id := ?) inicializacao;', [$id]);
-
-        return collect($categorias)->pluck('id');
+        return self::queryListagemProdutos()
+            ->whereRaw(
+                "categoria_id in (
+                    with recursive cats (id) as (
+                        select id from categorias where (@id is null and categoria_mae_id is null) or (@id is not null and id = @id)
+                        union all select cat.id from categorias cat inner join cats on cat.categoria_mae_id = cats.id)
+                    select id from cats, (select @id := ?) inicializacao)",
+                [$categoriaId]
+            );
     }
 }
