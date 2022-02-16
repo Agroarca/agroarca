@@ -1,4 +1,4 @@
-<section class="container">
+<section @class($class)>
     <div class="section-meta">
         <h2 class="section-title">Produtos Visualizados Recentemente</h2>
         <div class="section-nav">
