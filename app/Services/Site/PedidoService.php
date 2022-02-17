@@ -77,7 +77,7 @@ class PedidoService
             'item_lista_preco_id' => $item->id
         ]);
 
-        $pedidoItem->preco_quilo = $item->preco_quilo;
+        $pedidoItem->preco_quilo = $item->calculaPreco();
         $pedidoItem->save();
 
         AddPedidoItem::dispatch($pedidoItem);
@@ -94,6 +94,7 @@ class PedidoService
         }
 
         if ($pedido->id == $pedidoItem->pedido_id) {
+            $pedidoItem->pedidoItensAdicionais()->delete();
             $pedidoItem->delete();
 
             RemovePedidoItem::dispatch();
@@ -104,5 +105,22 @@ class PedidoService
     {
         $tipo = $item->produto->tipoProduto;
         return ($tipo->tiposProdutosAdicionais()->count() > 0);
+    }
+
+    public static function adicionarItemAdicional(PedidoItem $pedidoItem, ItemListaPreco $itemAdicional)
+    {
+        $pedidoItemAdicional = PedidoItem::firstOrCreate([
+            'pedido_item_pai_id' => $pedidoItem->id,
+            'pedido_id' => $pedidoItem->pedido_id,
+            'item_lista_preco_id' => $itemAdicional->id
+        ]);
+
+        $pedidoItemAdicional->preco_quilo = $itemAdicional->calculaPreco();
+        $pedidoItemAdicional->quantidade = $pedidoItem->quantidade;
+        $pedidoItemAdicional->save();
+
+        AddPedidoItem::dispatch($pedidoItemAdicional);
+
+        return $pedidoItemAdicional;
     }
 }

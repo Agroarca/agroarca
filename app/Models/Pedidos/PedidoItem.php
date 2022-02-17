@@ -23,17 +23,31 @@ class PedidoItem extends Model
         'pedido_id',
         'item_lista_preco_id',
         'endereco_id',
+        'pedido_item_pai_id',
     ];
 
-    public function pedido(){
+    public function pedido()
+    {
         return $this->belongsTo(Pedido::class);
     }
 
-    public function itemListaPreco(){
+    public function itemListaPreco()
+    {
         return $this->belongsTo(ItemListaPreco::class);
     }
 
-    public function usuarioEndereco(){
+    public function usuarioEndereco()
+    {
         return $this->belongsTo(UsuarioEndereco::class);
+    }
+
+    public function pedidoItemPai()
+    {
+        return $this->belongsTo(PedidoItem::class);
+    }
+
+    public function pedidoItensAdicionais()
+    {
+        return $this->hasMany(PedidoItem::class, 'pedido_item_pai_id');
     }
 }
