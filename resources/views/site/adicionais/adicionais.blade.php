@@ -1,6 +1,6 @@
 <x-site>
     <div class="carrinho">
-        <form method="POST" action="{{ route('site.addAdicionais', $pedidoItem->id) }}">
+        <form method="POST" action="{{ route('site.carrinho.salvar', $pedidoItem->id) }}">
             @csrf
             <div class="form-group">
                 <label for="quantidade"><i class="fas fa-info-circle"></i> Quantidade (Kg):</label>

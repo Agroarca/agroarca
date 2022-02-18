@@ -34,8 +34,7 @@ Route::name('site')->group(function () {
     Route::prefix('carrinho')->name('.carrinho')->group(function () {
         Route::get('', [CarrinhoController::class, 'inicio'])->name('');
         Route::get('remover/{item_id}', [CarrinhoController::class, 'remover'])->name('.remover');
+        Route::get('item/{item_id}/editar', [CarrinhoController::class, 'editar'])->name('.editar');
+        Route::post('item/{item_id}/salvar', [CarrinhoController::class, 'salvar'])->name('.salvar');
     });
-
-    Route::get('adicionais/{pedido_item_id}', [ProdutoController::class, 'adicionais'])->name('.adicionaisPedido');
-    Route::post('adicionais/add/{pedido_item_id}', [ProdutoController::class, 'addAdicionais'])->name('.addAdicionais');
 });

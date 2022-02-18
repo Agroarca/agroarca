@@ -4,6 +4,7 @@ namespace App\Services\Site;
 
 use App\Models\Cadastros\UsuarioEndereco;
 use App\Models\Frete\Cep;
+use Carbon\Carbon;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Cookie;
 
@@ -51,5 +52,10 @@ class EntregaService
     {
         Cookie::queue('cep', $cep);
         Cookie::queue('endereco_padrao_id', null);
+    }
+
+    public static function getDataEntrega()
+    {
+        return Carbon::now()->addDays(15);
     }
 }

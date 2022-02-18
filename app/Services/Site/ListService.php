@@ -4,11 +4,10 @@ namespace App\Services\Site;
 
 use App\Models\Estoque\Produto;
 use App\Models\Pedidos\PedidoItem;
-use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Support\Facades\DB;
 
 class ListService
 {
+
     protected static function queryProdutoCompravel()
     {
         return Produto::select('produtos.*')
@@ -20,7 +19,14 @@ class ListService
                         ->join('listas_preco', 'itens_lista_preco.lista_preco_id', '=', 'listas_preco.id')
                         ->whereColumn('itens_lista_preco.produto_id', 'produtos.id')
                         ->where('preco_quilo', '>', 0)
-                        ->whereRaw('sysdate() between listas_preco.data_inicio and listas_preco.data_fim')
+                        ->whereRaw('? between listas_preco.data_inicio and listas_preco.data_fim', [EntregaService::getDataEntrega()])
+                        ->where(function ($query) {
+                            $query->whereRaw('itens_lista_preco.data_inicial_entrega is null and itens_lista_preco.data_final_entrega is null')
+                                ->orWhereRaw('? between itens_lista_preco.data_inicial_entrega and itens_lista_preco.data_final_entrega', [EntregaService::getDataEntrega()])
+                                ->orWhereRaw('itens_lista_preco.data_inicial_entrega is null and ? < itens_lista_preco.data_final_entrega', [EntregaService::getDataEntrega()])
+                                ->orWhereRaw('itens_lista_preco.data_final_entrega is null and ? > itens_lista_preco.data_inicial_entrega', [EntregaService::getDataEntrega()]);
+                        })
+                        ->whereRaw('sysdate() + itens_lista_preco.minimo_dias_entrega > ?', [EntregaService::getDataEntrega()])
                         ->where(function ($query) {
                             $query->whereNull('estoque_disponivel')
                                 ->orWhere('estoque_disponivel', '>', 0);
@@ -33,13 +39,31 @@ class ListService
     {
         return self::queryProdutoCompravel()
             ->with([
-                'itensListaPreco' => function ($query) {
+                'itensListaPreco' => function ($query) { //// TODO fazer falidação desses itens
                     $query->select('itens_lista_preco.*')
                         ->selectRaw('juroItemListaPreco(itens_lista_preco.id, sysdate()) as preco_item')
                         ->where('itens_lista_preco.preco_quilo', function ($subQuery) {
                             $subQuery->selectRaw('min(i2.preco_quilo)')
                                 ->from('itens_lista_preco as i2')
                                 ->whereColumn('i2.produto_id', 'itens_lista_preco.produto_id');
+                        })->whereExists(function ($query) {
+                            $query->select('*')
+                                ->from('itens_lista_preco as ilp')
+                                ->join('listas_preco', 'ilp.lista_preco_id', '=', 'listas_preco.id')
+                                ->whereColumn('ilp.id', 'itens_lista_preco.id')
+                                ->where('preco_quilo', '>', 0)
+                                ->whereRaw('? between listas_preco.data_inicio and listas_preco.data_fim', [EntregaService::getDataEntrega()])
+                                ->where(function ($query) {
+                                    $query->whereRaw('ilp.data_inicial_entrega is null and ilp.data_final_entrega is null')
+                                        ->orWhereRaw('? between ilp.data_inicial_entrega and ilp.data_final_entrega', [EntregaService::getDataEntrega()])
+                                        ->orWhereRaw('ilp.data_inicial_entrega is null and ? < ilp.data_final_entrega', [EntregaService::getDataEntrega()])
+                                        ->orWhereRaw('ilp.data_final_entrega is null and ? > ilp.data_inicial_entrega', [EntregaService::getDataEntrega()]);
+                                })
+                                ->whereRaw('sysdate() + ilp.minimo_dias_entrega > ?', [EntregaService::getDataEntrega()])
+                                ->where(function ($query) {
+                                    $query->whereNull('estoque_disponivel')
+                                        ->orWhere('estoque_disponivel', '>', 0);
+                                });
                         });
                 },
                 'imagens' => function ($query) {
@@ -70,6 +94,13 @@ class ListService
                     ->whereColumn('itens_lista_preco.produto_id', 'produtos.id')
                     ->where('preco_quilo', '>', 0)
                     ->whereRaw('sysdate() between listas_preco.data_inicio and listas_preco.data_fim')
+                    ->where(function ($query) {
+                        $query->whereRaw('itens_lista_preco.data_inicial_entrega is null and itens_lista_preco.data_final_entrega is null')
+                            ->orWhereRaw('? between itens_lista_preco.data_inicial_entrega and itens_lista_preco.data_final_entrega', [EntregaService::getDataEntrega()])
+                            ->orWhereRaw('itens_lista_preco.data_inicial_entrega is null and ? < itens_lista_preco.data_final_entrega', [EntregaService::getDataEntrega()])
+                            ->orWhereRaw('itens_lista_preco.data_final_entrega is null and ? > itens_lista_preco.data_inicial_entrega', [EntregaService::getDataEntrega()]);
+                    })
+                    ->whereRaw('sysdate() + itens_lista_preco.minimo_dias_entrega > ?', [EntregaService::getDataEntrega()])
                     ->where(function ($query) use ($item) {
                         $query->whereNull('estoque_disponivel')
                             ->orWhere('estoque_disponivel', '>', $item->quantidade ?? 0);
@@ -88,12 +119,31 @@ class ListService
                             $subQuery->selectRaw('min(i2.preco_quilo)')
                                 ->from('itens_lista_preco as i2')
                                 ->whereColumn('i2.produto_id', 'itens_lista_preco.produto_id');
+                        })->whereExists(function ($query) {
+                            $query->select('*')
+                                ->from('itens_lista_preco as ilp')
+                                ->join('listas_preco', 'ilp.lista_preco_id', '=', 'listas_preco.id')
+                                ->whereColumn('ilp.id', 'itens_lista_preco.id')
+                                ->where('preco_quilo', '>', 0)
+                                ->whereRaw('? between listas_preco.data_inicio and listas_preco.data_fim', [EntregaService::getDataEntrega()])
+                                ->where(function ($query) {
+                                    $query->whereRaw('ilp.data_inicial_entrega is null and ilp.data_final_entrega is null')
+                                        ->orWhereRaw('? between ilp.data_inicial_entrega and ilp.data_final_entrega', [EntregaService::getDataEntrega()])
+                                        ->orWhereRaw('ilp.data_inicial_entrega is null and ? < ilp.data_final_entrega', [EntregaService::getDataEntrega()])
+                                        ->orWhereRaw('ilp.data_final_entrega is null and ? > ilp.data_inicial_entrega', [EntregaService::getDataEntrega()]);
+                                })
+                                ->whereRaw('sysdate() + ilp.minimo_dias_entrega > ?', [EntregaService::getDataEntrega()])
+                                ->where(function ($query) {
+                                    $query->whereNull('estoque_disponivel')
+                                        ->orWhere('estoque_disponivel', '>', 0);
+                                });
                         })
                         ->join('listas_preco', 'itens_lista_preco.lista_preco_id', '=', 'listas_preco.id')->where('listas_preco.fornecedor_id', function ($query) use ($item) {
                             $query->select('lp.fornecedor_id')
                                 ->from('listas_preco as lp')
                                 ->join('itens_lista_preco', 'itens_lista_preco.lista_preco_id', '=', 'lp.id')
-                                ->where('itens_lista_preco.id', $item->item_lista_preco_id);
+                                ->where('itens_lista_preco.id', $item->item_lista_preco_id)
+                                ->where('itens_lista_preco.centro_distribuicao_id', $item->centro_distribuicao_id);
                         });
                 }
             ]);
