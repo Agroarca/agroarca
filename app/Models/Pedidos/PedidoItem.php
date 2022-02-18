@@ -19,10 +19,8 @@ class PedidoItem extends Model
         'subtotal',
         'ajuste',
         'total',
-        'data_entrega',
         'pedido_id',
         'item_lista_preco_id',
-        'endereco_id',
         'pedido_item_pai_id',
     ];
 
@@ -34,11 +32,6 @@ class PedidoItem extends Model
     public function itemListaPreco()
     {
         return $this->belongsTo(ItemListaPreco::class);
-    }
-
-    public function usuarioEndereco()
-    {
-        return $this->belongsTo(UsuarioEndereco::class);
     }
 
     public function pedidoItemPai()

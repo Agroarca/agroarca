@@ -19,13 +19,22 @@ class Pedido extends Model
         'total',
         'usuario_id',
         'observacao',
+        'data_entrega',
+        'endereco_id',
     ];
 
-    public function usuario(){
+    public function usuario()
+    {
         return $this->belongsTo(Usuario::class);
     }
 
-    public function pedidoItens(){
+    public function pedidoItens()
+    {
         return  $this->hasMany(PedidoItem::class);
+    }
+
+    public function usuarioEndereco()
+    {
+        return $this->belongsTo(UsuarioEndereco::class);
     }
 }
