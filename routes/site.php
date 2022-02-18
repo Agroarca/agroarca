@@ -37,4 +37,5 @@ Route::name('site')->group(function () {
     });
 
     Route::get('adicionais/{pedido_item_id}', [ProdutoController::class, 'adicionais'])->name('.adicionaisPedido');
+    Route::post('adicionais/add/{pedido_item_id}', [ProdutoController::class, 'addAdicionais'])->name('.addAdicionais');
 });

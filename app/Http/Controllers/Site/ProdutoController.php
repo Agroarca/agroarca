@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Site;
 
 use App\Http\Controllers\Controller;
 use App\Models\Estoque\Produto;
+use App\Models\Pedidos\ItemListaPreco;
 use App\Models\Pedidos\PedidoItem;
 use App\Services\Site\EntregaService;
 use App\Services\Site\ListService;
@@ -47,10 +48,32 @@ class ProdutoController extends Controller
 
     public function adicionais($pedidoItemId)
     {
-        $item = PedidoItem::findOrFail($pedidoItemId);
+        $pedidoItem = PedidoItem::findOrFail($pedidoItemId);
+        $produtos = [];
 
-        $produtos = ListService::queryItensAdicionaisPedido($item)->get();
+        if ($pedidoItem->quantidade > 0) {
+            $produtos = ListService::queryItensAdicionaisPedido($pedidoItem)->get();
+        }
 
-        return view('site.adicionais.adicionais', compact('produtos'));
+        return view('site.adicionais.adicionais', compact('pedidoItem'), compact('produtos'));
+    }
+
+    public function addAdicionais(Request $request, $pedidoItemId)
+    {
+        $pedidoItem = PedidoItem::findOrFail($pedidoItemId);
+        $pedidoItem->update([
+            'quantidade' => $request->input('quantidade')
+        ]);
+
+        if (!$request->has('adicional')) {
+            return redirect()->route('site.adicionaisPedido', $pedidoItemId)->withInput();
+        }
+
+        foreach ($request->input('adicional') as $adicional) {
+            $itemAdicional = ItemListaPreco::findOrFail($adicional);
+            PedidoService::adicionarItemAdicional($pedidoItem, $itemAdicional);
+        }
+
+        return redirect()->route('site.carrinho');
     }
 }

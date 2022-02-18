@@ -63,7 +63,40 @@ class ListService
                     where pi.id = ?',
                     [$item->id]
                 );
-            });
+            })->whereExists(function ($query) use ($item) {
+                $query->select('*')
+                    ->from('itens_lista_preco')
+                    ->join('listas_preco', 'itens_lista_preco.lista_preco_id', '=', 'listas_preco.id')
+                    ->whereColumn('itens_lista_preco.produto_id', 'produtos.id')
+                    ->where('preco_quilo', '>', 0)
+                    ->whereRaw('sysdate() between listas_preco.data_inicio and listas_preco.data_fim')
+                    ->where(function ($query) use ($item) {
+                        $query->whereNull('estoque_disponivel')
+                            ->orWhere('estoque_disponivel', '>', $item->quantidade ?? 0);
+                    })
+                    ->where('listas_preco.fornecedor_id', function ($query) use ($item) {
+                        $query->select('lp.fornecedor_id')
+                            ->from('listas_preco as lp')
+                            ->join('itens_lista_preco', 'itens_lista_preco.lista_preco_id', '=', 'lp.id')
+                            ->where('itens_lista_preco.id', $item->item_lista_preco_id);
+                    });
+            })->with([
+                'itensListaPreco' => function ($query) use ($item) {
+                    $query->select('itens_lista_preco.*')
+                        ->selectRaw('juroItemListaPreco(itens_lista_preco.id, sysdate()) as preco_item')
+                        ->where('itens_lista_preco.preco_quilo', function ($subQuery) {
+                            $subQuery->selectRaw('min(i2.preco_quilo)')
+                                ->from('itens_lista_preco as i2')
+                                ->whereColumn('i2.produto_id', 'itens_lista_preco.produto_id');
+                        })
+                        ->join('listas_preco', 'itens_lista_preco.lista_preco_id', '=', 'listas_preco.id')->where('listas_preco.fornecedor_id', function ($query) use ($item) {
+                            $query->select('lp.fornecedor_id')
+                                ->from('listas_preco as lp')
+                                ->join('itens_lista_preco', 'itens_lista_preco.lista_preco_id', '=', 'lp.id')
+                                ->where('itens_lista_preco.id', $item->item_lista_preco_id);
+                        });
+                }
+            ]);
     }
 
     public static function queryListagemProdutos()
