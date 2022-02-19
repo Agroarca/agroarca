@@ -32,7 +32,11 @@ class ListService
                                 ->orWhere('estoque_disponivel', '>', 0);
                         });
                 }
-            );
+            )->whereExists(function ($query) {
+                $query->select('*')
+                    ->from('produto_imagens')
+                    ->whereColumn('produto_id', 'produtos.id');
+            });
     }
 
     protected static function queryBaseListas()
