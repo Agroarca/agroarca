@@ -9,6 +9,7 @@ use App\Models\Pedidos\PedidoItem;
 use App\Services\Site\EntregaService;
 use App\Services\Site\ListService;
 use App\Services\Site\PedidoService;
+use App\Services\Site\ProdutoService;
 use Illuminate\Http\Request;
 
 class ProdutoController extends Controller
@@ -17,9 +18,7 @@ class ProdutoController extends Controller
     public function produto($id)
     {
         $produto = Produto::findOrFail($id);
-
-        $controller = new ProdutoPrecoController();
-        $precoProduto =  $controller->getPrecoProduto($produto);
+        $precoProduto =  ProdutoService::getPrecosProduto($produto)[0];
 
         return view('site.produto.produto', compact('produto'), compact('precoProduto'));
     }

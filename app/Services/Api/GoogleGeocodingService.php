@@ -1,20 +1,20 @@
 <?php
 
-namespace App\Http\Controllers\Api;
+namespace App\Services\Api;
 
 use App\Classes\Interfaces\GoogleGeocoding;
 use App\Classes\Interfaces\GoogleGeocodingRetorno;
-use App\Http\Controllers\Controller;
 use GuzzleHttp\Client;
 use Illuminate\Support\Facades\Log;
 
-class GoogleGeocodingController extends Controller
+class GoogleGeocodingService
 {
-    public $baseUrl = 'https://maps.googleapis.com/maps/api/geocode/json';
+    private static function consultar($address)
+    {
+        $baseUrl = config('agroarca.apis.googleGeocodeBaseUrl');
 
-    private function consultar($address){
         $client = new Client([
-            'base_uri' => $this->baseUrl,
+            'base_uri' => $baseUrl,
             'timeout' => 30,
             'http_errors' => false,
             'query' => [
@@ -25,18 +25,18 @@ class GoogleGeocodingController extends Controller
 
         $response = $client->request('GET');
 
-        if($response->getStatusCode() != 200){
-            Log::warning("GoogleGeocoding: Erro ao consultar endereço: $address; StatusCode: ". $response->getStatusCode());
+        if ($response->getStatusCode() != 200) {
+            Log::warning("GoogleGeocoding: Erro ao consultar endereço: $address; StatusCode: " . $response->getStatusCode());
             return null;
         }
 
         $dados = json_decode($response->getBody());
-        if($dados->status == "ZERO_RESULTS"){
+        if ($dados->status == "ZERO_RESULTS") {
             Log::warning("GoogleGeocoding: Retornado ZERO_RESULTS, parâmetros: $address");
             return null;
         }
 
-        if($dados->status != "OK"){
+        if ($dados->status != "OK") {
             Log::error("GoogleGeocoding: Ocorreu um erro ao consultar endereço, status retornado: $dados->status, parâmetros: $address");
             return null;
         }
@@ -48,13 +48,15 @@ class GoogleGeocodingController extends Controller
         return $retorno;
     }
 
-    public function consultarEndereco(GoogleGeocoding $endereco){
+    public static function consultarEndereco(GoogleGeocoding $endereco)
+    {
         $address = urlencode("$endereco->endereco $endereco->numero") . ";components=postalcode:$endereco->cep";
-        return $this->consultar($address);
+        return self::consultar($address);
     }
 
-    public function consultarCEP($cep){
+    public static function consultarCEP($cep)
+    {
         $address = "$cep Brasil";
-        return $this->consultar($address);
+        return self::consultar($address);
     }
 }
