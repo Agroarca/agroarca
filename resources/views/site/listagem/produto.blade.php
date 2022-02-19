@@ -1,10 +1,6 @@
 @php
     use App\Helpers\Formatter;
-    if(count($produto->imagens) > 0){
-        $imagem = $produto->imagens[0];
-    }else{
-        throw new Exception("Nenhuma imagem encontrada. Produto ID#{$produto->id}");
-    }
+    $imagem = $produto->imagens[0];
 @endphp
 
 <a class="produto" id="produto-{{ $produto->id }}" href="{{ route('site.produto', $produto->id) }}">
