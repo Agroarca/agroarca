@@ -33,7 +33,7 @@ class CarrinhoController extends Controller
             $produtos = ListService::queryItensAdicionaisPedido($pedidoItem)->get();
         }
 
-        return view('site.adicionais.adicionais', compact('pedidoItem'), compact('produtos'));
+        return view('site.carrinho.editar.editar', compact('pedidoItem'), compact('produtos'));
     }
 
     public function salvar(Request $request, $pedidoItemId)
@@ -51,6 +51,8 @@ class CarrinhoController extends Controller
             $itemAdicional = ItemListaPreco::findOrFail($adicional);
             PedidoService::adicionarItemAdicional($pedidoItem, $itemAdicional);
         }
+
+        PedidoService::removerAdicionaisExceto($pedidoItem, $request->input('adicional'));
 
         return redirect()->route('site.carrinho');
     }

@@ -56,6 +56,6 @@ class EntregaService
 
     public static function getDataEntrega()
     {
-        return Carbon::now()->addDays(15);
+        return Carbon::now()->addDays(15)->toDateTimeLocalString();;
     }
 }

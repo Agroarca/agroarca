@@ -3,5 +3,6 @@
     <p>Quantidade: {{ $pedidoItem->quantidade }}</p>
     <p>Preco: {{ $pedidoItem->itemListaPreco->calculaPreco() }}</p>
     <p>Endereco: {{ ($pedidoItem->usuarioEndereco) ? $pedidoItem->usuarioEndereco->nome : '' }}</p>
+    <p> <a href='{{ route('site.carrinho.editar', $pedidoItem->id) }}'>Editar</a> </p>
     <p> <a href='{{ route('site.carrinho.remover', $pedidoItem->id) }}'>Remover</a> </p>
 </div>
