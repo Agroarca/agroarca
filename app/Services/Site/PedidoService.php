@@ -123,4 +123,29 @@ class PedidoService
 
         return $pedidoItemAdicional;
     }
+
+    public static function removerAdicionaisExceto(PedidoItem $pedidoItem, array $adicionais)
+    {
+        if ($pedidoItem->pedido->status != StatusPedido::Aberto) {
+            throw new OperacaoIlegalException("Não é permitido excluir um item de um pedido que não esteja aberto");
+        }
+
+        $itens = $pedidoItem
+            ->pedidoItensAdicionais()
+            ->whereNotIn('pedido_itens.id', function ($query) use ($pedidoItem, $adicionais) {
+                $query->select('pi.id')
+                    ->from('pedido_itens as pi')
+                    ->join('itens_lista_preco', 'itens_lista_preco.id', '=', 'pi.item_lista_preco_id')
+                    ->where('pi.pedido_item_pai_id', $pedidoItem->id)
+                    ->whereIn('itens_lista_preco.id', $adicionais);
+            })->get();
+
+        if (count($itens) > 0) {
+            foreach ($itens as $item) {
+                $item->delete();
+            }
+
+            RemovePedidoItem::dispatch();
+        }
+    }
 }

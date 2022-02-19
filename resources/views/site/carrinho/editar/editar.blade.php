@@ -9,7 +9,7 @@
             </div>
             @if($pedidoItem->quantidade > 0)
                 @foreach ($produtos as $produto)
-                    @include('site.adicionais.produto', ['produto' => $produto])
+                    @include('site.carrinho.editar.produto', ['produto' => $produto])
                 @endforeach
             @endif
             <div class="form-group">

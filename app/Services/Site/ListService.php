@@ -41,12 +41,8 @@ class ListService
             ->with([
                 'itensListaPreco' => function ($query) { //// TODO fazer falidação desses itens
                     $query->select('itens_lista_preco.*')
-                        ->selectRaw('juroItemListaPreco(itens_lista_preco.id, sysdate()) as preco_item')
-                        ->where('itens_lista_preco.preco_quilo', function ($subQuery) {
-                            $subQuery->selectRaw('min(i2.preco_quilo)')
-                                ->from('itens_lista_preco as i2')
-                                ->whereColumn('i2.produto_id', 'itens_lista_preco.produto_id');
-                        })->whereExists(function ($query) {
+                        ->selectRaw('juroItemListaPreco(itens_lista_preco.id, ?) as preco_item',  [EntregaService::getDataEntrega()])
+                        ->whereExists(function ($query) {
                             $query->select('*')
                                 ->from('itens_lista_preco as ilp')
                                 ->join('listas_preco', 'ilp.lista_preco_id', '=', 'listas_preco.id')
@@ -64,7 +60,7 @@ class ListService
                                     $query->whereNull('estoque_disponivel')
                                         ->orWhere('estoque_disponivel', '>', 0);
                                 });
-                        });
+                        })->orderByRaw('juroItemListaPreco(itens_lista_preco.id, ?)', [EntregaService::getDataEntrega()]);
                 },
                 'imagens' => function ($query) {
                     $query->whereIn('produto_imagens.id', function ($subQuery) {
@@ -115,11 +111,9 @@ class ListService
                 'itensListaPreco' => function ($query) use ($item) {
                     $query->select('itens_lista_preco.*')
                         ->selectRaw('juroItemListaPreco(itens_lista_preco.id, sysdate()) as preco_item')
-                        ->where('itens_lista_preco.preco_quilo', function ($subQuery) {
-                            $subQuery->selectRaw('min(i2.preco_quilo)')
-                                ->from('itens_lista_preco as i2')
-                                ->whereColumn('i2.produto_id', 'itens_lista_preco.produto_id');
-                        })->whereExists(function ($query) {
+                        ->selectRaw('case when exists(select * from itens_lista_preco as ilp join pedido_itens on ilp.id = pedido_itens.item_lista_preco_id
+                            where pedido_itens.pedido_item_pai_id = ? and ilp.id = itens_lista_preco.id) then true else false end as adicionado', [$item->id])
+                        ->whereExists(function ($query) {
                             $query->select('*')
                                 ->from('itens_lista_preco as ilp')
                                 ->join('listas_preco', 'ilp.lista_preco_id', '=', 'listas_preco.id')
@@ -138,13 +132,19 @@ class ListService
                                         ->orWhere('estoque_disponivel', '>', 0);
                                 });
                         })
-                        ->join('listas_preco', 'itens_lista_preco.lista_preco_id', '=', 'listas_preco.id')->where('listas_preco.fornecedor_id', function ($query) use ($item) {
+                        ->join('listas_preco', 'itens_lista_preco.lista_preco_id', '=', 'listas_preco.id')
+                        ->where('listas_preco.fornecedor_id', function ($query) use ($item) {
                             $query->select('lp.fornecedor_id')
                                 ->from('listas_preco as lp')
                                 ->join('itens_lista_preco', 'itens_lista_preco.lista_preco_id', '=', 'lp.id')
-                                ->where('itens_lista_preco.id', $item->item_lista_preco_id)
-                                ->where('itens_lista_preco.centro_distribuicao_id', $item->centro_distribuicao_id);
-                        });
+                                ->where('itens_lista_preco.id', $item->item_lista_preco_id);
+                        })
+                        ->where('centro_distribuicao_id', function ($query) use ($item) {
+                            $query->select('ilpc.centro_distribuicao_id')
+                                ->from('itens_lista_preco as ilpc')
+                                ->join('pedido_itens', 'pedido_itens.item_lista_preco_id', '=', 'ilpc.id')
+                                ->where('pedido_itens.id', $item->id);
+                        })->orderByRaw('juroItemListaPreco(itens_lista_preco.id, ?)', [EntregaService::getDataEntrega()]);
                 }
             ]);
     }
