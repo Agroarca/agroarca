@@ -28,7 +28,6 @@ class AddPedido extends Migration
 
             $table->text('observacao')->nullable();
 
-            $table->softDeletes();
             $table->timestamps();
         });
     }

@@ -7,11 +7,12 @@ use App\Models\Estoque\Produto;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Facades\DB;
 
 class ItemListaPreco extends Model
 {
-    use HasFactory;
+    use HasFactory, SoftDeletes;
     protected $table = 'itens_lista_preco';
     protected $fillable = [
         'preco_quilo',
@@ -27,19 +28,23 @@ class ItemListaPreco extends Model
         'minimo_dias_entrega'
     ];
 
-    public function listaPreco(){
+    public function listaPreco()
+    {
         return $this->belongsTo(ListaPreco::class);
     }
 
-    public function produto(){
+    public function produto()
+    {
         return $this->belongsTo(Produto::class);
     }
 
-    public function centroDistribuicao(){
+    public function centroDistribuicao()
+    {
         return $this->belongsTo(CentroDistribuicao::class);
     }
 
-    public function calculaPreco($data = null){
+    public function calculaPreco($data = null)
+    {
         $data = new Carbon($data);
         return DB::select('SELECT juroItemListaPreco(?, ?) AS valor', [$this->id, $data])[0]->valor;
     }

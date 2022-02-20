@@ -34,7 +34,6 @@ class AddPedidoItem extends Migration
             $table->foreignId('endereco_id')->nullable();
             $table->foreign('endereco_id')->references('id')->on('usuario_enderecos');
 
-            $table->softDeletes();
             $table->timestamps();
         });
     }
