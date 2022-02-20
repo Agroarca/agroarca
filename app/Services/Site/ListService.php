@@ -19,7 +19,7 @@ class ListService
     {
         return self::queryProdutoCompravel()
             ->with([
-                'itensListaPreco' => function ($query) { //// TODO fazer falidação desses itens
+                'itensListaPreco' => function ($query) {
                     $query = $query->select('itens_lista_preco.*')
                         ->selectRaw('juroItemListaPreco(itens_lista_preco.id, ?) as preco_item',  [EntregaService::getDataEntrega()]);
 
