@@ -5,3 +5,29 @@
 
 // https://getbootstrap.com/docs/5.0
 @import "~bootstrap/scss/bootstrap";
+
+// Estilizar outros tipos de botoes do bootstrap, conforme a necessidade.
+
+.btn-primary {
+    &,
+    &:active {
+        background-color: var(--verde-claro);
+        border-color: var(--verde-claro);
+        color: var(--branco);
+        box-shadow: unset;
+    }
+    &:hover,
+    &:focus {
+        background-color: var(--verde-escuro);
+        border-color: var(--verde-escuro);
+    }
+    &:active:focus {
+        box-shadow: 0 0 0 0.25rem rgba(0, 153, 52, 0.3);
+    }
+}
+
+.btn {
+    font-weight: bold;
+    text-decoration: none;
+    text-transform: uppercase;
+}
