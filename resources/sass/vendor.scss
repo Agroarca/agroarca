@@ -8,6 +8,10 @@
 
 // Estilizar outros tipos de botoes do bootstrap, conforme a necessidade.
 
+/**
+    PRIMARY BUTTON
+**/
+
 .btn-primary {
     &,
     &:active {
@@ -30,4 +34,36 @@
     font-weight: bold;
     text-decoration: none;
     text-transform: uppercase;
+}
+
+/**
+    MODAL
+**/
+
+.modal {
+    .modal-header {
+        border: unset;
+
+        .modal-title {
+            width: 100%;
+            text-align: center;
+
+            & .modal-title-meta {
+                border-bottom: 3px solid var(--verde-claro);
+                width: 70%;
+                display: block;
+                margin: 0 auto;
+            }
+        }
+    }
+
+    .modal-footer {
+        border: unset;
+    }
+
+    .btn {
+        font-weight: 300;
+        font-size: 14px;
+        text-transform: capitalize;
+    }
 }
