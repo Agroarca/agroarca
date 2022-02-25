@@ -4,6 +4,8 @@ namespace App\Services\Site;
 
 use App\Models\Cadastros\UsuarioEndereco;
 use App\Models\Frete\Cep;
+use App\Models\Pedidos\ItemListaPreco;
+use App\Services\DistanciasService;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Cookie;
@@ -57,5 +59,11 @@ class EntregaService
     public static function getDataEntrega()
     {
         return Carbon::now()->addDays(15)->toDateTimeLocalString();;
+    }
+
+    public static function calcularFrete(ItemListaPreco $item, $cep)
+    {
+        $distancia = DistanciasService::calcularDistancia($cep, $item->centroDistribuicao->usuarioEndereco);
+        return $item->base_frete * ($distancia / 1000);
     }
 }
