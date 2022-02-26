@@ -23,8 +23,8 @@
             </a>
         </div>
         <div class="header-item search-container">
-                <input placeholder="Pequisar produtos..." type="text" class="search">
-                <button type="submit"><i class="fa fa-search"></i></button>
+            <input placeholder="Pequisar produtos..." type="text" class="search">
+            <button type="submit"><i class="fa fa-search"></i></button>
         </div>
         <div class="header-item arca-container">
             <a href="{{ route('site.carrinho') }}"><i class="fas fa-th-large"></i></a>
@@ -33,9 +33,13 @@
             <a href="{{ route('site.carrinho') }}"><i class="fas fa-shopping-cart"></i></a>
             <span class="cart-placeholder" id="cart-amount">7</span>
         </div>
-        <a class="header-item profile-container" href="{{ route('dashboard') }}">
+        <a class="header-item profile-container" href="{{ route('index') }}">
             <i class="fas fa-user-circle"></i>
             Minha Conta
+        </a>
+        <a class="header-item profile-container" href="{{ route('admin.inicio') }}">
+            <i class="fa-solid fa-chart-line"></i>
+            Painel
         </a>
     </div>
 

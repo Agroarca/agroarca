@@ -11,6 +11,7 @@ use App\Http\Controllers\Admin\Estoque\MarcaController;
 use App\Http\Controllers\Admin\Estoque\ProdutoController;
 use App\Http\Controllers\Admin\Estoque\ProdutoImagemController;
 use App\Http\Controllers\Admin\Estoque\TipoProdutoController;
+use App\Http\Controllers\Admin\PainelController;
 use App\Http\Controllers\Admin\Pedidos\ItemListaPrecoController;
 use App\Http\Controllers\Admin\Pedidos\ListaPrecoController;
 use Illuminate\Support\Facades\Route;
@@ -25,17 +26,37 @@ use Illuminate\Support\Facades\Route;
 |
 */
 
-Route::middleware(['auth'])->prefix('admin')->name('admin')->group(function(){
+Route::middleware(['auth'])->prefix('admin')->name('admin')->group(function () {
 
-    Route::namespace('Cadastros')->prefix('cadastros')->name('.cadastros')->group(function(){
+    /*
+    |--------------------------------------------------------------------------
+    | Dashboard Routes
+    |--------------------------------------------------------------------------
+    |
+    | Aqui devem conter todas as rotas para o dashboard e relatórios
+    |
+    */
 
-        Route::prefix('estados')->name('.estados')->group(function (){
+    Route::get('inicio', [PainelController::class, 'inicio'])->name('.inicio');
+
+    /*
+    |--------------------------------------------------------------------------
+    | Model Routes
+    |--------------------------------------------------------------------------
+    |
+    | Aqui devem conter todas as rotas para crud de modelos
+    |
+    */
+
+    Route::prefix('cadastros')->name('.cadastros')->group(function () {
+
+        Route::prefix('estados')->name('.estados')->group(function () {
             Route::get('', [EstadoController::class, 'inicio'])->name('');
             Route::get('editar/{id}', [EstadoController::class, 'editar'])->name('.editar');
             Route::post('atualizar/{id}', [EstadoController::class, 'atualizar'])->name('.atualizar');
         });
 
-        Route::prefix('cidades')->name('.cidades')->group(function (){
+        Route::prefix('cidades')->name('.cidades')->group(function () {
             Route::get('', [CidadeController::class, 'inicio'])->name('');
             Route::get('criar/', [CidadeController::class, 'criar'])->name('.criar');
             Route::post('salvar/', [CidadeController::class, 'salvar'])->name('.salvar');
@@ -44,11 +65,11 @@ Route::middleware(['auth'])->prefix('admin')->name('admin')->group(function(){
             Route::get('excluir/{id}', [CidadeController::class, 'excluir'])->name('.excluir');
         });
 
-        Route::prefix('usuarios')->name('.usuarios')->group(function (){
+        Route::prefix('usuarios')->name('.usuarios')->group(function () {
             Route::get('', [UsuarioController::class, 'inicio'])->name('');
             Route::get('editar/{id}', [UsuarioController::class, 'editar'])->name('.editar');
 
-            Route::prefix('{userId}/enderecos')->name('.enderecos')->group(function (){
+            Route::prefix('{userId}/enderecos')->name('.enderecos')->group(function () {
                 Route::get('criar/', [UsuarioEnderecoController::class, 'criar'])->name('.criar');
                 Route::post('salvar/', [UsuarioEnderecoController::class, 'salvar'])->name('.salvar');
                 Route::get('editar/{id}', [UsuarioEnderecoController::class, 'editar'])->name('.editar');
@@ -56,7 +77,7 @@ Route::middleware(['auth'])->prefix('admin')->name('admin')->group(function(){
                 Route::get('excluir/{id}', [UsuarioEnderecoController::class, 'excluir'])->name('.excluir');
             });
 
-            Route::prefix('{user_id}/centrosDistribuicao')->name('.centrosDistribuicao')->group(function(){
+            Route::prefix('{user_id}/centrosDistribuicao')->name('.centrosDistribuicao')->group(function () {
                 Route::get('', [CentroDistribuicaoController::class, 'inicio'])->name('');
                 Route::get('criar/', [CentroDistribuicaoController::class, 'criar'])->name('.criar');
                 Route::post('salvar/', [CentroDistribuicaoController::class, 'salvar'])->name('.salvar');
@@ -67,9 +88,9 @@ Route::middleware(['auth'])->prefix('admin')->name('admin')->group(function(){
         });
     });
 
-    Route::namespace('Estoque')->prefix('estoque')->name('.estoque')->group(function(){
+    Route::prefix('estoque')->name('.estoque')->group(function () {
 
-        Route::prefix('produtos')->name('.produtos')->group(function (){
+        Route::prefix('produtos')->name('.produtos')->group(function () {
             Route::get('', [ProdutoController::class, 'inicio'])->name('');
             Route::get('criar/', [ProdutoController::class, 'criar'])->name('.criar');
             Route::post('salvar/', [ProdutoController::class, 'salvar'])->name('.salvar');
@@ -77,20 +98,19 @@ Route::middleware(['auth'])->prefix('admin')->name('admin')->group(function(){
             Route::post('atualizar/{id}', [ProdutoController::class, 'atualizar'])->name('.atualizar');
             Route::get('excluir/{id}', [ProdutoController::class, 'excluir'])->name('.excluir');
 
-            Route::prefix('{produto_id}/icms')->name('.icms')->group(function (){
+            Route::prefix('{produto_id}/icms')->name('.icms')->group(function () {
                 Route::post('adicionar/', [ICMSProdutoEstadoController::class, 'adicionar'])->name('.adicionar');
                 Route::post('atualizar/', [ICMSProdutoEstadoController::class, 'atualizar'])->name('.atualizar');
                 Route::get('excluir/{id}', [ICMSProdutoEstadoController::class, 'excluir'])->name('.excluir');
             });
 
-            Route::prefix('{produto_id}/imagens')->name('.imagens')->group(function (){
+            Route::prefix('{produto_id}/imagens')->name('.imagens')->group(function () {
                 Route::post('upload/', [ProdutoImagemController::class, 'upload'])->name('.upload');
                 Route::get('delete/{id}', [ProdutoImagemController::class, 'delete'])->name('.delete');
             });
-
         });
 
-        Route::prefix('marcas')->name('.marcas')->group(function (){
+        Route::prefix('marcas')->name('.marcas')->group(function () {
             Route::get('', [MarcaController::class, 'inicio'])->name('');
             Route::get('criar/', [MarcaController::class, 'criar'])->name('.criar');
             Route::post('salvar/', [MarcaController::class, 'salvar'])->name('.salvar');
@@ -99,7 +119,7 @@ Route::middleware(['auth'])->prefix('admin')->name('admin')->group(function(){
             Route::get('excluir/{id}', [MarcaController::class, 'excluir'])->name('.excluir');
         });
 
-        Route::prefix('categorias')->name('.categorias')->group(function (){
+        Route::prefix('categorias')->name('.categorias')->group(function () {
             Route::get('', [CategoriaController::class, 'inicio'])->name('');
             Route::get('criar/', [CategoriaController::class, 'criar'])->name('.criar');
             Route::post('salvar/', [CategoriaController::class, 'salvar'])->name('.salvar');
@@ -108,7 +128,7 @@ Route::middleware(['auth'])->prefix('admin')->name('admin')->group(function(){
             Route::get('excluir/{id}', [CategoriaController::class, 'excluir'])->name('.excluir');
         });
 
-        Route::prefix('produto/tipos')->name('.tiposProduto')->group(function (){
+        Route::prefix('produto/tipos')->name('.tiposProduto')->group(function () {
             Route::get('', [TipoProdutoController::class, 'inicio'])->name('');
             Route::get('criar/', [TipoProdutoController::class, 'criar'])->name('.criar');
             Route::post('salvar/', [TipoProdutoController::class, 'salvar'])->name('.salvar');
@@ -121,9 +141,9 @@ Route::middleware(['auth'])->prefix('admin')->name('admin')->group(function(){
         });
     });
 
-    Route::namespace('Pedidos')->prefix('pedidos')->name('.pedidos')->group(function(){
+    Route::prefix('pedidos')->name('.pedidos')->group(function () {
 
-        Route::prefix('listasPreco')->name('.listas_preco')->group(function (){
+        Route::prefix('listasPreco')->name('.listas_preco')->group(function () {
             Route::get('', [ListaPrecoController::class, 'inicio'])->name('');
             Route::get('criar/', [ListaPrecoController::class, 'criar'])->name('.criar');
             Route::post('salvar/', [ListaPrecoController::class, 'salvar'])->name('.salvar');
@@ -131,7 +151,7 @@ Route::middleware(['auth'])->prefix('admin')->name('admin')->group(function(){
             Route::post('atualizar/{id}', [ListaPrecoController::class, 'atualizar'])->name('.atualizar');
             Route::get('excluir/{id}', [ListaPrecoController::class, 'excluir'])->name('.excluir');
 
-            Route::prefix('{lista_preco_id}/itemListaPreco')->name('.itens')->group(function() {
+            Route::prefix('{lista_preco_id}/itemListaPreco')->name('.itens')->group(function () {
                 Route::get('', [ItemListaPrecoController::class, 'inicio'])->name('');
                 Route::get('criar/', [ItemListaPrecoController::class, 'criar'])->name('.criar');
                 Route::post('salvar/', [ItemListaPrecoController::class, 'salvar'])->name('.salvar');

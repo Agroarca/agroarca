@@ -8179,9 +8179,33 @@ defineJQueryPlugin(Toast);
 
 /***/ }),
 
+/***/ "./resources/css/admin.css":
+/*!*********************************!*\
+  !*** ./resources/css/admin.css ***!
+  \*********************************/
+/***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
+
+__webpack_require__.r(__webpack_exports__);
+// extracted by mini-css-extract-plugin
+
+
+/***/ }),
+
 /***/ "./resources/sass/vendor.scss":
 /*!************************************!*\
   !*** ./resources/sass/vendor.scss ***!
+  \************************************/
+/***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
+
+__webpack_require__.r(__webpack_exports__);
+// extracted by mini-css-extract-plugin
+
+
+/***/ }),
+
+/***/ "./resources/sass/custom.scss":
+/*!************************************!*\
+  !*** ./resources/sass/custom.scss ***!
   \************************************/
 /***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
 
@@ -8218,18 +8242,6 @@ __webpack_require__.r(__webpack_exports__);
 /***/ "./resources/css/style.css":
 /*!*********************************!*\
   !*** ./resources/css/style.css ***!
-  \*********************************/
-/***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
-
-__webpack_require__.r(__webpack_exports__);
-// extracted by mini-css-extract-plugin
-
-
-/***/ }),
-
-/***/ "./resources/css/admin.css":
-/*!*********************************!*\
-  !*** ./resources/css/admin.css ***!
   \*********************************/
 /***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
 
@@ -8339,9 +8351,9 @@ __webpack_require__.r(__webpack_exports__);
 /******/ 		var installedChunks = {
 /******/ 			"/js/vendor": 0,
 /******/ 			"css/vendor-admin": 0,
+/******/ 			"css/style": 0,
 /******/ 			"css/vendor": 0,
-/******/ 			"css/admin": 0,
-/******/ 			"css/style": 0
+/******/ 			"css/admin": 0
 /******/ 		};
 /******/ 		
 /******/ 		// no chunk on demand loading
@@ -8391,12 +8403,13 @@ __webpack_require__.r(__webpack_exports__);
 /******/ 	// startup
 /******/ 	// Load entry module and return exports
 /******/ 	// This entry module depends on other loaded chunks and execution need to be delayed
-/******/ 	__webpack_require__.O(undefined, ["css/vendor-admin","css/vendor","css/admin","css/style"], () => (__webpack_require__("./resources/js/vendor.js")))
-/******/ 	__webpack_require__.O(undefined, ["css/vendor-admin","css/vendor","css/admin","css/style"], () => (__webpack_require__("./resources/sass/vendor.scss")))
-/******/ 	__webpack_require__.O(undefined, ["css/vendor-admin","css/vendor","css/admin","css/style"], () => (__webpack_require__("./resources/css/vendor.css")))
-/******/ 	__webpack_require__.O(undefined, ["css/vendor-admin","css/vendor","css/admin","css/style"], () => (__webpack_require__("./resources/css/vendor-admin.css")))
-/******/ 	__webpack_require__.O(undefined, ["css/vendor-admin","css/vendor","css/admin","css/style"], () => (__webpack_require__("./resources/css/style.css")))
-/******/ 	var __webpack_exports__ = __webpack_require__.O(undefined, ["css/vendor-admin","css/vendor","css/admin","css/style"], () => (__webpack_require__("./resources/css/admin.css")))
+/******/ 	__webpack_require__.O(undefined, ["css/vendor-admin","css/style","css/vendor","css/admin"], () => (__webpack_require__("./resources/js/vendor.js")))
+/******/ 	__webpack_require__.O(undefined, ["css/vendor-admin","css/style","css/vendor","css/admin"], () => (__webpack_require__("./resources/sass/vendor.scss")))
+/******/ 	__webpack_require__.O(undefined, ["css/vendor-admin","css/style","css/vendor","css/admin"], () => (__webpack_require__("./resources/sass/custom.scss")))
+/******/ 	__webpack_require__.O(undefined, ["css/vendor-admin","css/style","css/vendor","css/admin"], () => (__webpack_require__("./resources/css/vendor.css")))
+/******/ 	__webpack_require__.O(undefined, ["css/vendor-admin","css/style","css/vendor","css/admin"], () => (__webpack_require__("./resources/css/vendor-admin.css")))
+/******/ 	__webpack_require__.O(undefined, ["css/vendor-admin","css/style","css/vendor","css/admin"], () => (__webpack_require__("./resources/css/style.css")))
+/******/ 	var __webpack_exports__ = __webpack_require__.O(undefined, ["css/vendor-admin","css/style","css/vendor","css/admin"], () => (__webpack_require__("./resources/css/admin.css")))
 /******/ 	__webpack_exports__ = __webpack_require__.O(__webpack_exports__);
 /******/ 	
 /******/ })()

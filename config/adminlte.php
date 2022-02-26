@@ -188,7 +188,7 @@ return [
     */
 
     'use_route_url' => true,
-    'dashboard_url' => 'dashboard',
+    'dashboard_url' => 'admin.inicio',
     'logout_url' => 'logout',
     'login_url' => 'login',
     'register_url' => 'register',
@@ -287,7 +287,7 @@ return [
                 ],
             ]
         ]
-       /* [
+        /* [
             'type'         => 'navbar-notification',
             'id'           => 'my-notification',      // An ID attribute (required).
             'icon'         => 'fas fa-bell',
