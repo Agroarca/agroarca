@@ -27,8 +27,7 @@ class ProdutoService
             $produtoPreco = new ProdutoPreco();
 
             if ($cep) {
-                $distancia = DistanciasService::calcularDistancia($cep, $item->centroDistribuicao->usuarioEndereco);
-                $produtoPreco->frete_quilo = $item->base_frete * ($distancia / 1000);
+                $produtoPreco->frete_quilo = EntregaService::calcularFrete($item, $cep);
             } else {
                 $produtoPreco->frete_quilo = 0;
             }

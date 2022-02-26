@@ -6,6 +6,7 @@ use App\Enums\Pedidos\StatusPedido;
 use App\Events\Pedido\AddPedidoItem;
 use App\Events\Pedido\RemovePedidoItem;
 use App\Exceptions\OperacaoIlegalException;
+use App\Models\Cadastros\UsuarioEndereco;
 use App\Models\Pedidos\ItemListaPreco;
 use App\Models\Pedidos\Pedido;
 use App\Models\Pedidos\PedidoItem;
@@ -147,5 +148,76 @@ class PedidoService
 
             RemovePedidoItem::dispatch();
         }
+    }
+
+    public static function calcularPedido(Pedido $pedido = null)
+    {
+        if (is_null($pedido)) {
+            $pedido = self::getPedido();
+        }
+
+        $itens = $pedido->pedidoItens()->whereNull('pedido_item_pai_id')->all();
+        foreach ($itens as $item) {
+            self::calcularPedidoItem($item);
+        }
+
+        $pedidoItens = $pedido->pedidoItens()->whereNull('pedido_item_pai_id');
+
+        $pedido->subtotal = $pedidoItens->sum('total');
+        $pedido->frete = $pedidoItens->sum('frete');
+        $pedido->icms = $pedidoItens->sum('icms');
+        $pedido->total = $pedido->subtotal + $pedido->frete;
+    }
+
+    public static function calcularPedidoItem(PedidoItem $pedidoItem)
+    {
+        foreach ($pedidoItem->pedidoItensAdicionais() as $item) {
+            self::calcularPedidoItem($item);
+        }
+
+        if ($pedidoItem->pedido_item_pai_id) {
+            $pedidoItem->quantidade = $pedidoItem->pedidoItemPai->quantidade;
+        }
+
+        if ($pedidoItem->pedido->status == StatusPedido::Aberto) {
+            $dataEntrega = EntregaService::getDataEntrega();
+            $pedidoItem->preco_quilo = $pedidoItem->itemListaPreco->calculaPreco($dataEntrega);
+
+            $cepEntrega = EntregaService::getCepEnderecoPadrao();
+            $pedidoItem->frete = EntregaService::calcularFrete($pedidoItem->itemListaPreco, $cepEntrega);
+            $pedidoItem->frete += $pedidoItem->pedidoItensAdicionais()->sum('frete');
+        }
+
+        $pedidoItem->subtotal = $pedidoItem->preco_quilo * $pedidoItem->quantidade;
+        $pedidoItem->icms = self::calcularIcmsPedidoItem($pedidoItem);
+        $pedidoItem->icms += $pedidoItem->pedidoItensAdicionais()->sum('icms');
+
+        $pedidoItem->total = $pedidoItem->subtotal + $pedidoItem->ajuste;
+        $pedidoItem->total += $pedidoItem->pedidoItensAdicionais()->sum('total');
+    }
+
+    public static function calcularIcmsPedidoItem(PedidoItem $pedidoItem)
+    {
+        $cep = EntregaService::getCepEnderecoPadrao();
+        if (!$cep instanceof UsuarioEndereco) {
+            return;
+        }
+
+        $estadoOrigemId = $pedidoItem->itemListaPreco->centroDistribuicao->usuarioEndereco->cidade->estado_id;
+        $estadoDestinoId = $cep->cidade->estado_id;
+
+        if ($estadoOrigemId == $estadoDestinoId) {
+            return 0;
+        }
+
+        $icms = $pedidoItem->itemListaPreco->produto->icmsEstado()->where('estado_id', $estadoDestinoId)->first();
+
+        if ($icms) {
+            $valorIcms = $icms->icms;
+        }
+
+        $valorIcms = $pedidoItem->itemListaPreco->produto->icms_padrao;
+
+        return ($pedidoItem->subtotal * $valorIcms) / 100;
     }
 }

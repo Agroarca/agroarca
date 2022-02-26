@@ -18,6 +18,8 @@ class PedidoItem extends Model
         'preco_quilo',
         'subtotal',
         'ajuste',
+        'frete',
+        'icms',
         'total',
         'pedido_id',
         'item_lista_preco_id',

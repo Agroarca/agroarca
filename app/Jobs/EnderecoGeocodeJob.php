@@ -3,7 +3,7 @@
 namespace App\Jobs;
 
 use App\Models\Cadastros\UsuarioEndereco;
-use App\Services\Site\DistanciasService;
+use App\Services\DistanciasService;
 use Illuminate\Contracts\Queue\ShouldBeUnique;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
