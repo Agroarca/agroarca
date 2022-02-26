@@ -48,7 +48,9 @@ class ListService
                 )
             )->whereExists(function ($query) use ($item) {
                 $query = $query->select('itens_lista_preco.*')
-                    ->join('listas_preco', 'itens_lista_preco.lista_preco_id', '=', 'listas_preco.id')
+                    ->from('itens_lista_preco');
+
+                ProdutoService::itemListaPrecoCompravel($query, EntregaService::getDataEntrega())
                     ->whereColumn('itens_lista_preco.produto_id', 'produtos.id')
                     ->where('listas_preco.fornecedor_id', function ($query) use ($item) {
                         $query->select('lp.fornecedor_id')
@@ -56,8 +58,6 @@ class ListService
                             ->join('itens_lista_preco', 'itens_lista_preco.lista_preco_id', '=', 'lp.id')
                             ->where('itens_lista_preco.id', $item->item_lista_preco_id);
                     });
-
-                ProdutoService::itemListaPrecoCompravel($query, EntregaService::getDataEntrega());
             })->with([
                 'itensListaPreco' => function ($query) use ($item) {
                     $query = $query->select('itens_lista_preco.*')
@@ -66,7 +66,6 @@ class ListService
                             where pedido_itens.pedido_item_pai_id = ? and ilp.id = itens_lista_preco.id) then true else false end as adicionado', [$item->id]);
 
                     ProdutoService::itemListaPrecoCompravel($query, EntregaService::getDataEntrega())
-                        ->join('listas_preco', 'itens_lista_preco.lista_preco_id', '=', 'listas_preco.id')
                         ->where('listas_preco.fornecedor_id', function ($query) use ($item) {
                             $query->select('lp.fornecedor_id')
                                 ->from('listas_preco as lp')
