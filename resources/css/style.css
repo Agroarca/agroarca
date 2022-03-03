@@ -663,6 +663,18 @@ section .section-title {
     padding: 0 86px;
 }
 
+@media only screen and (max-width: 992px) {
+    .login .form {
+        padding: 0 40px !important;
+    }
+    .auth {
+        flex-direction: column !important;
+    }
+    .auth .register:before {
+        display: none;
+    }
+}
+
 .auth h2 {
     font-family: "Poppins", Arial, Helvetica, sans-serif;
     font-weight: 600;
