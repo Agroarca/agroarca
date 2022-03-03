@@ -656,13 +656,11 @@ section .section-title {
     display: flex;
     flex-direction: column;
     font-size: 18px;
-    max-width: 500px;
-    padding: 60px 0;
 }
 
 .login .form {
-    width: 50%;
-    padding: 60px 86px;
+    width: 100%;
+    padding: 0 86px;
 }
 
 .auth h2 {
@@ -699,20 +697,19 @@ section .section-title {
     transition: border-color 0.15s ease-in-out;
 }
 
-.auth input[type="checkbox"] {
+/* .auth input[type="checkbox"] {
     height: 1.5rem;
     width: 1.5rem;
-    background: var(--verde-claro);
-}
+} */
 
 .auth input:focus {
     border-color: var(--cinza-escuro);
 }
 
-.auth .check-label {
+/* .auth .check-label {
     display: inline-flex;
     align-items: center;
-}
+} */
 
 .auth .botoes {
     display: flex;
