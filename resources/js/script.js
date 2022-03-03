@@ -57,6 +57,24 @@ $("#flashsale-nav-left").click(function () {
     owlFlashSale.trigger("prev.owl.carousel", [300]);
 });
 
+const owlHomeBanners = $("#banners-carousel").owlCarousel({
+    margin: 10,
+    loop: true,
+    nav: false,
+    autoplay: true,
+    autoplayTimeout: 3500,
+    autoplayHoverPause: true,
+    items: 1,
+});
+
+$("#banners-nav-right").click(function () {
+    owlHomeBanners.trigger("next.owl.carousel");
+});
+
+$("#banners-nav-left").click(function () {
+    owlHomeBanners.trigger("prev.owl.carousel", [300]);
+});
+
 const deliveryContent = document.getElementById("delivery-content");
 
 const deliveryModal = new Modal(document.getElementById("delivery-info-modal"));
