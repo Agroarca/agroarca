@@ -5,7 +5,7 @@
                 @csrf
                 <h2 class="mb-5">Entrar:</h2>
                 <div class="row">
-                    @if($errors->any())
+                    @if($errors->any() && session()->get('authType') === 'login')
                         <ul>
                             @foreach ($errors->all() as $error)
                                 <li>{{ $error }}</li>
@@ -15,7 +15,7 @@
                 </div>
                 <div class="row">
                     <label for="email">E-mail:</label>
-                    <input class="form-control" id="email" type="email" name="email" value="{{ old('email') }}" required>
+                    <input class="form-control" id="email" type="email" name="email" value="{{ session()->get('authType') === 'login' ? old('email') : ''  }}" required>
                 </div>
                 <div class="row">
                     <label for="password">Senha:</label>
@@ -42,7 +42,7 @@
                 @csrf
                 <h2 class="mb-5">Registrar:</h2>
                 <div>
-                    @if($errors->any())
+                    @if($errors->any() && session()->get('authType') === 'register')
                         <ul>
                             @foreach ($errors->all() as $error)
                                 <li>{{ $error }}</li>
@@ -56,7 +56,7 @@
                 </div>
                 <div class="row">
                     <label for="email-register">E-mail:</label>
-                    <input class="form-control" id="email-register" type="email" name="email" value="{{ old('email') }}" required>
+                    <input class="form-control" id="email-register" type="email" name="email" value="{{  session()->get('authType') === 'register' ? old('email') : '' }}" required>
                 </div>
                 <div class="row">
                     <label for="cpf_cnpj">Cpf ou Cnpj:</label>
