@@ -24,3 +24,7 @@ jobs:
 
       - name: Compile assets for production
         run: npm run production
+
+      - uses: stefanzweifel/git-auto-commit-action@v4
+        with:
+          commit_message: Github Action - Build Laravel Mix
