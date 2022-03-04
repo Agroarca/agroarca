@@ -1066,3 +1066,178 @@ section.sub-footer .payment-methods ul {
 .container-banners-carousel .owl-carousel.owl-lodaded {
     display: block !important;
 }
+
+/********************/
+/* CART */
+/********************/
+
+.cart .cart-item {
+    display: flex;
+    min-height: 190px;
+    background: #ffffff;
+    box-shadow: 0px 4px 4px rgba(0, 0, 0, 0.06);
+    border-radius: 12px;
+    align-items: center;
+    padding: 2rem;
+}
+
+.cart .cart-item .product-image {
+    width: 152px;
+    height: 133px;
+    background-color: var(--cinza-claro);
+    border-radius: 14px;
+}
+.cart .cart-item .cart-data-item .cart-product-meta {
+    display: flex;
+    flex-direction: column;
+    padding-left: 2rem;
+}
+
+.cart .cart-product-meta .cart-product-price {
+    font-family: "Poppins", Arial, Helvetica, sans-serif;
+    margin-top: 0.5rem;
+    color: var(--verde-claro);
+    font-size: 24px;
+    font-weight: 600;
+}
+
+.cart .cart-data-item .cart-product-meta .treatments-data {
+    list-style: none;
+    padding: unset;
+}
+
+.cart .cart-data-item .cart-product-meta .treatments b {
+    font-size: 16px;
+    color: var(--subtitulo);
+    font-weight: bold;
+}
+.cart .cart-data-item .cart-product-meta .treatments {
+    margin-top: 1rem;
+}
+.cart .cart-data-item .cart-product-meta .treatments .treatment-item {
+    color: var(--subtitulo);
+    font-weight: 100;
+    font-size: 14px;
+}
+.cart .cart-data-item .cart-item-details {
+    display: flex;
+    align-items: flex-end;
+    height: 133px;
+    gap: 20px;
+}
+.cart .cart-data-item .cart-item-details .seed-tsi {
+    width: 56px;
+    height: 56px;
+    padding: 4px;
+    border-radius: 12px;
+    border: unset;
+    background: url("/img/semente-maca.svg") top center no-repeat;
+    background-color: var(--verde-claro);
+}
+.cart .cart-data-item .cart-item-details .amount-details {
+    height: 56px;
+    display: flex;
+}
+
+.cart .cart-data-item .cart-item-details .amount-details .qty {
+    width: 80px;
+    text-align: center;
+    border: 1px solid var(--cinza-claro);
+    border-left: unset;
+    border-right: unset;
+    color: var(--verde-claro);
+    font-weight: bold;
+    font-size: 20px;
+}
+.cart .cart-data-item .cart-item-details .amount-details button {
+    background-color: var(--branco);
+    color: var(--cinza-claro);
+    border: 1px solid var(--cinza-claro);
+    height: auto;
+    width: 56px;
+    border-radius: 12px;
+}
+.cart .cart-data-item .cart-item-details .amount-details .plus {
+    border-left: unset;
+    border-top-left-radius: unset;
+    border-bottom-left-radius: unset;
+}
+.cart .cart-data-item .cart-item-details .amount-details .minus {
+    border-right: unset;
+    border-top-right-radius: unset;
+    border-bottom-right-radius: unset;
+}
+.cart .cart-data-item .cart-item-details .remove {
+    width: 56px;
+    height: 56px;
+    color: var(--cinza-claro);
+    background: transparent;
+    font-size: 24px;
+    border-radius: 12px;
+    border: 1px solid var(--cinza-claro);
+}
+.cart .cart-data-item .cart-item-details .favorite {
+    width: 56px;
+    height: 56px;
+    color: var(--branco);
+    background: var(--verde-claro);
+    font-size: 24px;
+    border-radius: 12px;
+    border: unset;
+}
+
+.cart .cart-item .cart-data-item {
+    display: flex;
+}
+
+.cart .cart-details {
+    background: #ffffff;
+    border: 1px solid var(--cinza-claro);
+    box-sizing: border-box;
+    border-radius: 12px;
+    padding: 1rem;
+}
+.cart .cart-details .cart-details-price h4 {
+    color: var(--cinza-escuro);
+    font-weight: 600;
+}
+.cart .cart-details .cart-details-price h3 {
+    font-family: "Poppins", Arial, Helvetica, sans-serif;
+    color: var(--verde-claro);
+    font-size: 24px;
+    font-weight: 600;
+}
+.cart .cart-details .cart-details-inside span {
+    color: var(--preto);
+    font-weight: bold;
+}
+.cart .cart-details .cart-details-inside .cart-shipping span {
+    color: var(--cinza-escuro);
+    font-weight: 100;
+}
+.cart .cart-details .cart-details-inside .cart-shipping span b {
+    color: var(--verde-claro);
+    font-weight: 500;
+}
+.cart .cart-details .cart-details-inside .cart-shipping h4 {
+    font-family: "Poppins", Arial, Helvetica, sans-serif;
+    color: var(--cinza-escuro);
+    font-size: 24px;
+    font-weight: 600;
+}
+
+.cart .cart-details .cart-details-price,
+.cart .cart-details .cart-details-inside .cart-shipping {
+    display: flex;
+    justify-content: space-between;
+    margin: 1rem 0;
+}
+.cart .cart-details .link {
+    text-align: center;
+    display: block;
+    margin-top: 1rem;
+}
+.cart .cart-details .btn {
+    width: 100%;
+    font-size: 20px;
+}
