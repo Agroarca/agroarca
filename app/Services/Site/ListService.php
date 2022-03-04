@@ -12,7 +12,7 @@ class ListService
     protected static function queryProdutoCompravel()
     {
         $query = Produto::select('produtos.*');
-        return ProdutoService::produtoCompravel($query, EntregaService::getDataEntrega());
+        return ProdutoService::produtoCompravel($query);
     }
 
     protected static function queryBaseListas()
@@ -21,10 +21,10 @@ class ListService
             ->with([
                 'itensListaPreco' => function ($query) {
                     $query = $query->select('itens_lista_preco.*')
-                        ->selectRaw('juroItemListaPreco(itens_lista_preco.id, ?) as preco_item',  [EntregaService::getDataEntrega()]);
+                        ->selectRaw('juroItemListaPreco(itens_lista_preco.id, ?) as preco_item',  [PedidoService::getDataPagamento()]);
 
-                    ProdutoService::itemListaPrecoCompravel($query, EntregaService::getDataEntrega());
-                    ProdutoService::queryItensListaPrecoOrdenadosValor($query, EntregaService::getDataEntrega());
+                    ProdutoService::itemListaPrecoCompravel($query);
+                    ProdutoService::queryItensListaPrecoOrdenadosValor($query, PedidoService::getDataPagamento());
                 },
                 'imagens' => fn ($query) => $query->whereIn(
                     'produto_imagens.id',
@@ -50,7 +50,7 @@ class ListService
                 $query = $query->select('itens_lista_preco.*')
                     ->from('itens_lista_preco');
 
-                ProdutoService::itemListaPrecoCompravel($query, EntregaService::getDataEntrega())
+                ProdutoService::itemListaPrecoCompravel($query)
                     ->whereColumn('itens_lista_preco.produto_id', 'produtos.id')
                     ->where('listas_preco.fornecedor_id', function ($query) use ($item) {
                         $query->select('lp.fornecedor_id')
@@ -61,11 +61,11 @@ class ListService
             })->with([
                 'itensListaPreco' => function ($query) use ($item) {
                     $query = $query->select('itens_lista_preco.*')
-                        ->selectRaw('juroItemListaPreco(itens_lista_preco.id, ?) as preco_item',  [EntregaService::getDataEntrega()])
+                        ->selectRaw('juroItemListaPreco(itens_lista_preco.id, ?) as preco_item',  [PedidoService::getDataPagamento()])
                         ->selectRaw('case when exists(select * from itens_lista_preco as ilp join pedido_itens on ilp.id = pedido_itens.item_lista_preco_id
                             where pedido_itens.pedido_item_pai_id = ? and ilp.id = itens_lista_preco.id) then true else false end as adicionado', [$item->id]);
 
-                    ProdutoService::itemListaPrecoCompravel($query, EntregaService::getDataEntrega())
+                    ProdutoService::itemListaPrecoCompravel($query)
                         ->where('listas_preco.fornecedor_id', function ($query) use ($item) {
                             $query->select('lp.fornecedor_id')
                                 ->from('listas_preco as lp')
@@ -77,9 +77,9 @@ class ListService
                                 ->from('itens_lista_preco as ilpc')
                                 ->join('pedido_itens', 'pedido_itens.item_lista_preco_id', '=', 'ilpc.id')
                                 ->where('pedido_itens.id', $item->id);
-                        })->orderByRaw('juroItemListaPreco(itens_lista_preco.id, ?)', [EntregaService::getDataEntrega()]);
+                        })->orderByRaw('juroItemListaPreco(itens_lista_preco.id, ?)', [PedidoService::getDataPagamento()]);
 
-                    ProdutoService::queryItensListaPrecoOrdenadosValor($query, EntregaService::getDataEntrega());
+                    ProdutoService::queryItensListaPrecoOrdenadosValor($query, PedidoService::getDataPagamento());
                 }
             ]);
     }

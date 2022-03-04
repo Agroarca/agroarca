@@ -58,7 +58,7 @@ class EntregaService
 
     public static function getDataEntrega()
     {
-        return Carbon::now()->addDays(15)->toDateTimeLocalString();;
+        return Carbon::now()->addDays(15)->toAtomString();;
     }
 
     public static function calcularFrete(ItemListaPreco $item, $cep)

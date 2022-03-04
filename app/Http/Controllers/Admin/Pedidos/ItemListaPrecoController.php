@@ -41,10 +41,7 @@ class ItemListaPrecoController extends Controller
         $itemListaPreco->update($request->only(
             'preco_quilo',
             'estoque_disponivel',
-            'base_frete',
-            'data_inicial_entrega',
-            'data_final_entrega',
-            'minimo_dias_entrega'
+            'base_frete'
         ));
 
         return redirect()->route('admin.pedidos.listas_preco.itens', $lista_preco_id);
