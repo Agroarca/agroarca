@@ -3,6 +3,10 @@ name: BuildMix
 on:
   push:
     branches: [ main ]
+    paths:
+      - 'resources/css/**'
+      - 'resources/js/**'
+      - 'resources/sass/**'
   workflow_dispatch:
 
 jobs:
