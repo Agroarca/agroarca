@@ -12,14 +12,13 @@ use App\Models\Pedidos\Pedido;
 use App\Models\Pedidos\PedidoItem;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Cookie;
 
 class PedidoService
 {
 
     public static function getPedido()
     {
-        $pedido = self::getPedidoCookie();
+        $pedido = Pedido::find(session('pedidoId', null));
         if ($pedido) {
             return $pedido;
         }
@@ -33,31 +32,8 @@ class PedidoService
             $pedido = Pedido::create();
         }
 
-        self::setPedidoCookie($pedido);
+        session(['pedidoId' => $pedido->id]);
         return $pedido;
-    }
-
-    private static function getPedidoCookie()
-    {
-        $pedidoId = Cookie::get('pedidoId');
-
-        $pedido = Pedido::find($pedidoId);
-        if ($pedido) {
-            $usuarioId = Auth::id();
-            if ($pedido->usuario_id == $usuarioId) {
-                return $pedido;
-            }
-        }
-
-        return null;
-    }
-
-    private static function setPedidoCookie(Pedido $pedido)
-    {
-        $pedidoId = Cookie::get('pedidoId');
-        if ($pedido && $pedido->id != $pedidoId) {
-            Cookie::queue('pedidoId', $pedido->id);
-        }
     }
 
     public static function deletePedido(Pedido $pedido)

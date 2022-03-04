@@ -12,7 +12,7 @@
 <div class="cep">
     <form method="POST" action="{{ route('site.produto.cep', $produto->id) }}">
         @csrf
-        <input type="text" class="form-cep" id="cep" name="cep" value="{{ request()->cookie('cep') }}">
+        <input type="text" class="form-cep" id="cep" name="cep" value="{{ session('cep') }}">
         <input type="submit">
     </form>
 </div>

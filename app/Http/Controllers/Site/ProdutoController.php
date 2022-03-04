@@ -26,7 +26,7 @@ class ProdutoController extends Controller
     public function atualizarCep(Request $request, $produtoId)
     {
         $cep = $request->input('cep') ?? $request->query('cep');
-        EntregaService::atualizarCepCookie($cep);
+        EntregaService::atualizarCepEnderecoPadrao($cep);
 
         return redirect()->route('site.produto', $produtoId);
     }

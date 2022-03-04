@@ -3,8 +3,8 @@
 namespace App\Jobs;
 
 use App\Enums\Pedidos\StatusPedido;
-use App\Http\Controllers\Site\Pedido\PedidoController;
 use App\Models\Pedidos\Pedido;
+use App\Services\Site\PedidoService;
 use Carbon\Carbon;
 use Exception;
 use Illuminate\Bus\Queueable;
@@ -18,12 +18,10 @@ class DeletePedidosAntigosJob implements ShouldQueue, ShouldBeUnique
 {
     use Dispatchable, InteractsWithQueue, Queueable;
 
-    private $pedidoController;
     private $configDias;
 
     public function __construct()
     {
-        $this->pedidoController = new PedidoController();
         $this->configDias =  config('agroarca.pedidos.dias_deletar_abertos');
     }
 
@@ -33,14 +31,13 @@ class DeletePedidosAntigosJob implements ShouldQueue, ShouldBeUnique
 
         $data = Carbon::now()->subDays($this->configDias);
         $pedidos = Pedido::where('status', StatusPedido::Aberto)
-                        ->whereDate('updated_at', '<', $data)
-                        ->cursor();
+            ->whereDate('updated_at', '<', $data)
+            ->cursor();
 
         foreach ($pedidos as $pedido) {
             try {
                 $this->logStart($pedido);
-                $this->pedidoController->deletePedido($pedido);
-
+                PedidoService::deletePedido($pedido);
             } catch (Exception $e) {
                 Log::error("DeletePedidosAntigosJob - Ocorreu um erro ao excluir o pedido $pedido->id" . $e);
             }
@@ -49,8 +46,9 @@ class DeletePedidosAntigosJob implements ShouldQueue, ShouldBeUnique
         Log::info("DeletePedidosAntigosJob - fim");
     }
 
-    private function logStart($pedido){
+    private function logStart($pedido)
+    {
         Log::info("DeletePedidosAntigosJob - Excluindo o pedido $pedido->id, usuario: $pedido->usuario_id, status: " .
-        StatusPedido::getName($pedido->status) . ", updated_at: $pedido->updated_at");
+            StatusPedido::getName($pedido->status) . ", updated_at: $pedido->updated_at");
     }
 }
