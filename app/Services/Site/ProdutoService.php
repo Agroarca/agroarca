@@ -3,10 +3,7 @@
 namespace App\Services\Site;
 
 use App\Classes\Interfaces\ProdutoPreco;
-use App\Models\Cadastros\UsuarioEndereco;
 use App\Models\Estoque\Produto;
-use App\Models\Frete\Cep;
-use App\Services\DistanciasService;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 
