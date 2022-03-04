@@ -15,10 +15,45 @@
   box-shadow: 0 0 0 0.25rem rgba(0, 153, 52, 0.3);
 }
 
+/**
+    SECONDARY BUTTON
+**/
+.btn-secondary, .btn-secondary:active {
+  background-color: #343434;
+  border-color: #343434;
+  color: var(--branco);
+  box-shadow: unset;
+}
+.btn-secondary:hover, .btn-secondary:focus {
+  background-color: #343434;
+  border-color: #343434;
+}
+.btn-secondary:active:focus {
+  box-shadow: 0 0 0 0.25rem #34343438;
+}
+
 .btn {
   font-weight: bold;
   text-decoration: none;
+}
+.btn.uppercase {
   text-transform: uppercase;
+}
+@media only screen and (max-width: 992px) {
+  .btn {
+    font-size: 24px !important;
+  }
+}
+
+/**
+    CHECKBOX
+**/
+input[type=checkbox]:checked {
+  background-color: var(--verde-claro);
+  border-color: var(--verde-claro);
+}
+input[type=checkbox]:focus {
+  box-shadow: 0 0 0 0.25rem #00993442 !important;
 }
 
 /**
@@ -340,21 +375,61 @@ section {
 }
 
 .banner-info {
+    cursor: pointer;
     height: 389px;
-    background: linear-gradient(
-        90.67deg,
-        #fcfcfc 43.94%,
-        rgb(241 241 241) 99.4%
-    );
     border-radius: 30px;
-    padding: 80px;
+    border-top-left-radius: 70px;
+    border-bottom-left-radius: 70px;
+    padding-left: unset;
     display: flex;
     flex-direction: column;
     row-gap: 130px;
+    background-size: cover;
+}
+
+@media only screen and (max-width: 992px) {
+    .banner-info {
+        background-image: unset !important;
+    }
+    .banner-info .banner-overlay {
+        width: 100% !important;
+    }
+}
+
+.banner-info .banner-overlay {
+    background: linear-gradient(
+        90.67deg,
+        #f1f1f3 43.94%,
+        rgba(240, 240, 242, 0) 99.4%
+    );
+    z-index: 9999;
+    width: 60%;
+    height: 100%;
+    border-radius: 30px;
+}
+
+.banner-info .banner-overlay .banner-text-overlay {
+    height: 100%;
+    padding: 60px;
+    display: flex;
+    flex-direction: column;
+}
+
+.banner-info .btn {
+    margin-top: auto;
+    margin-right: auto;
+    padding: 0.6rem 2.8rem;
 }
 
 .banner-info h2 {
     font-weight: bold;
+    font-size: 56px;
+}
+
+.banner-info b {
+    font-size: 24px;
+    color: #898989;
+    line-height: 36px;
 }
 
 .banner-info p {
@@ -691,13 +766,23 @@ section .section-title {
     display: flex;
     flex-direction: column;
     font-size: 18px;
-    max-width: 500px;
-    padding: 60px 0;
 }
 
 .login .form {
-    width: 50%;
-    padding: 60px 86px;
+    width: 100%;
+    padding: 0 86px;
+}
+
+@media only screen and (max-width: 992px) {
+    .login .form {
+        padding: 0 40px !important;
+    }
+    .auth {
+        flex-direction: column !important;
+    }
+    .auth .register:before {
+        display: none;
+    }
 }
 
 .auth h2 {
@@ -734,20 +819,19 @@ section .section-title {
     transition: border-color 0.15s ease-in-out;
 }
 
-.auth input[type="checkbox"] {
+/* .auth input[type="checkbox"] {
     height: 1.5rem;
     width: 1.5rem;
-    background: var(--verde-claro);
-}
+} */
 
 .auth input:focus {
     border-color: var(--cinza-escuro);
 }
 
-.auth .check-label {
+/* .auth .check-label {
     display: inline-flex;
     align-items: center;
-}
+} */
 
 .auth .botoes {
     display: flex;
@@ -1062,5 +1146,34 @@ section.sub-footer .payment-methods ul {
     font-size: 40px;
     color: var(--verde-claro);
     box-shadow: rgb(255 255 255) 0 0 20px 12px, rgb(255 255 255) 0px 0 20px 20px;
+}
+
+/********************/
+/* HOME BANNERS VALUES */
+/********************/
+
+.container-banners-carousel .section-nav {
+    display: flex;
+    position: relative;
+    justify-content: space-between;
+    bottom: -215px;
+    z-index: 2;
+}
+
+.container-banners-carousel .section-nav button {
+    border: 0.5px solid var(--branco);
+    color: var(--branco);
+    height: 58px;
+    padding: 0 1.4em;
+    margin: 0 -5rem;
+    background: var(--verde-claro);
+    border-radius: 100px;
+    cursor: pointer;
+}
+.container-banners-carousel .owl-carousel {
+    display: none;
+}
+.container-banners-carousel .owl-carousel.owl-lodaded {
+    display: block !important;
 }
 
