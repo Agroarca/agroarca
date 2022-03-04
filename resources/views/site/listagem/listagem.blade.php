@@ -4,11 +4,19 @@
             <x-site.breadcrumb-categoria :categoria="$categoria"></x-site.breadcrumb-categoria>
         </section>
     @endisset
-
+{{--
     <section class="container banner-info">
         <h2>Produtos para plantio...</h2>
         <p>Encontre aqui as melhores ofertas para o seu plantio.</p>
-    </section>
+    </section> --}}
+    @include('site.adicionais.banner-section', [
+        'single' => true,
+        'data' => [
+            'title' => 'Produtos para plantio...',
+            'description' => 'Encontre aqui as melhores ofertas para o seu plantio.',
+            'image' => asset('img/temp/example1.png')
+        ]
+    ])
 
     <section class="container listagem">
 

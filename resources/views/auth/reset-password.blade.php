@@ -1,5 +1,5 @@
 <x-site>
-    <div class="auth reset-password container">
+    <section class="auth reset-password container">
         <form method="POST" action="{{ route('password.update') }}">
             @csrf
             <input type="hidden" name="token" value="{{ $request->route('token') }}">
@@ -23,5 +23,5 @@
                 <button class="btn" type="submit">Atualizar Senha</button>
             </div>
         </form>
-    </div>
+    </section>
 </x-site>
