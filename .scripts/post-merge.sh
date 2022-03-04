@@ -4,4 +4,4 @@ composer install
 npm install
 npm run prod
 
-#ln -s .scripts/post-merge.sh .git/hooks/post-merge
+#ln -s $(pwd)/.scripts/post-merge.sh .git/hooks/post-merge
