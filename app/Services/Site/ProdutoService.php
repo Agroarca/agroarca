@@ -7,6 +7,7 @@ use App\Models\Cadastros\UsuarioEndereco;
 use App\Models\Estoque\Produto;
 use App\Models\Frete\Cep;
 use App\Services\DistanciasService;
+use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 
 class ProdutoService
@@ -44,7 +45,7 @@ class ProdutoService
     /*
     * A query valida a tabela itens_lista_preco (já deve estar incluida)
     */
-    public static function itemListaPrecoCompravel($query, $dataEntrega = null)
+    public static function itemListaPrecoCompravel($query)
     {
         $query
             ->join('listas_preco', 'itens_lista_preco.lista_preco_id', '=', 'listas_preco.id')
@@ -52,18 +53,8 @@ class ProdutoService
             ->where(
                 fn ($query) => $query->whereNull('estoque_disponivel')
                     ->orWhere('estoque_disponivel', '>', DB::raw(0))
-            );
-
-        if ($dataEntrega) {
-            $query->whereRaw('? between listas_preco.data_inicio and listas_preco.data_fim', [$dataEntrega])
-                ->where(
-                    fn ($query) => $query->whereNull('itens_lista_preco.data_inicial_entrega')
-                        ->orWhereDate('itens_lista_preco.data_inicial_entrega', '<', $dataEntrega)
-                )->where(
-                    fn ($query) => $query->whereNull('itens_lista_preco.data_final_entrega')
-                        ->orWhereDate('itens_lista_preco.data_final_entrega', '>', $dataEntrega)
-                )->whereRaw('sysdate() + itens_lista_preco.minimo_dias_entrega > ?', [$dataEntrega]);
-        }
+            )
+            ->whereRaw('sysdate() between listas_preco.data_inicio and listas_preco.data_fim');
 
         return $query;
     }
@@ -71,17 +62,17 @@ class ProdutoService
     /*
     * A query valida a tabela produtos (já deve estar incluida)
     */
-    public static function produtoCompravel($query, $dataEntrega = null)
+    public static function produtoCompravel($query)
     {
         return $query
             ->whereNotNull('produtos.icms_padrao')
             ->whereExists(
-                function ($query) use ($dataEntrega) {
+                function ($query) {
                     $query->select('*')
                         ->from('itens_lista_preco')
                         ->whereColumn('itens_lista_preco.produto_id', 'produtos.id');
 
-                    self::itemListaPrecoCompravel($query, $dataEntrega);
+                    self::itemListaPrecoCompravel($query);
                 }
             )->whereExists(function ($query) {
                 $query->select('*')
@@ -90,12 +81,13 @@ class ProdutoService
             });
     }
 
-    public static function queryItensListaPrecoOrdenadosValor($query, $dataEntrega)
+    public static function queryItensListaPrecoOrdenadosValor($query, $dataPagamento = null)
     {
+        $dataPagamento = new Carbon($dataPagamento);
         $cep = EntregaService::getCepEnderecoPadrao();
 
         if (!$cep) {
-            return $query->orderByRaw('(juroItemListaPreco(itens_lista_preco.id, ?))', $dataEntrega);
+            return $query->orderByRaw('(juroItemListaPreco(itens_lista_preco.id, ?))', [$dataPagamento]);
         }
 
         return $query
@@ -104,7 +96,7 @@ class ProdutoService
             ->orderByRaw(
                 '(juroItemListaPreco(itens_lista_preco.id, ?) +
                     itens_lista_preco.base_frete * distanciaGeografica(?, ?, usuario_enderecos.latitude, usuario_enderecos.longitude))',
-                [$dataEntrega, $cep->latitude, $cep->longitude]
+                [$dataPagamento, $cep->latitude, $cep->longitude]
             );
     }
 }

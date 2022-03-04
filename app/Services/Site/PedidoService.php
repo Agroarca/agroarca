@@ -10,6 +10,7 @@ use App\Models\Cadastros\UsuarioEndereco;
 use App\Models\Pedidos\ItemListaPreco;
 use App\Models\Pedidos\Pedido;
 use App\Models\Pedidos\PedidoItem;
+use Carbon\Carbon;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Cookie;
 
@@ -219,5 +220,10 @@ class PedidoService
         $valorIcms = $pedidoItem->itemListaPreco->produto->icms_padrao;
 
         return ($pedidoItem->subtotal * $valorIcms) / 100;
+    }
+
+    public static function getDataPagamento()
+    {
+        return Carbon::now()->addDays(10);
     }
 }

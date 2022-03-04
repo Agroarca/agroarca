@@ -24339,49 +24339,89 @@ __webpack_require__.r(__webpack_exports__);
 
 
 
-var owlRecentlyViewed = $("#recently-viewed-carousel").owlCarousel({
-  margin: 10,
-  loop: true,
-  nav: false,
-  responsive: {
-    0: {
-      items: 1
-    },
-    600: {
-      items: 3
-    },
-    1000: {
-      items: 5
+
+var owlCarouselInit = function owlCarouselInit(_ref) {
+  var element = _ref.element,
+      _ref$options = _ref.options,
+      options = _ref$options === void 0 ? {} : _ref$options,
+      _ref$nav = _ref.nav,
+      nav = _ref$nav === void 0 ? false : _ref$nav;
+  var instance = $(element).owlCarousel(options);
+
+  if (nav) {
+    var right = nav.right,
+        left = nav.left;
+    $(right).click(function () {
+      instance.trigger("next.owl.carousel");
+    });
+    $(left).click(function () {
+      instance.trigger("prev.owl.carousel", [300]);
+    });
+  }
+};
+
+owlCarouselInit({
+  element: "#recently-viewed-carousel",
+  nav: {
+    right: "#recently-viewed-nav-right",
+    left: "#recently-viewed-nav-left"
+  },
+  options: {
+    margin: 10,
+    loop: true,
+    nav: false,
+    responsive: {
+      0: {
+        items: 1
+      },
+      600: {
+        items: 3
+      },
+      1000: {
+        items: 5
+      }
     }
   }
 });
-$("#recently-viewed-nav-right").click(function () {
-  owlRecentlyViewed.trigger("next.owl.carousel");
-});
-$("#recently-viewed-nav-left").click(function () {
-  owlRecentlyViewed.trigger("prev.owl.carousel", [300]);
-});
-var owlFlashSale = $("#flash-sale-carousel").owlCarousel({
-  margin: 10,
-  loop: true,
-  nav: false,
-  responsive: {
-    0: {
-      items: 2
-    },
-    600: {
-      items: 2
-    },
-    1000: {
-      items: 2
+owlCarouselInit({
+  element: "#flash-sale-carousel",
+  nav: {
+    right: "#flashsale-nav-right",
+    left: "#flashsale-nav-left"
+  },
+  options: {
+    margin: 10,
+    loop: true,
+    nav: false,
+    responsive: {
+      0: {
+        items: 2
+      },
+      600: {
+        items: 2
+      },
+      1000: {
+        items: 2
+      }
     }
   }
 });
-$("#flashsale-nav-right").click(function () {
-  owlFlashSale.trigger("next.owl.carousel");
-});
-$("#flashsale-nav-left").click(function () {
-  owlFlashSale.trigger("prev.owl.carousel", [300]);
+owlCarouselInit({
+  element: "#banners-carousel",
+  options: {
+    animateOut: "fadeOut",
+    margin: 10,
+    loop: true,
+    nav: false,
+    autoplay: true,
+    autoplayTimeout: 3500,
+    autoplayHoverPause: true,
+    items: 1
+  },
+  nav: {
+    right: "#banners-nav-right",
+    left: "#banners-nav-left"
+  }
 });
 var deliveryContent = document.getElementById("delivery-content");
 var deliveryModal = new bootstrap__WEBPACK_IMPORTED_MODULE_1__.Modal(document.getElementById("delivery-info-modal"));
