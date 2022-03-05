@@ -8,34 +8,23 @@ use App\Models\Pedidos\ItemListaPreco;
 use App\Services\DistanciasService;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Cookie;
 
 class EntregaService
 {
 
     public static function getCepEnderecoPadrao()
     {
-        //se usuario está logado e possui um endereço padrão
-        $endereco_id = request()->cookie('endereco_padrao_id');
-        if ($endereco_id && Auth::check()) {
-            $endereco = UsuarioEndereco::where('usuario_id', Auth::id())->find($endereco_id);
+        $enderecoId = session('endereco_padrao_id', null);
+        if ($enderecoId) {
+            $endereco = UsuarioEndereco::where('usuario_id', Auth::id())->find($enderecoId);
             if ($endereco) {
                 return $endereco;
             }
         }
 
         //se usuario possui um cep padrão
-        $cep = request()->cookie('cep');
+        $cep = session('cep', null);
         if ($cep) {
-            if (Auth::check()) {
-                $endereco = Auth::user()->enderecos()->where('cep', $cep)->first();
-                if ($endereco) {
-                    //seta como endereço padrão
-                    Cookie::queue('endereco_padrao_id', $endereco->id);
-                    return $endereco;
-                }
-            }
-
             return Cep::firstOrCreate(['cep' => $cep]);
         }
 
@@ -43,17 +32,36 @@ class EntregaService
         if (Auth::check()) {
             $endereco = Auth::user()->enderecos()->first();
             if ($endereco) {
-                Cookie::queue('cep', $endereco->cep);
-                Cookie::queue('endereco_padrao_id', $endereco->id);
+                self::atualizarCepEnderecoPadrao($endereco);
                 return $endereco;
             }
         }
     }
 
-    public static function atualizarCepCookie($cep)
+    public static function atualizarCepEnderecoPadrao($param)
     {
-        Cookie::queue('cep', $cep);
-        Cookie::queue('endereco_padrao_id', null);
+        request()->session()->forget(['endereco_padrao_id', 'cep']);
+        if ($param instanceof UsuarioEndereco) {
+            session(['endereco_padrao_id' => $param->id]);
+            session(['cep' => $param->cep]);
+            return;
+        }
+
+        if ($param instanceof Cep) {
+            session(['cep' => $param->cep]);
+            return;
+        }
+
+        if (Auth::check()) {
+            $endereco = Auth::user()->enderecos()->where('cep', $param)->first();
+            if ($endereco) {
+                session(['endereco_padrao_id' => $param->id]);
+                session(['cep' => $param->cep]);
+                return;
+            }
+        }
+
+        session(['cep' => $param]);
     }
 
     public static function getDataEntrega()

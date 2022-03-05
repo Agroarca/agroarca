@@ -1,24 +1,28 @@
+@php
+    $imagem = $pedidoItem->itemListaPreco->produto->imagens[0];
+@endphp
+
 <div class="cart-item">
     <div class="cart-data-item">
-        <div class="product-image"></div>
+        <div class="product-image">
+            <img src="{{ asset("storage/produtos/$imagem->nome_arquivo") }}" alt={{ $imagem->descricao }}>
+        </div>
         <div class="cart-product-meta">
             <h4>{{ $pedidoItem->itemListaPreco->produto->nome }}</h4>
             <span class="cart-product-price">R$ {{ $pedidoItem->itemListaPreco->calculaPreco() }}</span>
 
+            @if($pedidoItem->pedidoItensAdicionais()->count() > 0)
             <div class="treatments">
-                <b>Tratamentos:</b>
+                <b>TSIs:</b>
                 <ul class="treatments-data">
-                    <li class="treatment-item">
-                        Cruiser 350 1ml/Kg + Pó Secante 2gr/Kg
-                    </li>
-                    <li class="treatment-item">
-                        Cruiser 350 1ml/Kg + Pó Malandro 2gr/Kg
-                    </li>
-                    <li class="treatment-item">
-                        Cruiser 350 1ml/Kg + Pó Muito malandro 2gr/Kg
-                    </li>
+                    @foreach ($pedidoItem->pedidoItensAdicionais as $adicional)
+                        <li class="treatment-item">
+                            {{ $adicional->itemListaPreco->produto->nome }}
+                        </li>
+                    @endforeach
                 </ul>
             </div>
+            @endif
         </div>
         <div class="cart-item-details">
 
