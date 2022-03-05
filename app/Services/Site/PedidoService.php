@@ -12,14 +12,13 @@ use App\Models\Pedidos\Pedido;
 use App\Models\Pedidos\PedidoItem;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Cookie;
 
 class PedidoService
 {
 
     public static function getPedido()
     {
-        $pedido = self::getPedidoCookie();
+        $pedido = Pedido::find(session('pedidoId', null));
         if ($pedido) {
             return $pedido;
         }
@@ -33,31 +32,27 @@ class PedidoService
             $pedido = Pedido::create();
         }
 
-        self::setPedidoCookie($pedido);
+        session(['pedidoId' => $pedido->id]);
         return $pedido;
     }
 
-    private static function getPedidoCookie()
+    public static function verificarPedidoLogin()
     {
-        $pedidoId = Cookie::get('pedidoId');
-
-        $pedido = Pedido::find($pedidoId);
-        if ($pedido) {
-            $usuarioId = Auth::id();
-            if ($pedido->usuario_id == $usuarioId) {
-                return $pedido;
+        $pedido = Pedido::find(session('pedidoId', null));
+        if ($pedido && $pedido->pedidoItens()->count() > 0) {
+            if ($pedido->status == StatusPedido::Aberto) {
+                $pedido->usuario_id = Auth::id();
+                $pedido->save();
             }
+            return;
         }
 
-        return null;
-    }
+        $pedido = Pedido::orderBy('id', 'desc')->firstOrCreate([
+            'status' => StatusPedido::Aberto,
+            'usuario_id' => Auth::id()
+        ]);
 
-    private static function setPedidoCookie(Pedido $pedido)
-    {
-        $pedidoId = Cookie::get('pedidoId');
-        if ($pedido && $pedido->id != $pedidoId) {
-            Cookie::queue('pedidoId', $pedido->id);
-        }
+        session(['pedidoId' => $pedido->id]);
     }
 
     public static function deletePedido(Pedido $pedido)
@@ -66,7 +61,11 @@ class PedidoService
             throw new OperacaoIlegalException("Não é permitido excluir um pedido que não esteja aberto");
         }
 
-        $pedido->pedidoItens()->delete();
+        foreach ($pedido->pedidoItens()->cursor() as $pedidoItem) {
+            $pedidoItem->pedidoItensAdicionais()->delete();
+            $pedidoItem->delete();
+        }
+
         $pedido->delete();
     }
 
