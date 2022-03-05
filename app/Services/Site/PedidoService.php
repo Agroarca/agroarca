@@ -36,13 +36,36 @@ class PedidoService
         return $pedido;
     }
 
+    public static function verificarPedidoLogin()
+    {
+        $pedido = Pedido::find(session('pedidoId', null));
+        if ($pedido && $pedido->pedidoItens()->count() > 0) {
+            if ($pedido->status == StatusPedido::Aberto) {
+                $pedido->usuario_id = Auth::id();
+                $pedido->save();
+            }
+            return;
+        }
+
+        $pedido = Pedido::orderBy('id', 'desc')->firstOrCreate([
+            'status' => StatusPedido::Aberto,
+            'usuario_id' => Auth::id()
+        ]);
+
+        session(['pedidoId' => $pedido->id]);
+    }
+
     public static function deletePedido(Pedido $pedido)
     {
         if ($pedido->status != StatusPedido::Aberto) {
             throw new OperacaoIlegalException("Não é permitido excluir um pedido que não esteja aberto");
         }
 
-        $pedido->pedidoItens()->delete();
+        foreach ($pedido->pedidoItens()->cursor() as $pedidoItem) {
+            $pedidoItem->pedidoItensAdicionais()->delete();
+            $pedidoItem->delete();
+        }
+
         $pedido->delete();
     }
 
