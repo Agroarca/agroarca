@@ -1,8 +1,11 @@
+@php
+    use App\Services\Site\CarrinhoService;
+@endphp
 <x-site>
     <div class="container cart">
         <div class="row">
             <div class="col-md-8">
-                @foreach ($pedido->pedidoItens as $item)
+                @foreach (CarrinhoService::getPedidoItens() as $item)
                     @include('site.carrinho.carrinho-item', ['pedido' => $pedido, 'pedidoItem' => $item])
                 @endforeach
             </div>
