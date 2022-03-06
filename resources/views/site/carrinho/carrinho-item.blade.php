@@ -10,6 +10,7 @@
         <div class="cart-product-meta">
             <h4>{{ $pedidoItem->itemListaPreco->produto->nome }}</h4>
             <span class="cart-product-price">R$ {{ $pedidoItem->itemListaPreco->calculaPreco() }}</span>
+            <span class="cart-product-minor-price">R$ {{ $pedidoItem->itemListaPreco->preco_quilo }} / kg</span>
 
             @if($pedidoItem->pedidoItensAdicionais()->count() > 0)
             <div class="treatments">
@@ -25,15 +26,18 @@
             @endif
         </div>
         <div class="cart-item-details">
-
-            <button class="seed-tsi"></button>
-            <div class="amount-details">
-                <button class="minus"><i class="fa fa-minus"></i></button>
+            <button class="seed-tsi">
+                {{--
+                    @TODO: Abrir modal para selecionar TSIs.
+                    layout conforme figma: https://www.figma.com/file/OIUAXTc9iZXZLAwndWiLFs/AgroArca---Pilati---Mobile-KIT-UI---Entrega?node-id=0%3A1
+                    --}}
+                </button>
+                <div class="amount-details">
+                    <button class="minus"><i class="fa fa-minus"></i></button>
                 <input type="text" class="qty" value="{{ $pedidoItem->quantidade }}">
                 <button class="plus"><i class="fa fa-plus"></i></button>
             </div>
             <button class="remove"><i class="fa fa-trash"></i></button>
-            <button class="favorite"><i class="fa fa-heart"></i></button>
         </div>
     </div>
 

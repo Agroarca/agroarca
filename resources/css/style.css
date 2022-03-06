@@ -257,7 +257,7 @@ nav.breadcrumb {
     margin-bottom: 2rem;
 }
 
-nav.breadcrumb .breadcrumb-link+.breadcrumb-link::before {
+nav.breadcrumb .breadcrumb-link + .breadcrumb-link::before {
     float: left;
     padding-right: 1rem;
     content: "/";
@@ -300,9 +300,11 @@ section {
 }
 
 .banner-info .banner-overlay {
-    background: linear-gradient(90.67deg,
-            #f1f1f3 43.94%,
-            rgba(240, 240, 242, 0) 99.4%);
+    background: linear-gradient(
+        90.67deg,
+        #f1f1f3 43.94%,
+        rgba(240, 240, 242, 0) 99.4%
+    );
     z-index: 9999;
     width: 60%;
     height: 100%;
@@ -583,7 +585,10 @@ section .section-title {
     display: flex;
 }
 
-.newsletter .grid-container .newsletter-item.form-newsletter input[type="text"] {
+.newsletter
+    .grid-container
+    .newsletter-item.form-newsletter
+    input[type="text"] {
     height: 80px;
     min-width: 300px;
     border-radius: 12px;
@@ -595,7 +600,10 @@ section .section-title {
     outline: unset;
 }
 
-.newsletter .grid-container .newsletter-item.form-newsletter input[type="text"]::placeholder {
+.newsletter
+    .grid-container
+    .newsletter-item.form-newsletter
+    input[type="text"]::placeholder {
     color: var(--cinza-escuro);
 }
 
@@ -1106,6 +1114,59 @@ section.sub-footer .payment-methods ul {
 /* CART */
 /********************/
 
+.cart .cart-header {
+    background: #ffffff;
+    border: 1px solid #d5d5d5;
+    box-sizing: border-box;
+    border-radius: 12px;
+    height: 88px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 2rem;
+}
+.cart .cart-header-coupon {
+    background: #ffffff;
+    border: 1px solid #d5d5d5;
+    box-sizing: border-box;
+    border-radius: 12px;
+    height: 88px;
+    padding: 2rem;
+    text-align: center;
+}
+.cart .cart-header-coupon i {
+    margin-right: 0.5rem;
+}
+.cart .cart-header-coupon b {
+    color: var(--verde-claro);
+    cursor: pointer;
+}
+.cart .cart-header-coupon.active {
+    border-color: var(--verde-claro);
+    background: rgba(0, 153, 52, 0.3);
+}
+.cart .cart-header .content-selectable span {
+    font-size: 16;
+    font-weight: bold;
+}
+.cart .cart-header span {
+    cursor: pointer;
+}
+.cart .cart-header .meta-content {
+    font-size: 16;
+    font-weight: bold;
+    text-transform: uppercase;
+}
+
+.cart .cart-header .meta-content span:last-child:before {
+    content: "";
+    border-left: 3px solid #ededed;
+    height: 50%;
+    top: 50%;
+    margin: 0 1rem;
+    left: 0;
+    transform: translateY(-50%);
+}
 .cart .cart-item {
     display: flex;
     min-height: 190px;
@@ -1124,7 +1185,9 @@ section.sub-footer .payment-methods ul {
 }
 
 .cart .cart-item .product-image img {
-    height: 133px;
+    height: 100%;
+    width: 100%;
+    border-radius: 14px;
 }
 
 .cart .cart-item .cart-data-item .cart-product-meta {
@@ -1139,6 +1202,13 @@ section.sub-footer .payment-methods ul {
     color: var(--verde-claro);
     font-size: 24px;
     font-weight: 600;
+}
+
+.cart .cart-product-meta .cart-product-minor-price {
+    font-family: "Poppins", Arial, Helvetica, sans-serif;
+    color: var(--cinza-escuro);
+    font-size: 16px;
+    font-weight: 500;
 }
 
 .cart .cart-data-item .cart-product-meta .treatments-data {
@@ -1167,6 +1237,8 @@ section.sub-footer .payment-methods ul {
     align-items: flex-end;
     height: 133px;
     gap: 20px;
+    justify-content: flex-end;
+    width: 100%;
 }
 
 .cart .cart-data-item .cart-item-details .seed-tsi {
@@ -1194,6 +1266,9 @@ section.sub-footer .payment-methods ul {
     font-weight: bold;
     font-size: 20px;
 }
+.cart .cart-data-item .cart-item-details .amount-details .qty:focus-visible {
+    outline: unset;
+}
 
 .cart .cart-data-item .cart-item-details .amount-details button {
     background-color: var(--branco);
@@ -1219,16 +1294,6 @@ section.sub-footer .payment-methods ul {
 .cart .cart-data-item .cart-item-details .remove {
     width: 56px;
     height: 56px;
-    color: var(--cinza-claro);
-    background: transparent;
-    font-size: 24px;
-    border-radius: 12px;
-    border: 1px solid var(--cinza-claro);
-}
-
-.cart .cart-data-item .cart-item-details .favorite {
-    width: 56px;
-    height: 56px;
     color: var(--branco);
     background: var(--verde-claro);
     font-size: 24px;
@@ -1238,6 +1303,7 @@ section.sub-footer .payment-methods ul {
 
 .cart .cart-item .cart-data-item {
     display: flex;
+    width: 100%;
 }
 
 .cart .cart-details {
