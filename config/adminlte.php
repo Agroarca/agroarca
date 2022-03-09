@@ -285,6 +285,11 @@ return [
                     'icon' => 'fas fa-money-bill-wave',
                     'route' => 'admin.pedidos.listas_preco',
                 ],
+                [
+                    'text' => 'Itens Ofertados',
+                    'icon' => 'fas fa-box',
+                    'route' => 'admin.pedidos.listas_preco',
+                ],
             ]
         ]
         /* [
