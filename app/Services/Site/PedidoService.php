@@ -3,8 +3,6 @@
 namespace App\Services\Site;
 
 use App\Enums\Pedidos\StatusPedido;
-use App\Events\Pedido\AddPedidoItem;
-use App\Events\Pedido\RemovePedidoItem;
 use App\Exceptions\OperacaoIlegalException;
 use App\Models\Cadastros\UsuarioEndereco;
 use App\Models\Pedidos\ItemListaPreco;
@@ -53,6 +51,7 @@ class PedidoService
         ]);
 
         session(['pedidoId' => $pedido->id]);
+        self::atualizarQuantidadeCarrinho();
     }
 
     public static function deletePedido(Pedido $pedido)
@@ -81,8 +80,7 @@ class PedidoService
         $pedidoItem->preco_quilo = $item->calculaPreco();
         $pedidoItem->save();
 
-        AddPedidoItem::dispatch($pedidoItem);
-
+        self::atualizarQuantidadeCarrinho();
         return $pedidoItem;
     }
 
@@ -98,7 +96,7 @@ class PedidoService
             $pedidoItem->pedidoItensAdicionais()->delete();
             $pedidoItem->delete();
 
-            RemovePedidoItem::dispatch();
+            self::atualizarQuantidadeCarrinho();
         }
     }
 
@@ -120,8 +118,7 @@ class PedidoService
         $pedidoItemAdicional->quantidade = $pedidoItem->quantidade;
         $pedidoItemAdicional->save();
 
-        AddPedidoItem::dispatch($pedidoItemAdicional);
-
+        self::atualizarQuantidadeCarrinho();
         return $pedidoItemAdicional;
     }
 
@@ -146,7 +143,7 @@ class PedidoService
                 $item->delete();
             }
 
-            RemovePedidoItem::dispatch();
+            self::atualizarQuantidadeCarrinho();
         }
     }
 
@@ -224,5 +221,12 @@ class PedidoService
     public static function getDataPagamento()
     {
         return Carbon::now()->addDays(10);
+    }
+
+    public static function atualizarQuantidadeCarrinho()
+    {
+        $pedido = PedidoService::getPedido();
+        $quantidade = $pedido->pedidoItens()->whereNull('pedido_item_pai_id')->count();
+        session(['quantidade_carrinho' => $quantidade]);
     }
 }

@@ -37,7 +37,9 @@
                 <input type="text" class="qty" value="{{ $pedidoItem->quantidade }}">
                 <button class="plus"><i class="fa fa-plus"></i></button>
             </div>
-            <button class="remove"><i class="fa fa-trash"></i></button>
+            <a href='{{ route('site.carrinho.remover', $pedidoItem->id) }}'>
+                <button class="remove"><i class="fa fa-trash"></i></button>
+            </a>
         </div>
     </div>
 

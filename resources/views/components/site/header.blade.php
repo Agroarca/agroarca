@@ -1,3 +1,6 @@
+@php
+    use App\Services\Site\CarrinhoService;
+@endphp
 <nav class="py-2 contact">
     <div class="container contact-container d-flex flex-wrap" style="justify-content: space-between;">
 
@@ -31,7 +34,7 @@
         </div>
         <div class="header-item arca-container ">
             <a href="{{ route('site.carrinho') }}"><i class="fas fa-shopping-cart"></i></a>
-            <span class="cart-placeholder" id="cart-amount">7</span>
+            <span class="cart-placeholder" id="cart-amount">{{ CarrinhoService::getQuantidadeItens() }}</span>
         </div>
         <a class="header-item profile-container" href="{{ route('index') }}">
             <i class="fas fa-user-circle"></i>
