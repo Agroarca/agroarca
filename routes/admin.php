@@ -151,7 +151,8 @@ Route::middleware(['auth'])->prefix('admin')->name('admin')->group(function () {
             Route::post('atualizar/{id}', [ListaPrecoController::class, 'atualizar'])->name('.atualizar');
             Route::get('excluir/{id}', [ListaPrecoController::class, 'excluir'])->name('.excluir');
 
-            Route::prefix('{lista_preco_id}/itemListaPreco')->name('.itens')->group(function () {
+            Route::get('itemListaPreco', [ItemListaPrecoController::class, 'inicio'])->name('.item');
+            Route::prefix('{lista_preco_id?}/itemListaPreco')->name('.itens')->group(function () {
                 Route::get('', [ItemListaPrecoController::class, 'inicio'])->name('');
                 Route::get('criar/', [ItemListaPrecoController::class, 'criar'])->name('.criar');
                 Route::post('salvar/', [ItemListaPrecoController::class, 'salvar'])->name('.salvar');

@@ -9,11 +9,13 @@ use App\Models\Pedidos\ListaPreco;
 
 class ItemListaPrecoController extends Controller
 {
-    public function inicio($lista_preco_id)
+    public function inicio($lista_preco_id = null)
     {
-        $listaPreco = ListaPreco::findOrFail($lista_preco_id);
+        $listasPreco = $this->getListasPreco();
+        $listaPreco = ListaPreco::find($lista_preco_id);
         $itensListaPreco = ItemListaPreco::where('lista_preco_id', $lista_preco_id)->orderBy('produto_id')->with(['produto', 'listaPreco'])->paginate(10);
-        return view('admin.pedidos.listas_preco.itens.inicio', compact('listaPreco'), compact('itensListaPreco'));
+
+        return view('admin.pedidos.listas_preco.itens.inicio', ['listasPreco' => $listasPreco, 'listaPreco' => $listaPreco, 'itensListaPreco' => $itensListaPreco]);
     }
 
     public function criar($lista_preco_id)
@@ -51,5 +53,10 @@ class ItemListaPrecoController extends Controller
     {
         ItemListaPreco::where('lista_preco_id', $lista_preco_id)->findOrFail($id)->delete();
         return redirect()->route('admin.pedidos.listas_preco.itens', $lista_preco_id);
+    }
+
+    private function getListasPreco()
+    {
+        return ListaPreco::pluck('nome', 'id');
     }
 }

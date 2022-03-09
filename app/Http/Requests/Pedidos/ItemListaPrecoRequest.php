@@ -1,6 +1,7 @@
 <?php
 
 namespace App\Http\Requests\Pedidos;
+
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\Factory;
 
@@ -12,13 +13,13 @@ class ItemListaPrecoRequest extends FormRequest
     {
         $factory->extend(
             'greater_than',
-            function ($attribute, $value, $parameters){
+            function ($attribute, $value, $parameters) {
                 return $value > $parameters[0];
             },
             'O campo :attribute deve ser maior que :greater_than.'
         );
 
-        $factory->replacer('greater_than', function($message, $attribute, $rule, $parameters) {
+        $factory->replacer('greater_than', function ($message, $attribute, $rule, $parameters) {
             return str_replace(':greater_than', $parameters[0], $message);
         });
     }
@@ -33,7 +34,7 @@ class ItemListaPrecoRequest extends FormRequest
         return [
             'preco_quilo' => 'numeric|required|greater_than:0',
             'base_frete' => 'numeric|required|min:0',
-            'estoque_disponivel' => 'integer|nullable|min:0'
+            'estoque_disponivel' => 'integer|nullable|min:0',
             'produto_id' => 'integer|required|exists:produtos,id',
             'lista_preco_id' => 'integer|required|exists:listas_preco,id',
             'centro_distribuicao_id' => 'integer|required|exists:fornecedor_centros_distribuicao,id'

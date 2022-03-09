@@ -288,7 +288,7 @@ return [
                 [
                     'text' => 'Itens Ofertados',
                     'icon' => 'fas fa-box',
-                    'route' => 'admin.pedidos.listas_preco',
+                    'route' => 'admin.pedidos.listas_preco.item',
                 ],
             ]
         ]
