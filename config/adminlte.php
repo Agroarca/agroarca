@@ -237,16 +237,19 @@ return [
                     'text' => 'Usuarios',
                     'icon' => 'fas fa-users',
                     'route' => 'admin.cadastros.usuarios',
+                    'active' => ['admin/cadastros/usuarios/*']
                 ],
                 [
                     'text' => 'Estados',
                     'icon' => 'fa fa-map-signs',
                     'route' => 'admin.cadastros.estados',
+                    'active' => ['admin/cadastros/estados/*']
                 ],
                 [
                     'text' => 'Cidades',
                     'icon' => 'fas fa-city',
                     'route' => 'admin.cadastros.cidades',
+                    'active' => ['admin/cadastros/cidades/*']
                 ],
             ]
         ],
@@ -258,32 +261,37 @@ return [
                     'text' => 'Produtos',
                     'icon' => 'fas fa-pallet',
                     'route' => 'admin.estoque.produtos',
+                    'active' => ['admin/estoque/produtos/*']
                 ],
                 [
                     'text' => 'Marcas',
                     'icon' => 'fas fa-tags',
                     'route' => 'admin.estoque.marcas',
+                    'active' => ['admin/estoque/marcas/*']
                 ],
                 [
                     'text' => 'Categorias',
                     'icon' => 'fas fa-folder-open',
                     'route' => 'admin.estoque.categorias',
+                    'active' => ['admin/estoque/categorias/*']
                 ],
                 [
                     'text' => 'Tipos de Produto',
                     'icon' => 'fas fa-shapes',
                     'route' => 'admin.estoque.tiposProduto',
+                    'active' => ['admin/estoque/produto/tipos/*']
                 ],
             ]
         ],
         [
-            'text' => 'Pedidos',
-            'icon' => 'fas fa-shopping-cart',
+            'text' => 'Preços',
+            'icon' => 'fas fa-coins',
             'submenu' => [
                 [
                     'text' => 'Listas de Preço',
                     'icon' => 'fas fa-money-bill-wave',
                     'route' => 'admin.pedidos.listas_preco',
+                    //'active' => ['regex:/admin\/pedidos\/listasPreco\/((?!itemListaPreco).)*/']
                 ],
                 [
                     'text' => 'Itens Ofertados',
