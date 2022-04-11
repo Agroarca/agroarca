@@ -1,0 +1,33 @@
+$branco: #fff;
+$verdeClaro: #009934;
+$verdeEscuro: #006633;
+$cinzaClaro: #f1f1f1;
+$cinzaEscuro: #4c4c4c;
+$cinzaClaroSecundario: #f9f9f9;
+$preto: #141414;
+$borda: #d4d4d4;
+$subtitulo: #686868;
+
+:root {
+    --branco: #fff;
+    --verde-claro: #009934;
+    --verde-escuro: #006633;
+    --cinza-claro: #f1f1f1;
+    --cinza-escuro: #4c4c4c;
+    --cinza-claro-secundario: #f9f9f9;
+    --preto: #141414;
+    --borda: #d4d4d4;
+    --subtitulo: #686868;
+}
+
+@import 'fontes.scss';
+@import 'header.scss';
+
+
+
+body{
+    padding: 0;
+    margin: 0;
+}
+
+

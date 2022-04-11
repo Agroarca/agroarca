@@ -291,12 +291,13 @@ return [
                     'text' => 'Listas de Preço',
                     'icon' => 'fas fa-money-bill-wave',
                     'route' => 'admin.pedidos.listas_preco',
-                    //'active' => ['regex:/admin\/pedidos\/listasPreco\/((?!itemListaPreco).)*/']
+                    'active' => ['regex:@^admin/pedidos/listasPreco/(?!itemListaPreco)*$@']
                 ],
                 [
                     'text' => 'Itens Ofertados',
                     'icon' => 'fas fa-box',
                     'route' => 'admin.pedidos.listas_preco.item',
+                    'active' => ['regex:@^admin/pedidos/listasPreco/((?:itemListaPreco).)*$@']
                 ],
             ]
         ]

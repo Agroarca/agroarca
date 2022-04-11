@@ -4,10 +4,7 @@ namespace App\Http\Controllers\Site;
 
 use App\Http\Controllers\Controller;
 use App\Models\Estoque\Produto;
-use App\Models\Pedidos\ItemListaPreco;
-use App\Models\Pedidos\PedidoItem;
 use App\Services\Site\EntregaService;
-use App\Services\Site\ListService;
 use App\Services\Site\PedidoService;
 use App\Services\Site\ProdutoService;
 use Illuminate\Http\Request;

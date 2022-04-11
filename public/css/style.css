@@ -1,3 +1,53 @@
+:root {
+  --branco: #fff;
+  --verde-claro: #009934;
+  --verde-escuro: #006633;
+  --cinza-claro: #f1f1f1;
+  --cinza-escuro: #4c4c4c;
+  --cinza-claro-secundario: #f9f9f9;
+  --preto: #141414;
+  --borda: #d4d4d4;
+  --subtitulo: #686868;
+}
+
+@font-face {
+  font-family: "Poppins";
+  src: url("/fonts/poppins/Poppins-Regular.ttf");
+  font-display: swap;
+}
+@font-face {
+  font-family: "Poppins";
+  src: url("/fonts/poppins/Poppins-Medium.ttf");
+  font-display: swap;
+  font-weight: 500;
+}
+@font-face {
+  font-family: "Poppins";
+  src: url("/fonts/poppins/Poppins-SemiBold.ttf");
+  font-display: swap;
+  font-weight: 600;
+}
+@font-face {
+  font-family: "Lato";
+  src: url("/fonts/Lato/Lato-Regular.ttf");
+  font-display: swap;
+}
+@font-face {
+  font-family: "Lato";
+  src: url("/fonts/Lato/Lato-Bold.ttf");
+  font-display: swap;
+  font-weight: 700;
+}
+body {
+  font-family: "Lato", Arial, Helvetica, sans-serif;
+  color: #141414;
+}
+
+body {
+  padding: 0;
+  margin: 0;
+}
+
 /**
     PRIMARY BUTTON
 **/
@@ -84,53 +134,6 @@ input[type=checkbox]:focus {
   font-size: 14px;
   text-transform: capitalize;
 }
-/* */
-
-@font-face {
-    font-family: "Poppins";
-    src: url("/fonts/poppins/Poppins-Regular.ttf");
-    font-display: swap;
-}
-
-@font-face {
-    font-family: "Poppins";
-    src: url("/fonts/poppins/Poppins-Medium.ttf");
-    font-display: swap;
-    font-weight: 500;
-}
-
-@font-face {
-    font-family: "Poppins";
-    src: url("/fonts/poppins/Poppins-SemiBold.ttf");
-    font-display: swap;
-    font-weight: 600;
-}
-
-@font-face {
-    font-family: "Lato";
-    src: url("/fonts/Lato/Lato-Regular.ttf");
-    font-display: swap;
-}
-
-@font-face {
-    font-family: "Lato";
-    src: url("/fonts/Lato/Lato-Bold.ttf");
-    font-display: swap;
-    font-weight: 700;
-}
-
-:root {
-    --branco: #fff;
-    --verde-claro: #009934;
-    --verde-escuro: #006633;
-    --cinza-claro: #f1f1f1;
-    --cinza-escuro: #4c4c4c;
-    --cinza-claro-secundario: #f9f9f9;
-    --preto: #141414;
-    --borda: #d4d4d4;
-    --subtitulo: #686868;
-}
-
 .reference {
     background-image: url("/img/Login.jpg");
     height: 1000vh;
@@ -144,12 +147,6 @@ input[type=checkbox]:focus {
     margin-top: 0rem;
 }
 
-body {
-    font-family: "Lato", Arial, Helvetica, sans-serif;
-    padding: 0;
-    margin: 0;
-    color: var(--preto);
-}
 
 .link {
     color: var(--verde-claro);
@@ -355,7 +352,7 @@ nav.breadcrumb {
     margin-bottom: 2rem;
 }
 
-nav.breadcrumb .breadcrumb-link + .breadcrumb-link::before {
+nav.breadcrumb .breadcrumb-link+.breadcrumb-link::before {
     float: left;
     padding-right: 1rem;
     content: "/";
@@ -398,11 +395,9 @@ section {
 }
 
 .banner-info .banner-overlay {
-    background: linear-gradient(
-        90.67deg,
-        #f1f1f3 43.94%,
-        rgba(240, 240, 242, 0) 99.4%
-    );
+    background: linear-gradient(90.67deg,
+            #f1f1f3 43.94%,
+            rgba(240, 240, 242, 0) 99.4%);
     z-index: 9999;
     width: 60%;
     height: 100%;
@@ -683,10 +678,7 @@ section .section-title {
     display: flex;
 }
 
-.newsletter
-    .grid-container
-    .newsletter-item.form-newsletter
-    input[type="text"] {
+.newsletter .grid-container .newsletter-item.form-newsletter input[type="text"] {
     height: 80px;
     min-width: 300px;
     border-radius: 12px;
@@ -698,24 +690,15 @@ section .section-title {
     outline: unset;
 }
 
-.newsletter
-    .grid-container
-    .newsletter-item.form-newsletter
-    input[type="text"]::-moz-placeholder {
+.newsletter .grid-container .newsletter-item.form-newsletter input[type="text"]::-moz-placeholder {
     color: var(--cinza-escuro);
 }
 
-.newsletter
-    .grid-container
-    .newsletter-item.form-newsletter
-    input[type="text"]:-ms-input-placeholder {
+.newsletter .grid-container .newsletter-item.form-newsletter input[type="text"]:-ms-input-placeholder {
     color: var(--cinza-escuro);
 }
 
-.newsletter
-    .grid-container
-    .newsletter-item.form-newsletter
-    input[type="text"]::placeholder {
+.newsletter .grid-container .newsletter-item.form-newsletter input[type="text"]::placeholder {
     color: var(--cinza-escuro);
 }
 
@@ -1237,6 +1220,7 @@ section.sub-footer .payment-methods ul {
     align-items: center;
     padding: 2rem;
 }
+
 .cart .cart-header-coupon {
     background: #ffffff;
     border: 1px solid #d5d5d5;
@@ -1246,24 +1230,30 @@ section.sub-footer .payment-methods ul {
     padding: 2rem;
     text-align: center;
 }
+
 .cart .cart-header-coupon i {
     margin-right: 0.5rem;
 }
+
 .cart .cart-header-coupon b {
     color: var(--verde-claro);
     cursor: pointer;
 }
+
 .cart .cart-header-coupon.active {
     border-color: var(--verde-claro);
     background: rgba(0, 153, 52, 0.3);
 }
+
 .cart .cart-header .content-selectable span {
     font-size: 16;
     font-weight: bold;
 }
+
 .cart .cart-header span {
     cursor: pointer;
 }
+
 .cart .cart-header .meta-content {
     font-size: 16;
     font-weight: bold;
@@ -1279,13 +1269,15 @@ section.sub-footer .payment-methods ul {
     left: 0;
     transform: translateY(-50%);
 }
+
 .cart .cart-item {
     display: flex;
+    flex-direction: column;
+    align-items: flex-start;
     min-height: 190px;
     background: #ffffff;
     box-shadow: 0px 4px 4px rgba(0, 0, 0, 0.06);
     border-radius: 12px;
-    align-items: center;
     padding: 2rem;
 }
 
@@ -1350,7 +1342,7 @@ section.sub-footer .payment-methods ul {
     height: 133px;
     gap: 20px;
     justify-content: flex-end;
-    width: 100%;
+    flex: auto;
 }
 
 .cart .cart-data-item .cart-item-details .seed-tsi {
@@ -1378,6 +1370,7 @@ section.sub-footer .payment-methods ul {
     font-weight: bold;
     font-size: 20px;
 }
+
 .cart .cart-data-item .cart-item-details .amount-details .qty:focus-visible {
     outline: unset;
 }

@@ -33,7 +33,8 @@ mix.webpackConfig({
 */
 
 if (process.env.WITHOUT && process.env.WITHOUT == "vendor") {
-    mix.postCss("resources/css/style.css", "public/css/")
+    mix
+        .postCss("resources/css/style.css", "public/css/")
         .postCss("resources/css/admin.css", "public/css/")
         .js("resources/js/script.js", "public/js")
         .autoload({ jquery: ["$", "window.jQuery", "jQuery"] })
