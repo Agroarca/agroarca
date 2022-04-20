@@ -60,8 +60,13 @@ return [
     */
 
     'providers' => [
+        // 'users' => [
+        //     'driver' => 'eloquent',
+        //     'model' => App\Models\Cadastros\Usuario::class,
+        // ],
+
         'users' => [
-            'driver' => 'eloquent',
+            'driver' => 'custom',
             'model' => App\Models\Cadastros\Usuario::class,
         ],
 

@@ -3,12 +3,13 @@
 namespace App\Models\Pedidos;
 
 use App\Models\Cadastros\Usuario;
+use App\Traits\Dominio;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
 class Pedido extends Model
 {
-    use HasFactory;
+    use HasFactory, Dominio;
 
     protected $table = 'pedidos';
     protected $fillable = [

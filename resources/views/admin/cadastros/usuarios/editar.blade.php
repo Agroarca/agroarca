@@ -4,7 +4,20 @@
 
 <x-admin>
     <x-slot name='header'>
-        <h1>Usuário {{ $usuario->nome }}</h1>
+        <div class="row">
+            <div class="col-sm-8">
+                <h1>Usuário {{ $usuario->nome }}</h1>
+            </div>
+            <div class="col-sm-4 pt-3 pt-sm-0">
+                <a href="{{ route('admin.cadastros.usuarios.admin', $usuario->id) }}" class="btn btn-danger float-sm-right"><i class="fas fa-plus-circle pr-1"></i>
+                    @if ($usuario->admin)
+                        Remover Administrador
+                    @else
+                        Adicionar Administrador
+                    @endif
+                </a>
+            </div>
+        </div>
     </x-slot>
 
     <div class="card card-default">

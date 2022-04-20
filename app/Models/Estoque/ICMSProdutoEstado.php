@@ -3,12 +3,13 @@
 namespace App\Models\Estoque;
 
 use App\Models\Cadastros\Estado;
+use App\Traits\Dominio;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
 class ICMSProdutoEstado extends Model
 {
-    use HasFactory;
+    use HasFactory, Dominio;
     protected $table = 'icms_produto_estado';
     protected $fillable = [
         'icms',
@@ -16,11 +17,13 @@ class ICMSProdutoEstado extends Model
         'produto_id',
     ];
 
-    public function produto(){
+    public function produto()
+    {
         return $this->belongsTo(Produto::class);
     }
 
-    public function estado(){
+    public function estado()
+    {
         return $this->belongsTo(Estado::class);
     }
 }

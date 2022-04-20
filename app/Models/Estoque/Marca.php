@@ -2,16 +2,18 @@
 
 namespace App\Models\Estoque;
 
+use App\Traits\Dominio;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
 class Marca extends Model
 {
-    use HasFactory;
+    use HasFactory, Dominio;
     protected $table = 'marcas';
     protected $fillable = ['nome'];
 
-    public function produtos(){
+    public function produtos()
+    {
         return $this->hasMany(Produto::class);
     }
 }

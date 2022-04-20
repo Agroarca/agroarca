@@ -2,13 +2,13 @@
 
 namespace App\Models\Pedidos;
 
-use App\Models\Cadastros\UsuarioEndereco;
+use App\Traits\Dominio;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
 class PedidoItem extends Model
 {
-    use HasFactory;
+    use HasFactory, Dominio;
 
     protected $touches = ['pedido'];
     protected $table = 'pedido_itens';

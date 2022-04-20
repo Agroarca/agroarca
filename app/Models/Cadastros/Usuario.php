@@ -5,6 +5,7 @@ namespace App\Models\Cadastros;
 use App\Enums\Cadastros\Usuarios\TipoPessoaEnum;
 use App\Helpers\Formatter;
 use App\Models\Pedidos\Pedido;
+use App\Traits\Dominio;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
@@ -12,7 +13,7 @@ use Laravel\Sanctum\HasApiTokens;
 
 class Usuario extends Authenticatable
 {
-    use HasApiTokens, HasFactory, Notifiable;
+    use HasApiTokens, HasFactory, Notifiable, Dominio;
 
     protected $table = 'usuarios';
     protected $hidden = ['password', 'remember_token'];
@@ -28,46 +29,57 @@ class Usuario extends Authenticatable
         'cnpj',
         'celular',
         'status',
-        'tipo'
+        'tipo',
+        'admin'
     ];
 
-    public function getNameAttribute(){
+    public function getNameAttribute()
+    {
         return $this->nome;
     }
 
-    public function getCpfFormatadoAttribute(){
+    public function getCpfFormatadoAttribute()
+    {
         return Formatter::cpf($this->cpf);
     }
 
-    public function getCnpjFormatadoAttribute(){
+    public function getCnpjFormatadoAttribute()
+    {
         return Formatter::cnpj($this->cnpj);
     }
 
-    public function getCelularFormatadoAttribute(){
+    public function getCelularFormatadoAttribute()
+    {
         return Formatter::telefone($this->celular);
     }
 
-    public function getDocumentoAttribute(){
+    public function getDocumentoAttribute()
+    {
         return $this->tipo_pessoa == TipoPessoaEnum::PessoaJuridica ? $this->cnpjFormatado :  $this->cpfFormatado;
     }
 
-    public function getNomeTipoPessoaAttribute(){
+    public function getNomeTipoPessoaAttribute()
+    {
         return ($this->tipo_pessoa == TipoPessoaEnum::PessoaJuridica) ? "Pessoa Jurídica" : "Pessoa Física";
     }
 
-    public function enderecos(){
+    public function enderecos()
+    {
         return $this->hasMany(UsuarioEndereco::class);
     }
 
-    public function centrosDistribuicao(){
+    public function centrosDistribuicao()
+    {
         return $this->hasMany(CentroDistribuicao::class);
     }
 
-    public function listasPreco(){
+    public function listasPreco()
+    {
         return $this->hasMany(ListaPreco::class);
     }
 
-    public function pedidos(){
+    public function pedidos()
+    {
         return $this->hasMany(Pedido::class);
     }
 }

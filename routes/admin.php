@@ -1,5 +1,7 @@
 <?php
 
+use App\Http\Controllers\Admin\Administracao\AdministradorController;
+use App\Http\Controllers\Admin\Administracao\DominioController;
 use App\Http\Controllers\Admin\Cadastros\CentroDistribuicaoController;
 use App\Http\Controllers\Admin\Cadastros\CidadeController;
 use App\Http\Controllers\Admin\Cadastros\EstadoController;
@@ -48,6 +50,21 @@ Route::middleware(['auth'])->prefix('admin')->name('admin')->group(function () {
     |
     */
 
+    Route::prefix('administracao')->name('.administracao')->group(function () {
+        Route::prefix('dominios')->name('.dominios')->group(function () {
+            Route::get('', [DominioController::class, 'inicio'])->name('');
+            Route::get('criar/', [DominioController::class, 'criar'])->name('.criar');
+            Route::post('salvar/', [DominioController::class, 'salvar'])->name('.salvar');
+            Route::get('editar/{id}', [DominioController::class, 'editar'])->name('.editar');
+            Route::post('atualizar/{id}', [DominioController::class, 'atualizar'])->name('.atualizar');
+            Route::get('excluir/{id}', [DominioController::class, 'excluir'])->name('.excluir');
+        });
+
+        Route::prefix('administradores')->name('.administradores')->group(function () {
+            Route::get('', [AdministradorController::class, 'inicio'])->name('');
+        });
+    });
+
     Route::prefix('cadastros')->name('.cadastros')->group(function () {
 
         Route::prefix('estados')->name('.estados')->group(function () {
@@ -68,6 +85,7 @@ Route::middleware(['auth'])->prefix('admin')->name('admin')->group(function () {
         Route::prefix('usuarios')->name('.usuarios')->group(function () {
             Route::get('', [UsuarioController::class, 'inicio'])->name('');
             Route::get('editar/{id}', [UsuarioController::class, 'editar'])->name('.editar');
+            Route::get('admin/{id}', [UsuarioController::class, 'admin'])->name('.admin');
 
             Route::prefix('{userId}/enderecos')->name('.enderecos')->group(function () {
                 Route::get('criar/', [UsuarioEnderecoController::class, 'criar'])->name('.criar');

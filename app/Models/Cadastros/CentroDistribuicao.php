@@ -3,12 +3,13 @@
 namespace App\Models\Cadastros;
 
 use App\Models\Pedidos\ItemListaPreco;
+use App\Traits\Dominio;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
 class CentroDistribuicao extends Model
 {
-    use HasFactory;
+    use HasFactory, Dominio;
 
     protected $table = 'fornecedor_centros_distribuicao';
     protected $fillable = [
@@ -21,15 +22,18 @@ class CentroDistribuicao extends Model
         'usuario_endereco_id'
     ];
 
-    public function usuario(){
+    public function usuario()
+    {
         return $this->belongsTo(Usuario::class);
     }
 
-    public function usuarioEndereco(){
+    public function usuarioEndereco()
+    {
         return $this->belongsTo(UsuarioEndereco::class);
     }
 
-    public function itensListaPreco(){
+    public function itensListaPreco()
+    {
         return $this->hasMany(ItemListaPreco::class);
     }
 }

@@ -230,6 +230,24 @@ return [
             'topnav_right' => true,
         ],
         [
+            'text' => 'Administração',
+            'icon' => 'fas fa-clipboard-list',
+            'submenu' => [
+                [
+                    'text' => 'Domínios',
+                    'icon' => 'fas fa-city',
+                    'route' => 'admin.administracao.dominios',
+                    'active' => ['admin/administracao/dominios/*']
+                ],
+                [
+                    'text' => 'Administradores',
+                    'icon' => 'fas fa-users',
+                    'route' => 'admin.administracao.administradores',
+                    'active' => ['admin/administracao/administradores/*']
+                ],
+            ]
+        ],
+        [
             'text' => 'Cadastros',
             'icon' => 'fas fa-clipboard-list',
             'submenu' => [

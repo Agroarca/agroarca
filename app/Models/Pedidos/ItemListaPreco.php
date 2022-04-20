@@ -4,6 +4,7 @@ namespace App\Models\Pedidos;
 
 use App\Models\Cadastros\CentroDistribuicao;
 use App\Models\Estoque\Produto;
+use App\Traits\Dominio;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -12,7 +13,7 @@ use Illuminate\Support\Facades\DB;
 
 class ItemListaPreco extends Model
 {
-    use HasFactory, SoftDeletes;
+    use HasFactory, SoftDeletes, Dominio;
     protected $table = 'itens_lista_preco';
     protected $fillable = [
         'preco_quilo',
