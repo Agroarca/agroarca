@@ -6,8 +6,11 @@ use App\Enums\Cadastros\Usuarios\TipoPessoaEnum;
 use App\Rules\CNPJ;
 use App\Rules\CPF;
 use App\Rules\Telefone;
+use App\Rules\UniqueDominio;
+use App\Services\Administracao\DominioService;
 use Illuminate\Contracts\Validation\Factory;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 use Illuminate\Validation\Rules\Password;
 use Illuminate\Validation\ValidationException;
 
@@ -38,12 +41,12 @@ class RegisteredUserRequest extends FormRequest
     {
         return [
             'nome' => 'required|string|max:255',
-            'email' => 'required|string|email|max:255|unique:usuarios',
+            'email' => ['required', 'string', 'email', 'max:255', new UniqueDominio('usuarios')],
             'password' => ['required', 'confirmed', Password::defaults()],
-            'cpf_cnpj' => 'bail|required|cpf_cnpj|unique:usuarios,cpf|unique:usuarios,cnpj',
+            'cpf_cnpj' => ['bail', 'required', 'cpf_cnpj', new UniqueDominio('usuarios', 'cpf'), new UniqueDominio('usuarios', 'cnpj')],
             'celular' => ['bail', 'required', new Telefone()],
-            'cpf' => ['bail', 'nullable', 'unique:usuarios', new CPF()],
-            'cnpj' => ['bail', 'nullable', 'unique:usuarios', new CNPJ()],
+            'cpf' => ['bail', 'nullable', new CPF(), new UniqueDominio('usuarios')],
+            'cnpj' => ['bail', 'nullable', new CNPJ(), new UniqueDominio('usuarios')],
         ];
     }
 

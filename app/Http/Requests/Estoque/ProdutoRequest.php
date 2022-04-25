@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests\Estoque;
 
+use App\Rules\UniqueDominio;
 use Illuminate\Foundation\Http\FormRequest;
 
 class ProdutoRequest extends FormRequest
@@ -17,7 +18,7 @@ class ProdutoRequest extends FormRequest
         $id = $this->route('id') ?? 0;
 
         return [
-            'codigo' => "alpha_dash|nullable|max:20|unique:produtos,codigo,{$id}",
+            'codigo' => ['alpha_dash', 'nullable', 'max:20', new UniqueDominio('produtos', 'codigo', $id)],
             'nome' => 'string|required|min:3|max:50',
             'descricao' => 'string|required|min:20|max:1000',
             'marca_id' => 'integer|required|exists:marcas,id',
