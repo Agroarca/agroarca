@@ -2,11 +2,11 @@
     <section class="content produto">
         <div class="container flex-column">
             <x-site.breadcrumb-categoria :categoria="$produto->categoria"></x-site.breadcrumb-categoria>
-            <div class="detalhe">
-                <div class="imagens">
+            <div class="d-flex flex-column flex-lg-row">
+                <div class="imagens col-lg-6 px-lg-3">
                     @include('site.produto.imagens', ['imagens' => $produto->imagens])
                 </div>
-                <div class="infos">
+                <div class="infos col-lg-6 px-lg-3 pt-5 pt-lg-0">
                     @include('site.produto.infos', ['produto' => $produto, 'precoProduto' => $precoProduto])
                 </div>
             </div>

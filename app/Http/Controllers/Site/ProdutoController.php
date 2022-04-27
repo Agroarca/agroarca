@@ -36,7 +36,7 @@ class ProdutoController extends Controller
         $pedidoItem = PedidoService::adicionarItem($item);
 
         if (PedidoService::redirecionarAdicionais($item)) {
-            return redirect()->route('site.carrinho.editar', $pedidoItem->id); //TODO
+            return redirect()->route('site.carrinho', $pedidoItem->id);
         }
 
         return redirect()->route('site.produto', $produtoId);

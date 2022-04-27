@@ -33,7 +33,7 @@ class UniqueDominio implements Rule
 
 
         if (!is_null($this->except) && $this->except > 0) {
-            $query->where($this->exceptColumn, $this->except);
+            $query->where($this->exceptColumn, '!=', $this->except);
         }
 
         return !$query->exists();

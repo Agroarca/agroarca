@@ -14,7 +14,6 @@ class ProdutoRequest extends FormRequest
 
     public function rules()
     {
-        $this->sanitize();
         $id = $this->route('id') ?? 0;
 
         return [
@@ -41,7 +40,7 @@ class ProdutoRequest extends FormRequest
         ];
     }
 
-    public function sanitize()
+    public function prepareForValidation()
     {
         if ($this->has('codigo')) {
             $this->merge(['codigo' => mb_strtoupper($this->input('codigo'))]);
