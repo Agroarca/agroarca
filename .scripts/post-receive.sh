@@ -1,16 +1,5 @@
 #!/bin/bash
-TARGET="/home/webuser/deploy-folder"
-GIT_DIR="/home/webuser/www.git"
-BRANCH="master"
-
-while read oldrev newrev ref
-do
-	# only checking out the master (or whatever branch you would like to deploy)
-	if [ "$ref" = "refs/heads/$BRANCH" ];
-	then
-		echo "Ref $ref received. Deploying ${BRANCH} branch to production..."
-		git --work-tree=$TARGET --git-dir=$GIT_DIR checkout -f $BRANCH
-	else
-		echo "Ref $ref received. Doing nothing: only the ${BRANCH} branch may be deployed on this server."
-	fi
-done
+TARGET="/var/www/agroarca"
+GIT_DIR="/var/www/agroarca/.git"
+BRANCH="main"
+git --work-tree=$TARGET --git-dir=$GIT_DIR checkout -f
