@@ -310,6 +310,35 @@ section {
     font-weight: 600;
 }
 
+.produto .infos .frete-produto{
+    font-family: "Poppins", Arial, Helvetica, sans-serif;
+    display: block;
+    margin-top: 1rem;
+    color: var(--verde-claro);
+    font-size: 16px;
+    font-weight: 600;
+}
+
+.produto .infos hr{
+    background-color: var(--borda);
+}
+
+.produto .infos .cep span{
+    font-weight: bold;
+    margin-bottom: 0.5rem;
+    display: block;
+}
+
+.produto .infos .cep input{
+    border: 1px solid var(--borda);
+    border-radius: 0.6rem;
+    padding: 0.8rem 0;
+    text-align: center;
+    letter-spacing: .2rem;
+    font-weight: bold;
+    outline:none;
+}
+
 .produto .infos .descricao {
     white-space: pre-wrap;
 }
@@ -349,6 +378,59 @@ section {
 
 .produto .mais-infos .descricao-longa p {
     margin: 0;
+}
+
+.produto .botao.adicionar{
+    background-color: var(--verde-claro);
+    font-size: 18px;
+    padding: 0.8rem 1.6rem;
+    border-radius: 0.8rem;
+    color: var(--branco);
+    text-decoration: none;
+    text-transform: uppercase;
+    border: none;
+    display: block ;
+}
+
+.produto .infos .quantidade-detalhe {
+    height: 56px;
+    display: flex;
+}
+
+.produto .infos .quantidade-detalhe .quantidade {
+    width: 80px;
+    text-align: center;
+    border: 1px solid var(--borda);
+    border-left: unset;
+    border-right: unset;
+    color: var(--verde-claro);
+    font-weight: bold;
+    font-size: 20px;
+}
+
+.produto .infos .quantidade-detalhe .quantidade:focus-visible {
+    outline: unset;
+}
+
+.produto .infos .quantidade-detalhe button {
+    background-color: var(--branco);
+    color: var(--borda);
+    border: 1px solid var(--borda);
+    height: auto;
+    width: 56px;
+    border-radius: 12px;
+}
+
+.produto .infos .quantidade-detalhe .plus {
+    border-left: unset;
+    border-top-left-radius: unset;
+    border-bottom-left-radius: unset;
+}
+
+.produto .infos .quantidade-detalhe .minus {
+    border-right: unset;
+    border-top-right-radius: unset;
+    border-bottom-right-radius: unset;
 }
 
 section.container.listagem,

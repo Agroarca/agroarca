@@ -128,3 +128,10 @@ if (deliveryContent && deliveryModal) {
         toastr.success("Endereço salvo com sucesso!");
     });
 }
+
+window.verificarCep = function (input) {
+    var cep = input.value.replace(/\D/g, '')
+    if (cep.length == 8) {
+        input.form.submit()
+    }
+}

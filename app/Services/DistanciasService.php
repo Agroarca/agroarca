@@ -128,8 +128,8 @@ class DistanciasService
 
         $distance = GoogleDistanceMatrixService::consultar([$cep->google_place_id], [$endereco->google_place_id]);
 
-        if (!$distance) {
-            return null;
+        if (!$distance || is_null($distance[0][0])) {
+            return 0;
         }
 
         DistanciaCepCd::updateOrCreate(

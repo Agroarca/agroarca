@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Site;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Site\CEPRequest;
 use App\Models\Estoque\Produto;
 use App\Services\Site\EntregaService;
 use App\Services\Site\PedidoService;
@@ -20,9 +21,10 @@ class ProdutoController extends Controller
         return view('site.produto.produto', compact('produto'), compact('precoProduto'));
     }
 
-    public function atualizarCep(Request $request, $produtoId)
+    public function atualizarCep(CEPRequest $request, $produtoId)
     {
         $cep = $request->input('cep') ?? $request->query('cep');
+        $cep = preg_replace('/\D/', '', $cep);
         EntregaService::atualizarCepEnderecoPadrao($cep);
 
         return redirect()->route('site.produto', $produtoId);

@@ -37,7 +37,11 @@ class GoogleGeocodingService
         }
 
         if ($dados->status != "OK") {
-            Log::error("GoogleGeocoding: Ocorreu um erro ao consultar endereço, status retornado: $dados->status, parâmetros: $address");
+            if (property_exists($dados, 'error_message')) {
+                Log::error("GoogleGeocoding: Ocorreu um erro ao consultar endereço, status retornado: $dados->status, parâmetros: $address, erro: $dados->error_message");
+            } else {
+                Log::error("GoogleGeocoding: Ocorreu um erro ao consultar endereço, status retornado: $dados->status, parâmetros: $address");
+            }
             return null;
         }
 
