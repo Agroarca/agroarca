@@ -1,5 +1,6 @@
 @php
 $imagem = $pedidoItem->itemListaPreco->produto->imagens[0];
+    use App\Helpers\Formatter;
 @endphp
 
 <div class="cart-item">
@@ -9,8 +10,8 @@ $imagem = $pedidoItem->itemListaPreco->produto->imagens[0];
         </div>
         <div class="cart-product-meta">
             <h4>{{ $pedidoItem->itemListaPreco->produto->nome }}</h4>
-            <span class="cart-product-price">R$ {{ $pedidoItem->itemListaPreco->calculaPreco() }}</span>
-            <span class="cart-product-minor-price">R$ {{ $pedidoItem->itemListaPreco->preco_quilo }} / kg</span>
+            <span class="cart-product-price">{{ Formatter::preco($pedidoItem->itemListaPreco->calculaPreco()) }}</span>
+            <span class="cart-product-minor-price">{{ Formatter::preco($pedidoItem->itemListaPreco->preco_quilo) }} / Kg.</span>
         </div>
         <div class="cart-item-details">
             <button class="seed-tsi">

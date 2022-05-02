@@ -6,6 +6,7 @@ use App\Enums\Cadastros\Usuarios\TipoPessoaEnum;
 use App\Helpers\Formatter;
 use App\Models\Pedidos\Pedido;
 use App\Traits\Dominio;
+use App\Traits\UsuarioDominio;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
@@ -13,7 +14,7 @@ use Laravel\Sanctum\HasApiTokens;
 
 class Usuario extends Authenticatable
 {
-    use HasApiTokens, HasFactory, Notifiable, Dominio;
+    use HasApiTokens, HasFactory, Notifiable, UsuarioDominio;
 
     protected $table = 'usuarios';
     protected $hidden = ['password', 'remember_token'];

@@ -220,7 +220,7 @@ class PedidoService
 
     public static function getDataPagamento()
     {
-        return Carbon::now()->addDays(10);
+        return Carbon::now();
     }
 
     public static function atualizarQuantidadeCarrinho()
