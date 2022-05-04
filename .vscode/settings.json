@@ -1,6 +1,9 @@
 {
-    "editor.formatOnSave": true
+    "editor.formatOnSave": true,
     "[blade]": {
         "editor.formatOnSave": false
-    }
+    },
+    "[vue]": {
+        "editor.formatOnSave": false
+    },
 }

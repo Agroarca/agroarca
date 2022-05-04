@@ -23,7 +23,7 @@ mix.disableNotifications();
 
 mix.webpackConfig({
     stats: {
-        warnings: false,
+        warnings: true,
     },
 });
 /*
@@ -41,6 +41,10 @@ if (process.env.WITHOUT && process.env.WITHOUT == "vendor") {
         .js("resources/js/admin.js", "public/js")
         .sass("resources/sass/custom.scss", "public/css/style.css")
         .mergeManifest();
+
+    mix.js("resources/js/vue.js", "public/js/vue.js")
+        .vue()
+        .mergeManifest()
 } else {
     mix.postCss("resources/css/vendor.css", "public/css/")
         .sass("resources/sass/vendor.scss", "public/css/vendor.css")
@@ -53,5 +57,7 @@ if (process.env.WITHOUT && process.env.WITHOUT == "vendor") {
         .js("resources/js/script.js", "public/js")
         .autoload({ jquery: ["$", "window.jQuery", "jQuery"] })
         .js("resources/js/admin.js", "public/js")
-        .sass("resources/sass/custom.scss", "public/css/style.css");
+        .sass("resources/sass/custom.scss", "public/css/style.css")
+
+    mix.js("resources/js/vue.js", "public/js/vue.js").vue()
 }

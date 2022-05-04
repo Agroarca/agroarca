@@ -3,8 +3,10 @@
     "/js/vendor-admin.js": "/js/vendor-admin.js",
     "/js/script.js": "/js/script.js",
     "/js/admin.js": "/js/admin.js",
+    "/vue.js": "/vue.js",
     "/css/vendor-admin.css": "/css/vendor-admin.css",
-    "/css/style.css": "/css/style.css",
     "/css/vendor.css": "/css/vendor.css",
-    "/css/admin.css": "/css/admin.css"
+    "/css/style.css": "/css/style.css",
+    "/css/admin.css": "/css/admin.css",
+    "/js/vue.js": "/js/vue.js"
 }

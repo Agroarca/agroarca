@@ -68,7 +68,7 @@ class PedidoService
         $pedido->delete();
     }
 
-    public static function adicionarItem(ItemListaPreco $item)
+    public static function adicionarItem(ItemListaPreco $item, $quantidade)
     {
         $pedido = self::getPedido();
 
@@ -78,6 +78,7 @@ class PedidoService
         ]);
 
         $pedidoItem->preco_quilo = $item->calculaPreco();
+        $pedidoItem->quantidade += $quantidade;
         $pedidoItem->save();
 
         self::atualizarQuantidadeCarrinho();

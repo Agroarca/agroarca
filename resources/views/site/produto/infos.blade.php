@@ -25,11 +25,7 @@
 <div class="adicionar">
     <form method="POST" class="d-flex flex-column flex-lg-row justify-content-between" action="{{ route('site.produto.adicionar', $produto->id) }}">
         @csrf
-        <div class="quantidade-detalhe">
-            <button class="minus"><i class="fa fa-minus"></i></button>
-            <input type="text" class="quantidade" value="1">
-            <button class="plus"><i class="fa fa-plus"></i></button>
-        </div>
+        <x-site.carrinho.quantidade-item class="quantidade-detalhe" name='quantidade'></x-site.carrinho.quantidade-item>
         <input class="botao adicionar d-block d-lg-flex mx-auto mx-lg-0 mt-3 mt-lg-0" type="submit" value="Comprar">
     </form>
 </div>

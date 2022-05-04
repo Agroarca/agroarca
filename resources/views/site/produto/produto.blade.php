@@ -1,3 +1,4 @@
+@section('vue-app', true)
 <x-site>
     <section class="content produto">
         <div class="container flex-column">

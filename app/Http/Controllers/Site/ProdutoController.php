@@ -35,7 +35,8 @@ class ProdutoController extends Controller
         $produto = Produto::findOrFail($produtoId);
         $item = $produto->itensListaPreco()->first();
 
-        $pedidoItem = PedidoService::adicionarItem($item);
+        $quantidade = $request->input('quantidade');
+        $pedidoItem = PedidoService::adicionarItem($item, $quantidade);
 
         if (PedidoService::redirecionarAdicionais($item)) {
             return redirect()->route('site.carrinho', $pedidoItem->id);

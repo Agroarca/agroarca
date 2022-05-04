@@ -136,3 +136,26 @@ window.verificarCep = function (input) {
     }
 }
 
+/** Composnente Carrinho/QuantidadeItem */
+window.initQuantidadeItem = function () {
+    //quantidade-item
+    let elements = document.querySelectorAll('.component-carrinho-quantidade-item');
+    for (const element of elements) {
+        let minus = element.querySelector('.minus');
+        let plus = element.querySelector('.plus');
+
+        minus.addEventListener('click', function (event) {
+            event.preventDefault()
+            let input = this.parentNode.querySelector('input.quantidade');
+            if (Number(input.value) > 1) {
+                input.value = Number(input.value) - 1;
+            }
+        })
+
+        plus.addEventListener('click', function (event) {
+            event.preventDefault()
+            let input = this.parentNode.querySelector('input.quantidade');
+            input.value = Number(input.value) + 1;
+        })
+    }
+}

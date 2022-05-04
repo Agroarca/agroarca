@@ -1,6 +1,8 @@
 @php
     use App\Services\Site\CarrinhoService;
 @endphp
+@section('vue-app', true)
+
 <x-site>
     <section class="container cart">
         <div class="row mb-4">

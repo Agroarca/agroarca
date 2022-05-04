@@ -1,12 +1,3 @@
-<style>
-
-    #delivery-info-modal .input-group-text{
-        width: 40%;
-        display: block;
-        text-align: center;
-    }
-</style>
-
 <x-site.modal :title="'Como deseja sua entrega?'" :id="'delivery-info-modal'">
     <form onsubmit="preventDefault();" id="form-delivery-info">
         <div class="row">
