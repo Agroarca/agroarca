@@ -334,7 +334,6 @@ header .menu {
 }
 
 header .menu-item {
-    padding: 0 4rem;
     font-size: 18px;
     color: var(--cinza-escuro);
     text-decoration: none;

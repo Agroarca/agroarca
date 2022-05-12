@@ -13,7 +13,8 @@ class DominioService
             return session()->get('dominioId');
         }
 
-        $dominio = Dominio::where('dominio', $_SERVER['SERVER_NAME'])->first();
+        //$dominio = Dominio::where('dominio', $_SERVER['SERVER_NAME'])->first();
+        $dominio = Dominio::find(1);
         session()->put('dominioId', $dominio->id);
         return $dominio->id;
     }

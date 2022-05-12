@@ -13,7 +13,6 @@ use Illuminate\Support\Facades\Auth;
 
 class PedidoService
 {
-
     public static function getPedido()
     {
         $pedido = Pedido::find(session('pedidoId', null));

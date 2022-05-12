@@ -5,23 +5,25 @@ namespace App\Http\Controllers\Site;
 use App\Http\Controllers\Controller;
 use App\Models\Pedidos\ItemListaPreco;
 use App\Models\Pedidos\PedidoItem;
+use App\Services\Site\CarrinhoService;
 use App\Services\Site\ListService;
 use App\Services\Site\PedidoService;
+use App\View\Components\Site\Carrinho\CarrinhoItem;
 use Illuminate\Http\Request;
 
 class CarrinhoController extends Controller
 {
     public function inicio()
     {
-        $pedido = PedidoService::getPedido();
-        return view('site.carrinho.carrinho', compact('pedido'));
+        $carrinho = CarrinhoService::getCarrinho();
+        return view('site.carrinho.carrinho', compact('carrinho'));
     }
 
     public function remover($itemId)
     {
         $pedidoItem = PedidoItem::findOrFail($itemId);
         PedidoService::removerItem($pedidoItem);
-        return redirect()->route('site.carrinho');
+        return response()->json(['carrinho' => CarrinhoService::getCarrinho()]);
     }
 
     public function editar($pedidoItemId)
@@ -55,5 +57,18 @@ class CarrinhoController extends Controller
         PedidoService::removerAdicionaisExceto($pedidoItem, $request->input('adicional'));
 
         return redirect()->route('site.carrinho');
+    }
+
+    public function alterar_quantidade(Request $request, $itemId)
+    {
+        if (!$request->input('quantidade') > 0) {
+            return response()->json(['erro' => 'Quantidade Inválida']);
+        }
+
+        $item = PedidoItem::findOrFail($itemId);
+        $item->quantidade = $request->input('quantidade');
+        $item->save();
+
+        return response()->json(['carrinho' => CarrinhoService::getCarrinho()]);
     }
 }
