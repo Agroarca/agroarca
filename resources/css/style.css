@@ -73,15 +73,16 @@ header .contact span:not(:first-of-type) {
 header .header-item {
     display: flex;
     align-items: center;
+    flex-wrap: nowrap;
 }
 
 header .main {
     display: flex;
     align-items: center;
-    margin-top: 1.7rem;
-    margin-bottom: 1.7rem;
+    margin: 1.7rem 0;
     justify-content: space-between;
     gap: 30px;
+    padding: 0 6rem;
 }
 
 @media only screen and (max-width: 1200px) {
@@ -102,8 +103,8 @@ header .main {
 }
 
 .search-container button {
-    width: 20%;
-    padding-right: 1.5rem;
+    width: 64px;
+    padding-right: 1rem;
     height: 4rem;
     border: unset;
     border-top-right-radius: 1rem;
@@ -154,7 +155,7 @@ header .main .arca-container a {
 
 header .main .arca-container {
     font-size: 32px;
-    width: 25px;
+    width: 36px;
 }
 
 header .main .profile-container {
@@ -166,6 +167,13 @@ header .main .profile-container {
     font-weight: bold;
     text-decoration: none;
     text-transform: uppercase;
+    white-space: nowrap;
+}
+
+@media only screen and (max-width: 1200px) {
+    header .main .profile-container {
+        padding: 1rem 1.5rem;
+    }
 }
 
 header .main .profile-container:hover {
@@ -173,8 +181,11 @@ header .main .profile-container:hover {
 }
 
 header .main .profile-container i {
-    padding-right: 1rem;
     font-size: 24px;
+}
+
+header .main .profile-container span {
+    padding-left: 1rem;
 }
 
 header .menu {
@@ -195,6 +206,13 @@ header .menu-item {
 header .logo {
     width: 325px;
     height: 100px;
+}
+
+@media only screen and (max-width: 1200px) {
+    header .logo {
+        width: 130px;
+        height: 40px;
+    }
 }
 
 nav.breadcrumb {
