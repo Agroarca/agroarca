@@ -1,7 +1,7 @@
 <x-site>
 {{-- <p class="container">Home page xD</p> --}}
 
-@php
+{{-- @php
     $items = [];
     foreach(range(1, 10) as $i){
         $items[] = [
@@ -12,17 +12,17 @@
             'actionTitle' => ($i % 2 ? 'Ver Produtos' : 'Confira Já!'),
         ];
     }
-@endphp
+@endphp --}}
 
-@include('site.adicionais.banner-section', [
+{{-- @include('site.adicionais.banner-section', [
     'multiple' => true,
     'data' => $items
-])
+]) --}}
 
-@include('site.adicionais.business-values')
+{{-- @include('site.adicionais.business-values') --}}
 
-@if(isset($flash_sale) && $flash_sale)
+{{-- @if(isset($flash_sale) && $flash_sale)
     @include('site.adicionais.flashsale')
-@endif
+@endif --}}
 
 </x-site>

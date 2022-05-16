@@ -20,23 +20,22 @@
 
 <header class="py-3 mb-4">
 
-    <div class="container-fluid main">
-        <div class="header-item text-decoration-none logo-container">
+    <div class="container-fluid main flex-wrap flex-md-nowrap">
+        <div class="header-item text-decoration-none logo-container order-1">
             <a href="{{ url('/') }}">
                 <img class="logo" src="{{ asset('img/logo.png') }}">
             </a>
         </div>
-        <div class="header-item search-container input-group">
+        <div class="header-item search-container input-group order-5 order-md-2">
             <input placeholder="Pequisar produtos..." type="text" class="search form-control">
             <button type="submit"><i class="fa fa-search"></i></button>
         </div>
 
-
-        <div class="header-item arca-container ">
+        <div class="header-item arca-container order-3">
             <a href="{{ route('site.carrinho') }}"><i class="fas fa-shopping-cart"></i></a>
             <span class="cart-placeholder" id="cart-amount">{{ CarrinhoService::getQuantidadeItens() }}</span>
         </div>
-        <a class="header-item profile-container" href="{{ route('index') }}">
+        <a class="header-item profile-container order-4" href="{{ route('index') }}">
             <i class="fas fa-user-circle"></i>
             <span class="d-none d-xl-block">Minha Conta</span>
         </a>

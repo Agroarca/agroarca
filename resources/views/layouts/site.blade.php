@@ -1,6 +1,7 @@
 <html>
 
 <head>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link href="{{ mix('css/vendor.css') }}" rel="stylesheet">
     <link href="{{ mix('css/style.css') }}" rel="stylesheet">
 </head>
@@ -17,7 +18,7 @@
 
         {{ $slot }}
 
-        <x-site.footer></x-site.footer>
+        {{-- <x-site.footer></x-site.footer> --}}
     </div>
 
     <script src="{{ mix('js/script.js') }}"></script>

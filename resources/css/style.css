@@ -86,8 +86,8 @@ header .main {
 }
 
 @media only screen and (max-width: 1200px) {
-    header .main .search {
-        width: 10em !important;
+    header .main {
+        padding: 0 1rem;
     }
 }
 
