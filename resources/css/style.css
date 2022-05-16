@@ -184,6 +184,15 @@ header .main .profile-container {
     }
 }
 
+header .main .menu-container{
+    background-color: var(--verde-claro);
+    font-size: 18px;
+    padding: 1rem 1.5rem;
+    border-radius: 0.8rem;
+    color: var(--branco);
+    font-weight: bold;
+}
+
 header .main .profile-container:hover {
     color: var(--verde-escuro);
 }

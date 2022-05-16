@@ -1,8 +1,6 @@
-<nav class="navbar navbar-expand-md">
+<nav>
     <div class="container-fluid menu-container">
-        <button class="navbar-toggler collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#navbarmenu" aria-controls="navbarmenu" aria-expanded="false" aria-label="Mostrar Menu">
-            <span class="fa-solid fa-bars navbar-toggler-icon"></span>
-        </button>
+
         <div class="row menu-content collapse navbar-collapse" id="navbarmenu">
             <ul class="menu navbar-nav">
                 <li class="nav-item"></li>

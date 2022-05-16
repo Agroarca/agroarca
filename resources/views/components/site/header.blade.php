@@ -18,7 +18,7 @@
 
 {{-- @include('site.adicionais.modals.delivery-information') --}}
 
-<header class="py-0 py-md-3 mb-4">
+<header class="py-0 py-md-3 mb-4 navbar navbar-expand-md d-block">
 
     <div class="container-fluid main flex-wrap flex-md-nowrap">
         <div class="header-item text-decoration-none logo-container order-1">
@@ -39,6 +39,11 @@
             <i class="fas fa-user-circle"></i>
             <span class="d-none d-xl-block">Minha Conta</span>
         </a>
+        <button class="header-item menu-container navbar-toggler collapsed order-4" type="button" data-bs-toggle="collapse" data-bs-target="#navbarmenu" aria-controls="navbarmenu" aria-expanded="false" aria-label="Mostrar Menu">
+            <div class="d-flex flex-nowrap">
+                <span class="fa-solid fa-bars"></span>
+            </div>
+        </button>
     </div>
 
     <x-site.menu></x-site.menu>
