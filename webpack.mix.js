@@ -24,6 +24,7 @@ mix.disableNotifications();
 mix.webpackConfig({
     stats: {
         warnings: true,
+        //children: true
     },
 });
 /*

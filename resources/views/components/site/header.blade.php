@@ -5,8 +5,8 @@
     <div class="container contact-container d-flex flex-wrap" style="justify-content: space-between;">
 
         <span class="phone"><i class="fas fa-phone-alt"></i>+55 54 9902-0345</span>
-        <span class="mail"><i class="fas fa-envelope"></i>contato@agroarca.com.br</span>
-        <a href="{{ route('admin.inicio') }}" class="painel"><i class="fa-solid fa-chart-line"></i>Acessar o Painel</a>
+        {{-- <span class="mail"><i class="fas fa-envelope"></i>contato@agroarca.com.br</span> --}}
+        {{-- <a href="{{ route('admin.inicio') }}" class="painel"><i class="fa-solid fa-chart-line"></i>Acessar o Painel</a> --}}
 
         {{-- @TODO: Precisa implementar endpoint no backend, e pegar valor da section aqui --}}
         {{-- Tambem verificar se o usuario esta autenticado e se tem endereco cadastrado antes de mostrar --}}
@@ -18,7 +18,7 @@
 
 {{-- @include('site.adicionais.modals.delivery-information') --}}
 
-<header class="py-3 mb-4">
+<header class="py-0 py-md-3 mb-4">
 
     <div class="container-fluid main flex-wrap flex-md-nowrap">
         <div class="header-item text-decoration-none logo-container order-1">
@@ -41,9 +41,6 @@
         </a>
     </div>
 
-    <div class="container">
-        <div class="row menu-content">
-            <x-site.menu></x-site.menu>
-        </div>
-    </div>
+    <x-site.menu></x-site.menu>
+
 </header>
