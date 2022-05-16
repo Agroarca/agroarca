@@ -1,13 +1,1 @@
-.crop-image-container .crop-image{
-    max-width: 100%;
-}
-
-.select2-container .select2-selection--single {
-    height: 38px;
-}
-
-.select2-container {
-    width: 100% !important;
-    padding: 0;
-}
-
+.crop-image-container .crop-image{max-width:100%}.select2-container .select2-selection--single{height:38px}.select2-container{padding:0;width:100%!important}
