@@ -2,11 +2,14 @@
     use App\Services\Site\CarrinhoService;
 @endphp
 <nav class="py-2 contact">
-    <div class="container contact-container d-flex flex-wrap" style="justify-content: space-between;">
+    <div class="container contact-container d-flex flex-nowrap" style="justify-content: space-between;">
 
         <span class="phone"><i class="fas fa-phone-alt"></i>+55 54 9902-0345</span>
-        {{-- <span class="mail"><i class="fas fa-envelope"></i>contato@agroarca.com.br</span> --}}
-        {{-- <a href="{{ route('admin.inicio') }}" class="painel"><i class="fa-solid fa-chart-line"></i>Acessar o Painel</a> --}}
+        <span class="mail"><i class="fas fa-envelope"></i>contato@agroarca.com.br</span>
+        <a class="painel" href="{{ route('admin.inicio') }}">
+            <i class="fa-solid fa-chart-line"></i>
+            <span class="d-none d-sm-inline">Acessar o Painel</span>
+        </a>
 
         {{-- @TODO: Precisa implementar endpoint no backend, e pegar valor da section aqui --}}
         {{-- Tambem verificar se o usuario esta autenticado e se tem endereco cadastrado antes de mostrar --}}

@@ -50,13 +50,19 @@ nav.contact {
     font-family: Roboto, sans-serif;
 }
 
+@media only screen and (max-width: 767px) {
+    nav.contact {
+        font-size: 12px;
+    }
+}
+
 nav.contact .contact-container {
     display: flex;
     height: 100%;
     align-items: center;
 }
 
-@media only screen and (max-width: 992px) {
+@media only screen and (max-width: 991px) {
     nav.contact .contact-container {
         justify-content: center;
     }
@@ -129,11 +135,26 @@ header .main .search {
     border: none;
     outline: none;
     height: 4rem;
-    font-size: 32px;
+    font-size: 24px;
     padding: 0 1.5rem;
     border-radius: 1rem;
     border-top-right-radius: unset;
     border-bottom-right-radius: unset;
+}
+
+@media only screen and (max-width: 1200px) {
+    header .main .search {
+        font-size: 18px;
+        height: 3rem;
+    }
+
+    .search-container input::placeholder{
+        font-size: 18px;
+    }
+
+    .search-container button{
+        height: 3rem;
+    }
 }
 
 header .main .arca-container .cart-placeholder {
@@ -283,7 +304,7 @@ section {
     background-size: cover;
 }
 
-@media only screen and (max-width: 992px) {
+@media only screen and (max-width: 991px) {
     .banner-info {
         background-image: unset !important;
     }
@@ -741,7 +762,7 @@ section .section-title {
     padding: 0 86px;
 }
 
-@media only screen and (max-width: 992px) {
+@media only screen and (max-width: 991px) {
     .login .form {
         padding: 0 40px !important;
     }
