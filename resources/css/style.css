@@ -56,6 +56,10 @@ nav.contact {
     }
 }
 
+nav.contact a{
+    color:white;
+}
+
 nav.contact .contact-container {
     display: flex;
     height: 100%;
