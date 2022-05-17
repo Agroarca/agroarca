@@ -62,3 +62,7 @@ if (process.env.WITHOUT && process.env.WITHOUT == "vendor") {
 
     mix.js("resources/js/vue.js", "public/js/vue.js").vue()
 }
+
+if (mix.inProduction()) {
+    mix.version();
+}
