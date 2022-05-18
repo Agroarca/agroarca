@@ -1,11 +1,11 @@
 {
     "/js/vendor.js": "/js/vendor.js?id=55b42f8d40ec09172124d695d6f45044",
     "/js/vendor-admin.js": "/js/vendor-admin.js?id=3d224aab2ef7dc2a8eab9b2583e774c2",
-    "/js/script.js": "/js/script.js",
-    "/js/admin.js": "/js/admin.js",
-    "/js/vue.js": "/js/vue.js",
+    "/js/script.js": "/js/script.js?id=b66fdf2427e334e02121bb2ace4422c3",
+    "/js/admin.js": "/js/admin.js?id=ff5d4c21014f4cc9b7971177021c9ba3",
+    "/js/vue.js": "/js/vue.js?id=499418aa8bbd00ef6f161759957de51d",
     "/css/vendor-admin.css": "/css/vendor-admin.css?id=01174a5762b2ff56934e9a7287bebcf7",
     "/css/vendor.css": "/css/vendor.css?id=743539a83bb067ddbca417d664182762",
-    "/css/style.css": "/css/style.css",
-    "/css/admin.css": "/css/admin.css"
+    "/css/style.css": "/css/style.css?id=f1f6dccf926799f308b193535c5f1cc9",
+    "/css/admin.css": "/css/admin.css?id=02854075ba82670ce2e4e67a93acb6aa"
 }
