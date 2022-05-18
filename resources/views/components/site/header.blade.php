@@ -1,8 +1,11 @@
 @php
     use App\Services\Site\CarrinhoService;
 @endphp
-<nav class="py-2 contact">
-    <div class="container contact-container d-flex flex-nowrap" style="justify-content: space-between;">
+
+{{-- @include('site.adicionais.modals.delivery-information') --}}
+
+<div class="py-2 header-contact">
+    <div class="container contact-container d-flex flex-nowrap">
 
         <span class="phone"><i class="fas fa-phone-alt"></i>+55 54 9902-0345</span>
         <span class="mail"><i class="fas fa-envelope"></i>contato@agroarca.com.br</span>
@@ -17,10 +20,7 @@
 
 
     </div>
-</nav>
-
-{{-- @include('site.adicionais.modals.delivery-information') --}}
-
+</div>
 <header class="py-0 py-md-3 mb-4 navbar navbar-expand-md d-block">
 
     <div class="container-fluid main flex-wrap flex-md-nowrap">
@@ -38,7 +38,7 @@
             <a href="{{ route('site.carrinho') }}"><i class="fas fa-shopping-cart"></i></a>
             <span class="cart-placeholder" id="cart-amount">{{ CarrinhoService::getQuantidadeItens() }}</span>
         </div>
-        <a class="header-item profile-container order-4" href="{{ route('index') }}">
+        <a class="header-item profile-container order-4" href="{{ route('inicio') }}">
             <i class="fas fa-user-circle"></i>
             <span class="d-none d-xl-block">Minha Conta</span>
         </a>

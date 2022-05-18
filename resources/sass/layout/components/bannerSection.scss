@@ -1,0 +1,57 @@
+.banner-info {
+    cursor: pointer;
+    height: 389px;
+    border-radius: 70px 30px 30px 70px;
+    padding-left: unset;
+    display: flex;
+    flex-direction: column;
+    row-gap: 130px;
+    background-size: cover;
+
+    @include media-breakpoint-down(lg) {
+        background-image: unset !important;
+    }
+
+    .banner-overlay {
+        background: linear-gradient(90.67deg,
+                #f1f1f3 43.94%,
+                rgba(240, 240, 242, 0) 99.4%);
+        z-index: 9999;
+        width: 60%;
+        height: 100%;
+        border-radius: 30px;
+
+        @include media-breakpoint-down(lg) {
+            width: 100%;
+        }
+    }
+
+    .banner-text-overlay {
+        height: 100%;
+        padding: 60px;
+        display: flex;
+        flex-direction: column;
+    }
+
+    .btn {
+        margin-top: auto;
+        margin-right: auto;
+        padding: 0.6rem 2.8rem;
+    }
+
+    h2 {
+        font-weight: bold;
+        font-size: 56px;
+    }
+
+    b {
+        font-size: 24px;
+        color: #898989;
+        line-height: 36px;
+    }
+
+    p {
+        color: var(--subtitulo);
+    }
+
+}

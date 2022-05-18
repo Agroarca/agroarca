@@ -13,7 +13,6 @@
             <div id="erros-container" class="toast-container position-absolute top-0 end-0 p-3"></div>
         </div>
 
-        <div class="reference"></div>
         <x-site.header></x-site.header>
 
         {{ $slot }}

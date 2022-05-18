@@ -1,0 +1,21 @@
+nav.breadcrumb {
+    display: flex;
+    flex-wrap: wrap;
+    padding: 0.75rem 1rem;
+    margin-bottom: 2rem;
+
+    .breadcrumb-link {
+        color: var(--verde-claro);
+        padding-right: 1rem;
+        text-transform: uppercase;
+        text-decoration: none;
+        font-size: 1.2rem;
+
+        +.breadcrumb-link::before {
+            float: left;
+            padding-right: 1rem;
+            content: "/";
+            color: var(--cinza-escuro);
+        }
+    }
+}

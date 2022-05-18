@@ -18,7 +18,7 @@ Route::get('/', function () {
     $flash_sale = true;
 
     return view('site.home', compact('flash_sale'));
-})->name('index');
+})->name('inicio');
 
 Route::name('site')->group(function () {
     Route::prefix('produto')->name('.produto')->group(function () {

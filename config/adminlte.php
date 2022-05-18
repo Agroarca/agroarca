@@ -230,6 +230,11 @@ return [
             'topnav_right' => true,
         ],
         [
+            'text' => 'Voltar para a Loja',
+            'icon' => 'fas fa-store',
+            'route' => 'inicio'
+        ],
+        [
             'text' => 'Administração',
             'icon' => 'fas fa-clipboard-list',
             'submenu' => [

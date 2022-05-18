@@ -18,11 +18,10 @@
         ]
     ])
 
-    <section class="container listagem">
-
-        <div class="section-meta">
-        <h2 class="section-title">Produtos</h2>
-        <div class="section-filters">
+    <section class="container-fluid container-md listagem">
+        {{-- <div class="section-meta">
+            <h2 class="section-title">Produtos</h2>
+            <div class="section-filters">
                 <div class="grid-selectable">
                     <i class="fa fa-th active" aria-hidden="true"></i>
                     <i class="fas fa-list"></i>
@@ -39,7 +38,7 @@
                     </ul>
                   </div>
             </div>
-        </div>
+        </div> --}}
 
         <div class="produtos">
             @foreach ($produtos as $produto)

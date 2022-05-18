@@ -1,0 +1,120 @@
+section.produto {
+    .imagem.single img {
+        width: 100%;
+        height: auto;
+    }
+
+    .infos {
+        .cod {
+            font-family: "Poppins", Arial, Helvetica, sans-serif;
+            font-size: 18px;
+        }
+
+        .nome {
+            font-family: "Poppins", Arial, Helvetica, sans-serif;
+            font-size: 26px;
+            font-weight: 600;
+            margin: 1rem 0;
+        }
+
+        .descricao {
+            white-space: pre-wrap;
+        }
+
+        .preco-produto {
+            font-family: "Poppins", Arial, Helvetica, sans-serif;
+            display: block;
+            margin-top: 1rem;
+            color: var(--verde-claro);
+            font-size: 24px;
+            font-weight: 600;
+        }
+
+        .frete-produto {
+            font-family: "Poppins", Arial, Helvetica, sans-serif;
+            display: block;
+            margin-top: 1rem;
+            color: var(--verde-claro);
+            font-size: 16px;
+            font-weight: 600;
+        }
+
+        hr {
+            background-color: var(--borda);
+        }
+
+        .cep {
+            span {
+                font-weight: bold;
+                margin-bottom: 0.5rem;
+                display: block;
+            }
+
+            input {
+                border: 1px solid var(--borda);
+                border-radius: 0.6rem;
+                padding: 0.8rem 0;
+                text-align: center;
+                letter-spacing: .2rem;
+                font-weight: bold;
+                outline: none;
+            }
+        }
+
+        .adicionar.botao {
+            background-color: var(--verde-claro);
+            font-size: 18px;
+            padding: 0.8rem 1.6rem;
+            border-radius: 0.8rem;
+            color: var(--branco);
+            text-decoration: none;
+            text-transform: uppercase;
+            border: none;
+            display: block;
+        }
+
+        .quantidade-detalhe {
+            height: 56px;
+            display: flex;
+        }
+    }
+
+    .mais-infos {
+        .descricao-longa-header {
+            margin-top: 4rem;
+            font-family: "Poppins", Arial, Helvetica, sans-serif;
+            background-color: var(--cinza-claro-secundario);
+            padding: 2rem 6rem;
+            border-radius: 12px;
+            position: relative;
+
+            &::after {
+                position: absolute;
+                content: "";
+                background-color: var(--verde-claro);
+                height: 0.4rem;
+                width: 8rem;
+                bottom: 0;
+                left: 6rem;
+                border-radius: 0.8rem 0.8rem 0 0;
+            }
+
+            h3 {
+                margin: 0;
+                font-size: 24px;
+                color: var(--verde-claro);
+                font-weight: 600;
+                display: inline-block;
+            }
+        }
+
+        .descricao-longa {
+            white-space: pre-wrap;
+            padding: 2rem 4rem;
+
+            p {
+                margin: 0;
+            }
+        }
+    }
+}

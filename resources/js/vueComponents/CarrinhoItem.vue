@@ -59,18 +59,18 @@ export default{
 
 <template>
     <div class="carrinho-item" :data-id="carrinhoitem.id">
-        <div class="item-detalhe">
-            <div class="imagem">
+        <div class="item-detalhe row">
+            <div class="imagem col-6 col-md-4">
                 <img :src="carrinhoitem.imagem.src" :alt="carrinhoitem.imagem.descricao">
             </div>
-            <div class="informacoes">
+            <div class="informacoes col-6 col-md-4">
                 <h4>{{ carrinhoitem.nomeProduto }}</h4>
                 <span class="preco">{{ carrinhoitem.preco }}</span>
                 <span class="preco-unidade">
                     {{ carrinhoitem.preco_unidade }} / {{ carrinhoitem.unidade }}
                 </span>
             </div>
-            <div class="detalhes d-flex flex-column flex-md-row align-items-end justify-content-start justify-content-md-end">
+            <div class="detalhes d-flex flex-row align-items-end justify-content-center justify-content-md-end col-12 col-md-4">
                 <CarrinhoQuantidadeItem class='quantidade-item component-carrinho-quantidade-item' :value='carrinhoitem.quantidade' name='quantidade' @alterarquantidade="alterarquantidade" />
                 <a href='#' @click="removerItem">
                     <button class="remover"><i class="fa fa-trash"></i></button>
@@ -114,15 +114,8 @@ export default{
     width: 100%;
 }
 
-.carrinho .carrinho-item .imagem {
-    width: 152px;
-    height: 133px;
-    background-color: var(--cinza-claro);
-    border-radius: 14px;
-}
-
 .carrinho .carrinho-item img {
-    height: 100%;
+    height: auto;
     width: 100%;
     border-radius: 14px;
 }
@@ -130,7 +123,6 @@ export default{
 .carrinho .carrinho-item .informacoes {
     display: flex;
     flex-direction: column;
-    padding-left: 2rem;
 }
 
 .carrinho .carrinho-item .preco {
@@ -150,8 +142,8 @@ export default{
 
 .carrinho .carrinho-item .detalhes {
     flex: auto;
-    height: 133px;
     gap: 10px;
+    padding-top: 1rem;
 }
 /*
 .carrinho .carrinho-item .detalhes {

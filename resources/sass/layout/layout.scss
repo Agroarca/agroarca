@@ -20,12 +20,18 @@ $subtitulo: #686868;
     --subtitulo: #686868;
 }
 
+/** mínimo do bootstrap para trabalhar com os breakpoints **/
+@import "~bootstrap/scss/functions";
+@import "~bootstrap/scss/variables";
+@import "~bootstrap/scss/mixins/breakpoints";
+
 @import 'fontes.scss';
 @import 'header.scss';
-
-
+@import 'components/include';
+@import 'pages/include';
 
 body {
     padding: 0;
     margin: 0;
+    color: var(--preto);
 }
