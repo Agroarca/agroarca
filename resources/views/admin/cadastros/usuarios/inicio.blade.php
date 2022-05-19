@@ -19,7 +19,7 @@
                             <td>
                                 {{ $usuario->nome }}
                                 @if($usuario->admin)
-                                    <span class="badge badge-warning">Administrador</span>
+                                    <span class="badge badge-warning ml-2">Administrador</span>
                                 @endif
                             </td>
                             <td class="d-none d-md-table-cell">{{ $usuario->documento }}</td>
