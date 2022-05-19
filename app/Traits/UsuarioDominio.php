@@ -8,7 +8,7 @@ use Illuminate\Database\Eloquent\Model;
 
 trait UsuarioDominio
 {
-    public static function bootDominio()
+    public static function bootUsuarioDominio()
     {
         static::addGlobalScope(new UsuarioDominioScope);
 
