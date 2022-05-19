@@ -3,7 +3,6 @@
 namespace App\Services\Administracao;
 
 use App\Models\Administracao\Dominio;
-use Illuminate\Database\Schema\Blueprint;
 
 class DominioService
 {
