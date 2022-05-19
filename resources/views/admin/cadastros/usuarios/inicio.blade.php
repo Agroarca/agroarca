@@ -16,7 +16,12 @@
                 <tbody>
                     @foreach ($usuarios as $usuario)
                         <tr>
-                            <td>{{ $usuario->nome }}</td>
+                            <td>
+                                {{ $usuario->nome }}
+                                @if($usuario->admin)
+                                    <span class="badge badge-warning">Administrador</span>
+                                @endif
+                            </td>
                             <td class="d-none d-md-table-cell">{{ $usuario->documento }}</td>
                             <td class="d-none d-md-table-cell">{{ $usuario->nomeTipoPessoa }}</td>
                             <td class="d-none d-md-table-cell">{{ $usuario->celularFormatado }}</td>
