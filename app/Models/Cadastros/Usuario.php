@@ -30,8 +30,7 @@ class Usuario extends Authenticatable
         'cnpj',
         'celular',
         'status',
-        'tipo',
-        'admin'
+        'tipo'
     ];
 
     public function getNameAttribute()
@@ -67,11 +66,6 @@ class Usuario extends Authenticatable
     public function enderecos()
     {
         return $this->hasMany(UsuarioEndereco::class);
-    }
-
-    public function centrosDistribuicao()
-    {
-        return $this->hasMany(CentroDistribuicao::class);
     }
 
     public function listasPreco()

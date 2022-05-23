@@ -2,8 +2,10 @@
 
 namespace App\Models\Cadastros;
 
+use App\Jobs\EnderecoGeocodeJob;
 use App\Models\Pedidos\ItemListaPreco;
 use App\Traits\Dominio;
+use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
@@ -11,25 +13,42 @@ class CentroDistribuicao extends Model
 {
     use HasFactory, Dominio;
 
-    protected $table = 'fornecedor_centros_distribuicao';
+    protected $table = 'centros_distribuicao';
     protected $fillable = [
         'nome',
         'representante',
         'cnpj',
         'telefone',
         'inscricao_estadual',
-        'usuario_id',
-        'usuario_endereco_id'
+        'endereco',
+        'bairro',
+        'complemento',
+        'numero',
+        'cep',
+        'cidade_id',
+        'google_place_id',
+        'google_place_id_updated',
+        'latitude',
+        'longitude'
     ];
 
-    public function usuario()
+    protected static function boot()
     {
-        return $this->belongsTo(Usuario::class);
+        parent::boot();
+        static::saved(function ($endereco) {
+            EnderecoGeocodeJob::dispatchAfterResponse($endereco);
+        });
     }
 
-    public function usuarioEndereco()
+    public function setGooglePlaceIdAttribute($value)
     {
-        return $this->belongsTo(UsuarioEndereco::class);
+        $this->attributes['google_place_id'] = $value;
+        $this->attributes['google_place_id_updated'] = Carbon::now()->toDate();
+    }
+
+    public function cidade()
+    {
+        return $this->belongsTo(Cidade::class);
     }
 
     public function itensListaPreco()

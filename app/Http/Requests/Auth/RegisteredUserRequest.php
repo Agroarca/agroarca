@@ -7,10 +7,8 @@ use App\Rules\CNPJ;
 use App\Rules\CPF;
 use App\Rules\Telefone;
 use App\Rules\UniqueDominio;
-use App\Services\Administracao\DominioService;
 use Illuminate\Contracts\Validation\Factory;
 use Illuminate\Foundation\Http\FormRequest;
-use Illuminate\Validation\Rule;
 use Illuminate\Validation\Rules\Password;
 use Illuminate\Validation\ValidationException;
 

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Admin\Cadastros;
 
+use App\Enums\Cadastros\Usuarios\TipoUsuarioEnum;
 use App\Http\Controllers\Controller;
 use App\Models\Cadastros\Usuario;
 
@@ -22,7 +23,13 @@ class UsuarioController extends Controller
     public function admin($id)
     {
         $usuario = Usuario::findOrFail($id);
-        $usuario->admin = !$usuario->admin;
+
+        if ($usuario->tipo == TipoUsuarioEnum::Admin) {
+            $usuario->tipo = TipoUsuarioEnum::Usuario;
+        } else {
+            $usuario->tipo = TipoUsuarioEnum::Admin;
+        }
+
         $usuario->save();
 
         return redirect()->route('admin.cadastros.usuarios.editar', $id);

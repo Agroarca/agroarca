@@ -2,6 +2,7 @@
 
 namespace App\Scopes;
 
+use App\Enums\Cadastros\Usuarios\TipoUsuarioEnum;
 use App\Services\Administracao\DominioService;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
@@ -13,7 +14,7 @@ class UsuarioDominioScope implements Scope
     {
         $builder->where(function ($builder) use ($model) {
             $builder->where("{$model->getTable()}.dominio_id", DominioService::getDominioId());
-            $builder->orWhere("{$model->getTable()}.admin", true);
+            $builder->orWhere("{$model->getTable()}.tipo", TipoUsuarioEnum::Admin);
         });
     }
 }

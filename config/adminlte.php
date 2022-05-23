@@ -257,6 +257,12 @@ return [
             'icon' => 'fas fa-clipboard-list',
             'submenu' => [
                 [
+                    'text' => 'Centros de Distribuição',
+                    'icon' => 'fas fa-warehouse',
+                    'route' => 'admin.cadastros.centrosDistribuicao',
+                    'active' => ['admin/cadastros/centrosDistribuicao/*']
+                ],
+                [
                     'text' => 'Usuarios',
                     'icon' => 'fas fa-users',
                     'route' => 'admin.cadastros.usuarios',

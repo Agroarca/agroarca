@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Admin\Administracao;
 
+use App\Enums\Cadastros\Usuarios\TipoUsuarioEnum;
 use App\Http\Controllers\Controller;
 use App\Models\Cadastros\Usuario;
 use App\Scopes\DominioScope;
@@ -11,7 +12,7 @@ class AdministradorController extends Controller
 {
     private function queryAdministradores()
     {
-        return Usuario::withoutGlobalScope(DominioScope::class)->where('admin', true);
+        return Usuario::withoutGlobalScope(DominioScope::class)->where('tipo', TipoUsuarioEnum::Admin);
     }
 
     public function inicio()

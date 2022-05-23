@@ -15,6 +15,7 @@ class CreateFunctionDistanciaGeografica extends Migration
     public function up()
     {
         // executar como root: SET GLOBAL log_bin_trust_function_creators = 1;
+        DB::unprepared('drop function if exists distanciaGeografica;');
         DB::unprepared('
             create function distanciaGeografica(lat1 double, long1 double, lat2 double, long2 double)
             returns double deterministic

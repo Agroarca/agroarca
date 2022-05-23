@@ -2,6 +2,7 @@
 
 namespace App\Providers;
 
+use App\Enums\Cadastros\Usuarios\TipoUsuarioEnum;
 use App\Scopes\DominioScope;
 use App\Services\Administracao\DominioService;
 use Illuminate\Auth\EloquentUserProvider;
@@ -15,7 +16,7 @@ class UserProvider extends EloquentUserProvider
             ->withoutGlobalScope(DominioScope::class)
             ->where(function ($builder) {
                 $builder->where('dominio_id', DominioService::getDominioId())
-                    ->orWhere('admin', true);
+                    ->orWhere('tipo', TipoUsuarioEnum::Admin);
             });
     }
 }

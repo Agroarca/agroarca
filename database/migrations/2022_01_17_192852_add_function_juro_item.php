@@ -12,9 +12,10 @@ class AddFunctionJuroItem extends Migration
      */
     public function up()
     {
+        DB::unprepared('drop function if exists juroItemListaPreco;');
         DB::unprepared('
         create function juroItemListaPreco(idItem bigint, dataItem date)
-        returns double deterministic
+        returns double not deterministic
         begin
             declare dataReferencia date;
             declare ajusteMensal double;
