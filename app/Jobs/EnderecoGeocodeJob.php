@@ -2,10 +2,10 @@
 
 namespace App\Jobs;
 
-use App\Models\Cadastros\UsuarioEndereco;
 use App\Services\DistanciasService;
 use Illuminate\Contracts\Queue\ShouldBeUnique;
 use Illuminate\Contracts\Queue\ShouldQueue;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Foundation\Bus\Dispatchable;
 
 class EnderecoGeocodeJob implements ShouldQueue, ShouldBeUnique
@@ -14,18 +14,18 @@ class EnderecoGeocodeJob implements ShouldQueue, ShouldBeUnique
 
     private $endereco;
 
-    public function __construct(UsuarioEndereco $endereco)
+    public function __construct(Model $endereco)
     {
         $this->endereco = $endereco->withoutRelations();
     }
 
     public function uniqueId()
     {
-        return $this->endereco->id;
+        return $this->endereco->getTable() . $this->endereco->id;
     }
 
     public function handle()
     {
-        DistanciasService::verificarAtualizarPlaceId($this->endereco);
+        DistanciasService::atualizarPlaceId($this->endereco, true);
     }
 }

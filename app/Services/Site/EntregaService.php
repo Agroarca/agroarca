@@ -71,7 +71,7 @@ class EntregaService
 
     public static function calcularFrete(ItemListaPreco $item, $cep)
     {
-        $distancia = DistanciasService::calcularDistancia($cep, $item->centroDistribuicao->usuarioEndereco);
+        $distancia = DistanciasService::calcularDistancia($cep, $item->centroDistribuicao);
         return $item->base_frete * ($distancia / 1000);
     }
 }

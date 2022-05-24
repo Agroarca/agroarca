@@ -17,7 +17,7 @@ class ProdutoService
         $query = $produto->itensListaPreco();
         self::itemListaPrecoCompravel($query, EntregaService::getDataEntrega());
         self::queryItensListaPrecoOrdenadosValor($query, EntregaService::getDataEntrega());
-        $query->with(['centroDistribuicao', 'centroDistribuicao.usuarioEndereco']);
+        $query->with(['centroDistribuicao']);
 
         $itens = $query->limit($limit ?? 1)->get();
 
@@ -88,11 +88,10 @@ class ProdutoService
         }
 
         return $query
-            ->join('fornecedor_centros_distribuicao', 'itens_lista_preco.centro_distribuicao_id', '=', 'fornecedor_centros_distribuicao.id')
-            ->join('usuario_enderecos', 'fornecedor_centros_distribuicao.usuario_endereco_id', '=', 'usuario_enderecos.id')
+            ->join('centros_distribuicao', 'itens_lista_preco.centro_distribuicao_id', '=', 'centros_distribuicao.id')
             ->orderByRaw(
                 '(juroItemListaPreco(itens_lista_preco.id, ?) +
-                    itens_lista_preco.base_frete * distanciaGeografica(?, ?, usuario_enderecos.latitude, usuario_enderecos.longitude))',
+                    itens_lista_preco.base_frete * distanciaGeografica(?, ?, centros_distribuicao.latitude, centros_distribuicao.longitude))',
                 [$dataPagamento, $cep->latitude, $cep->longitude]
             );
     }

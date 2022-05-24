@@ -2,11 +2,8 @@
 
 namespace App\Services;
 
-use App\Classes\Interfaces\GoogleGeocoding;
-use App\Models\Cadastros\UsuarioEndereco;
 use App\Models\Frete\Cep;
-use App\Models\Frete\DistanciaCepCd;
-use App\Models\Frete\DistanciaEndereco;
+use App\Models\Frete\Distancia;
 use App\Services\Api\GoogleDistanceMatrixService;
 use App\Services\Api\GoogleGeocodingService;
 use Carbon\Carbon;
@@ -25,8 +22,8 @@ class DistanciasService
     */
     public static function calcularDistancia($origem, $destino)
     {
-        self::verificarAtualizarPlaceId($origem);
-        self::verificarAtualizarPlaceId($destino);
+        self::atualizarPlaceId($origem);
+        self::atualizarPlaceId($destino);
 
         if (!$origem->google_place_id) {
             throw new InvalidArgumentException("Endereço de origem não tem Place Id");
@@ -48,26 +45,20 @@ class DistanciasService
     public static function criarCep($nrCep)
     {
         $cep = Cep::firstOrCreate(['cep' => $nrCep]);
-        self::verificarAtualizarPlaceId($cep);
+        self::atualizarPlaceId($cep);
         return $cep;
     }
 
-    public static function verificarAtualizarPlaceId($model)
+    public static function atualizarPlaceId($model, $force = false)
     {
-        if ($model->google_place_id) {
+        if ($model->google_place_id && !$force) {
             $updated = $model->google_place_id_updated;
             if (Carbon::now()->diffInDays($updated, true) < self::placeIdRefresh()) {
                 return;
             }
         }
 
-        if ($model instanceof Cep) {
-            $retorno = GoogleGeocodingService::consultarCEP($model->cep);
-        } else if ($model instanceof UsuarioEndereco) {
-            $endereco = new GoogleGeocoding($model->endereco, $model->numero, $model->cep);
-            $retorno = GoogleGeocodingService::consultarEndereco($endereco);
-        }
-
+        $retorno = GoogleGeocodingService::consultar($model->getConsulta());
         if ($retorno) {
             $model->google_place_id = $retorno->placeId;
             $model->latitude = $retorno->latitude;
@@ -78,67 +69,29 @@ class DistanciasService
 
     private static function consultarDistancia($origem, $destino)
     {
-        if ($origem instanceof Cep && $destino instanceof UsuarioEndereco) {
-            return self::consultarDistanciaCepEndereco($origem, $destino);
-        }
+        $distancia = Distancia::where(function ($query) use ($origem, $destino) {
+            $query->where('origem_place_id', $origem->google_place_id)
+                ->where('destino_place_id', $destino->google_place_id);
+        })->orWhere(function ($query) use ($origem, $destino) {
+            $query->where('destino_place_id', $origem->google_place_id)
+                ->where('origem_place_id', $destino->google_place_id);
+        })->first();
 
-        if ($origem instanceof UsuarioEndereco && $destino instanceof UsuarioEndereco) {
-            return self::consultarDistanciaEnderecos($origem, $destino);
-        }
-    }
-
-    private static function consultarDistanciaEnderecos(UsuarioEndereco $origem, UsuarioEndereco $destino)
-    {
-        $endereco = DistanciaEndereco::where('endereco_origem_id', $origem->id)
-            ->where('endereco_destino_id', $destino->id)
-            ->where('updated_at', '>', Carbon::now()->subDays(self::placeIdRefresh()))
-            ->first();
-
-        if ($endereco) {
-            return $endereco->distancia;
+        if ($distancia && $distancia->distancia > 0) {
+            return $distancia->distancia;
         }
 
         $distance = GoogleDistanceMatrixService::consultar([$origem->google_place_id], [$destino->google_place_id]);
-
         if (!$distance) {
             return null;
         }
 
-        DistanciaEndereco::updateOrCreate(
-            [
-                'endereco_origem_id' => $origem->id,
-                'endereco_destino_id' => $destino->id
-            ],
-            ['distancia' => $distance[0][0]]
-        );
-
-        return $distance[0][0];
-    }
-
-    private static function consultarDistanciaCepEndereco(Cep $cep, UsuarioEndereco $endereco)
-    {
-        $distancia = DistanciaCepCd::where('cep', $cep->cep)
-            ->where('endereco_id', $endereco->id)
-            ->where('updated_at', '>', Carbon::now()->subDays(self::placeIdRefresh()))
-            ->first();
-
-        if ($distancia) {
-            return $distancia->distancia;
-        }
-
-        $distance = GoogleDistanceMatrixService::consultar([$cep->google_place_id], [$endereco->google_place_id]);
-
-        if (!$distance || is_null($distance[0][0])) {
-            return 0;
-        }
-
-        DistanciaCepCd::updateOrCreate(
-            [
-                'cep' => $cep->cep,
-                'endereco_id' => $endereco->id
-            ],
-            ['distancia' => $distance[0][0]]
-        );
+        Distancia::updateOrCreate([
+            'origem_place_id' => $origem->google_place_id,
+            'destino_place_id' => $destino->google_place_id
+        ], [
+            'distancia' => $distance[0][0]
+        ]);
 
         return $distance[0][0];
     }

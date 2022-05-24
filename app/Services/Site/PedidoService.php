@@ -200,7 +200,7 @@ class PedidoService
             return;
         }
 
-        $estadoOrigemId = $pedidoItem->itemListaPreco->centroDistribuicao->usuarioEndereco->cidade->estado_id;
+        $estadoOrigemId = $pedidoItem->itemListaPreco->centroDistribuicao->cidade->estado_id;
         $estadoDestinoId = $cep->cidade->estado_id;
 
         if ($estadoOrigemId == $estadoDestinoId) {

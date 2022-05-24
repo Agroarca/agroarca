@@ -1,5 +1,6 @@
 @php
     use \App\Models\Estoque\Produto;
+    use \App\Models\Cadastros\CentroDistribuicao;
 @endphp
 
 <x-admin>
@@ -18,7 +19,7 @@
                 </div>
                 <div class="form-group">
                     <label for="centro_distribuicao_id">Centro de Distribuição:</label>
-                    <x-admin.select name='centro_distribuicao_id' :values="$listaPreco->fornecedor->centrosDistribuicao->pluck('nome', 'id')->toArray()" :selected="old('centro_distribuicao_id')" placeholder="Selecione o Centro de Distribuição" :class="['form-control', 'is-invalid' => $errors->has('centro_distribuicao_id')]"></x-admin.select>
+                    <x-admin.select name='centro_distribuicao_id' :values="CentroDistribuicao::all()->pluck('nome', 'id')->toArray()" :selected="old('centro_distribuicao_id')" placeholder="Selecione o Centro de Distribuição" :class="['form-control', 'is-invalid' => $errors->has('centro_distribuicao_id')]"></x-admin.select>
                     <x-admin.form-error property='centro_distribuicao_id'></x-admin.form-error>
                 </div>
                 <div class="form-group">

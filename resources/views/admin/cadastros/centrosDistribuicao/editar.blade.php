@@ -4,10 +4,10 @@ use App\Models\Cadastros\Cidade;
 
 <x-admin>
     <x-slot name='header'>
-        <h1>Editar cidade {{ $cidade->nome }}</h1>
+        <h1>Editar Centro de Distribuição {{ $centroDistribuicao->nome }}</h1>
     </x-slot>
 
-    <form action="{{ route('admin.cadastros.centroDistribuicao.atualizar', $centroDistribuicao->id) }}" method="POST">
+    <form action="{{ route('admin.cadastros.centrosDistribuicao.atualizar', $centroDistribuicao->id) }}" method="POST">
         <div class="card card-default">
             @csrf
             <div class="card-body">

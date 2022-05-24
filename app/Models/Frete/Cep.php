@@ -2,24 +2,16 @@
 
 namespace App\Models\Frete;
 
+use App\Traits\GooglePlaceId;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
 class Cep extends Model
 {
-    use HasFactory;
+    use HasFactory, GooglePlaceId;
     protected $table = 'ceps';
     protected $fillable = [
-        'cep',
-        'google_place_id',
-        'google_place_id_updated',
-        'latitude',
-        'longitude',
+        'cep'
     ];
-
-    public function setGooglePlaceIdAttribute($value){
-        $this->attributes['google_place_id'] = $value;
-        $this->attributes['google_place_id_updated'] = Carbon::now()->toDate();
-    }
 }

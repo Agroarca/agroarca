@@ -5,13 +5,14 @@ namespace App\Models\Cadastros;
 use App\Jobs\EnderecoGeocodeJob;
 use App\Models\Cadastros\Usuario;
 use App\Traits\Dominio;
+use App\Traits\GooglePlaceId;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
 class UsuarioEndereco extends Model
 {
-    use HasFactory, Dominio;
+    use HasFactory, Dominio, GooglePlaceId;
 
     protected $table = 'usuario_enderecos';
     protected $fillable = [
@@ -22,26 +23,8 @@ class UsuarioEndereco extends Model
         'numero',
         'cep',
         'cidade_id',
-        'usuario_id',
-        'google_place_id',
-        'google_place_id_updated',
-        'latitude',
-        'longitude'
+        'usuario_id'
     ];
-
-    protected static function boot()
-    {
-        parent::boot();
-        static::saved(function ($endereco) {
-            EnderecoGeocodeJob::dispatchAfterResponse($endereco);
-        });
-    }
-
-    public function setGooglePlaceIdAttribute($value)
-    {
-        $this->attributes['google_place_id'] = $value;
-        $this->attributes['google_place_id_updated'] = Carbon::now()->toDate();
-    }
 
     public function cidade()
     {

@@ -5,7 +5,6 @@ namespace App\Http\Controllers\Admin\Cadastros;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Cadastros\CentroDistribuicaoRequest;
 use App\Models\Cadastros\CentroDistribuicao;
-use App\Models\Cadastros\Usuario;
 
 class CentroDistribuicaoController extends Controller
 {
@@ -23,7 +22,7 @@ class CentroDistribuicaoController extends Controller
     public function salvar(CentroDistribuicaoRequest $request)
     {
         CentroDistribuicao::create($request->all());
-        return redirect()->route('admin.cadastros.centrosDistribuicao.inicio');
+        return redirect()->route('admin.cadastros.centrosDistribuicao');
     }
 
     public function editar($id)
@@ -35,12 +34,12 @@ class CentroDistribuicaoController extends Controller
     public function atualizar(CentroDistribuicaoRequest $request, $id)
     {
         CentroDistribuicao::findOrFail($id)->update($request->all());
-        return redirect()->route('admin.cadastros.centrosDistribuicao.inicio');
+        return redirect()->route('admin.cadastros.centrosDistribuicao');
     }
 
     public function excluir($id)
     {
         CentroDistribuicao::findOrFail($id)->delete();
-        return redirect()->route('admin.cadastros.centrosDistribuicao.inicio');
+        return redirect()->route('admin.cadastros.centrosDistribuicao');
     }
 }

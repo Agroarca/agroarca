@@ -5,7 +5,6 @@ namespace App\Http\Controllers\Admin\Administracao;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Administracao\DominioRequest;
 use App\Models\Administracao\Dominio;
-use Illuminate\Http\Request;
 
 class DominioController extends Controller
 {

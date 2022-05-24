@@ -37,7 +37,7 @@ class ItemListaPrecoRequest extends FormRequest
             'estoque_disponivel' => 'integer|nullable|min:0',
             'produto_id' => 'integer|required|exists:produtos,id',
             'lista_preco_id' => 'integer|required|exists:listas_preco,id',
-            'centro_distribuicao_id' => 'integer|required|exists:fornecedor_centros_distribuicao,id'
+            'centro_distribuicao_id' => 'integer|required|exists:centros_distribuicao,id'
         ];
     }
 

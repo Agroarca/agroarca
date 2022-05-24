@@ -3,6 +3,7 @@
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
+use App\Traits\GooglePlaceId;
 
 class AlteraCamposCentroDistribuicao extends Migration
 {
@@ -28,10 +29,7 @@ class AlteraCamposCentroDistribuicao extends Migration
             $table->foreignId('cidade_id');
             $table->foreign('cidade_id')->references('id')->on('cidades');
 
-            $table->text('google_place_id')->nullable();
-            $table->date('google_place_id_updated')->nullable();
-            $table->double('latitude')->nullable();
-            $table->double('longitude')->nullable();
+            GooglePlaceId::criarCampos($table);
         });
     }
 
@@ -50,12 +48,10 @@ class AlteraCamposCentroDistribuicao extends Migration
                 'complemento',
                 'numero',
                 'cep',
-                'cidade_id',
-                'google_place_id',
-                'google_place_id_updated',
-                'latitude',
-                'longitude'
+                'cidade_id'
             ]);
+
+            GooglePlaceId::removerCampos($table);
 
             $table->foreignId('usuario_id');
             $table->foreign('usuario_id', 'fornecedor_centros_distribuicao_usuario_id_foreign')->references('id')->on('usuarios');

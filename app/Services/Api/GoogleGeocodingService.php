@@ -9,7 +9,7 @@ use Illuminate\Support\Facades\Log;
 
 class GoogleGeocodingService
 {
-    private static function consultar($address)
+    public static function consultar($address)
     {
         $baseUrl = config('agroarca.apis.googleGeocodeBaseUrl');
 
@@ -50,17 +50,5 @@ class GoogleGeocodingService
         $retorno->latitude = $dados->results[0]->geometry->location->lat;
         $retorno->longitude = $dados->results[0]->geometry->location->lng;
         return $retorno;
-    }
-
-    public static function consultarEndereco(GoogleGeocoding $endereco)
-    {
-        $address = urlencode("$endereco->endereco $endereco->numero") . ";components=postalcode:$endereco->cep";
-        return self::consultar($address);
-    }
-
-    public static function consultarCEP($cep)
-    {
-        $address = "$cep Brasil";
-        return self::consultar($address);
     }
 }

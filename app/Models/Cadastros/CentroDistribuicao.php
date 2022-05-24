@@ -5,13 +5,14 @@ namespace App\Models\Cadastros;
 use App\Jobs\EnderecoGeocodeJob;
 use App\Models\Pedidos\ItemListaPreco;
 use App\Traits\Dominio;
+use App\Traits\GooglePlaceId;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
 class CentroDistribuicao extends Model
 {
-    use HasFactory, Dominio;
+    use HasFactory, Dominio, GooglePlaceId;
 
     protected $table = 'centros_distribuicao';
     protected $fillable = [
@@ -25,26 +26,8 @@ class CentroDistribuicao extends Model
         'complemento',
         'numero',
         'cep',
-        'cidade_id',
-        'google_place_id',
-        'google_place_id_updated',
-        'latitude',
-        'longitude'
+        'cidade_id'
     ];
-
-    protected static function boot()
-    {
-        parent::boot();
-        static::saved(function ($endereco) {
-            EnderecoGeocodeJob::dispatchAfterResponse($endereco);
-        });
-    }
-
-    public function setGooglePlaceIdAttribute($value)
-    {
-        $this->attributes['google_place_id'] = $value;
-        $this->attributes['google_place_id_updated'] = Carbon::now()->toDate();
-    }
 
     public function cidade()
     {
