@@ -67,7 +67,7 @@ use App\Models\Cadastros\Cidade;
 
                 <div class="form-group">
                     <label for="cidade_id">Cidade:</label>
-                    <x-admin.select name='cidade_id' :values="Cidade::selectTodos()" :selected="old('cidade_id')" placeholder="Selecione uma Cidade" :class="['form-control', 'is-invalid' => $errors->has('cidade_id')]"></x-admin.select>
+                    <x-admin.select name='cidade_id' :values="[]" data-s2-url="{{ route('api.cidades') }}" :selected="old('cidade_id')" placeholder="Selecione uma Cidade" :class="['form-control', 'is-invalid' => $errors->has('cidade_id')]"></x-admin.select>
                     <x-admin.form-error property='cidade_id'></x-admin.form-error>
                 </div>
 

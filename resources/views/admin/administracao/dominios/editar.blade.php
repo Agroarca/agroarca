@@ -13,9 +13,7 @@
                     <input type="text" name="nome" value="{{ $dominio->nome }}" @class(['form-control', 'is-invalid'=> $errors->has('nome')]) />
                     <x-admin.form-error property='nome'></x-admin.form-error>
                 </div>
-            </div>
 
-            <div class="card-body">
                 <div class="form-group">
                     <label for="dominio">Domínio:</label>
                     <input type="text" name="dominio" value="{{ $dominio->dominio }}" @class(['form-control', 'is-invalid'=> $errors->has('dominio')]) />

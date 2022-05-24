@@ -34,20 +34,17 @@
 
                 <div class="form-group">
                     <label for="marca_id">Marca:</label>
-                    <x-admin.select2 name='marca_id' :values="Marca::pluck('nome', 'id')" :selected="$produto->marca_id" placeholder="Selecione uma Marca" :class="['form-control', 'select2', 'is-invalid' => $errors->has('marca_id')]">
-                    </x-admin.select2>
+                    <x-admin.select name='marca_id' :values="Marca::pluck('nome', 'id')" :selected="$produto->marca_id" placeholder="Selecione uma Marca" :class="['form-control', 'is-invalid' => $errors->has('marca_id')]"></x-admin.select>
                     <x-admin.form-error property='marca_id'></x-admin.form-error>
                 </div>
                 <div class="form-group">
                     <label for="tipo_produto_id">Tipo de Produto:</label>
-                    <x-admin.select2 name='tipo_produto_id' :values="TipoProduto::pluck('nome', 'id')" :selected="$produto->tipo_produto_id" placeholder="Selecione um Tipo de Produto" :class="['form-control', 'select2', 'is-invalid' => $errors->has('tipo_produto_id')]">
-                    </x-admin.select2>
+                    <x-admin.select name='tipo_produto_id' :values="TipoProduto::pluck('nome', 'id')" :selected="$produto->tipo_produto_id" placeholder="Selecione um Tipo de Produto" :class="['form-control', 'is-invalid' => $errors->has('tipo_produto_id')]"></x-admin.select>
                     <x-admin.form-error property='tipo_produto_id'></x-admin.form-error>
                 </div>
                 <div class="form-group">
                     <label for="categoria_id">Categoria:</label>
-                    <x-admin.select2 name='categoria_id' :values="Categoria::pluck('nome', 'id')" :selected="$produto->categoria_id" placeholder="Selecione uma Categoria" :class="['form-control', 'select2', 'is-invalid' => $errors->has('categoria_id')]">
-                    </x-admin.select2>
+                    <x-admin.select name='categoria_id' :values="Categoria::pluck('nome', 'id')" :selected="$produto->categoria_id" placeholder="Selecione uma Categoria" :class="['form-control', 'is-invalid' => $errors->has('categoria_id')]"></x-admin.select>
                     <x-admin.form-error property='categoria_id'></x-admin.form-error>
                 </div>
                 <div class="form-group">

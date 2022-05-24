@@ -26,7 +26,7 @@ class ChangeDominioNullableUser extends Migration
     public function down()
     {
         Schema::table('usuarios', function (Blueprint $table) {
-            //$table->foreignId('dominio_id')->nullable(false)->change();
+            $table->foreignId('dominio_id')->nullable(false)->change();
         });
     }
 }

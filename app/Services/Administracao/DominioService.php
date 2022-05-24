@@ -20,4 +20,13 @@ class DominioService
         session()->put('dominioId', $dominio->id);
         return $dominio->id;
     }
+
+    public static function setDominioId($id)
+    {
+        /**
+         * APENAS PARA TESTES VIA CONSOLE, NÃO DEVE SER USADO EM CÓDIGO
+         */
+        $dominio = Dominio::findOrFail($id);
+        session()->put('dominioId', $dominio->id);
+    }
 }
