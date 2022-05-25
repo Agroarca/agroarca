@@ -4,6 +4,7 @@ namespace App\Services\Site;
 
 use App\Classes\Interfaces\ProdutoPreco;
 use App\Models\Estoque\Produto;
+use App\Services\Administracao\DominioService;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 
@@ -46,6 +47,7 @@ class ProdutoService
     {
         $query
             ->join('listas_preco', 'itens_lista_preco.lista_preco_id', '=', 'listas_preco.id')
+            ->where('listas_preco.dominio_id', DominioService::getDominioId())
             ->where('itens_lista_preco.preco_quilo', '>', DB::raw(0))
             ->where(
                 fn ($query) => $query->whereNull('estoque_disponivel')
@@ -75,7 +77,7 @@ class ProdutoService
                 $query->select('*')
                     ->from('produto_imagens')
                     ->whereColumn('produto_id', 'produtos.id');
-            });
+            })->where('produtos.dominio_id', DominioService::getDominioId());
     }
 
     public static function queryItensListaPrecoOrdenadosValor($query, $dataPagamento = null)
@@ -89,6 +91,7 @@ class ProdutoService
 
         return $query
             ->join('centros_distribuicao', 'itens_lista_preco.centro_distribuicao_id', '=', 'centros_distribuicao.id')
+            ->where('centros_distribuicao.dominio_id', DominioService::getDominioId())
             ->orderByRaw(
                 '(juroItemListaPreco(itens_lista_preco.id, ?) +
                     itens_lista_preco.base_frete * distanciaGeografica(?, ?, centros_distribuicao.latitude, centros_distribuicao.longitude))',

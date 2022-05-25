@@ -42,6 +42,6 @@ class ProdutoController extends Controller
             return redirect()->route('site.carrinho', $pedidoItem->id);
         }
 
-        return redirect()->route('site.produto', $produtoId);
+        return redirect()->route('site.carrinho');
     }
 }
