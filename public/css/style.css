@@ -531,6 +531,11 @@ body {
 .btn.uppercase {
   text-transform: uppercase;
 }
+@media only screen and (max-width: 992px) {
+  .btn {
+    font-size: 24px !important;
+  }
+}
 
 /**
     CHECKBOX
@@ -886,6 +891,7 @@ section .section-title {
     font-weight: bold;
     text-decoration: none;
     text-transform: uppercase;
+    width: 60%;
     border: none;
     font-family: "Lato", Arial, Helvetica, sans-serif;
     font-weight: 700;
