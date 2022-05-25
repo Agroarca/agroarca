@@ -288,10 +288,10 @@ section .section-title {
 
 .auth .btn {
     background-color: var(--verde-claro);
-    font-size: 18px;
+    font-size: 18px !important;
     padding: 1.3rem 2.8rem;
     border-radius: 0.8rem;
-    color: var(--preto);
+    color: var(--branco);
     font-weight: bold;
     text-decoration: none;
     text-transform: uppercase;
