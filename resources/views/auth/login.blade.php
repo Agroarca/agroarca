@@ -1,9 +1,11 @@
 <x-site>
-    <section div class="auth login container">
+    <section class="auth login container">
         <div class="form">
             <form method="POST" action="{{ route('login') }}">
                 @csrf
-                <h2 class="mb-5">Entrar:</h2>
+                <div class="row">
+                    <h2 class="mb-5">Entrar:</h2>
+                </div>
                 <div class="row">
                     @if($errors->any() && session()->get('authType') === 'login')
                         <ul>
@@ -40,7 +42,9 @@
         <div class="form register">
             <form method="POST" action="{{ route('register') }}">
                 @csrf
-                <h2 class="mb-5">Registrar:</h2>
+                <div class="row">
+                    <h2 class="mb-5">Registrar:</h2>
+                </div>
                 <div>
                     @if($errors->any() && session()->get('authType') === 'register')
                         <ul>

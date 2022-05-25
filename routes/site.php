@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Site\CarrinhoController;
 use App\Http\Controllers\Site\CategoriaController;
+use App\Http\Controllers\Site\PerfilController;
 use App\Http\Controllers\Site\ProdutoController;
 use Illuminate\Support\Facades\Route;
 
@@ -37,5 +38,18 @@ Route::name('site')->group(function () {
         Route::get('item/{item_id}/editar', [CarrinhoController::class, 'editar'])->name('.editar');
         Route::post('item/{item_id}/salvar', [CarrinhoController::class, 'salvar'])->name('.salvar');
         Route::post('item/{item_id}/alterar_quantidade', [CarrinhoController::class, 'alterar_quantidade'])->name('.alterar_quantidade');
+    });
+
+    Route::middleware(['auth'])->group(function () {
+        Route::prefix('perfil')->name('.perfil')->group(function () {
+            Route::get('', [PerfilController::class, 'inicio'])->name('');
+            Route::post('', [PerfilController::class, 'atualizar'])->name('.atualizar');
+
+            Route::prefix('enderecos')->name('.enderecos')->group(function () {
+                Route::get('adicionar', [PerfilController::class, 'adicionarEndereco'])->name('.adicionar');
+                Route::post('salvar', [PerfilController::class, 'salvarEndereco'])->name('.salvar');
+                Route::get('excluir/{id}', [PerfilController::class, 'excluirEndereco'])->name('.excluir');
+            });
+        });
     });
 });

@@ -38,7 +38,7 @@
             <a href="{{ route('site.carrinho') }}"><i class="fas fa-shopping-cart"></i></a>
             <span class="cart-placeholder" id="cart-amount">{{ CarrinhoService::getQuantidadeItens() }}</span>
         </div>
-        <a class="header-item profile-container order-4" href="{{ route('inicio') }}">
+        <a class="header-item profile-container order-4" href="{{ route('site.perfil') }}">
             <i class="fas fa-user-circle"></i>
             <span class="d-none d-xl-block">Minha Conta</span>
         </a>

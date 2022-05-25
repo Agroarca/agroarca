@@ -295,7 +295,6 @@ section .section-title {
     font-weight: bold;
     text-decoration: none;
     text-transform: uppercase;
-    width: 60%;
     border: none;
     font-family: "Lato", Arial, Helvetica, sans-serif;
     font-weight: 700;
@@ -303,8 +302,19 @@ section .section-title {
     margin-top: 20px;
 }
 
+.auth .btn.icone {
+    padding: 1rem 1.3rem;
+    margin: 0;
+}
+
 .auth .btn:hover {
     color: var(--verde-escuro);
+}
+
+.auth .btn.excluir {
+    color: var(--borda);
+    border: 1px solid var(--borda);
+    background: var(--branco);
 }
 
 .auth .link {
@@ -928,4 +938,49 @@ section.sub-footer .payment-methods ul {
 /**** resets ****/
 .navbar-toggler:focus {
     box-shadow: none;
+}
+
+.select2-container {
+    width: 100% !important;
+    padding: 0;
+    font-size: 18px;
+    margin-bottom: 1rem;
+}
+
+.select2-container--default .select2-selection--single {
+    border-radius: 0.75rem !important;
+    border: 1px solid var(--borda) !important;
+}
+
+.select2-container--default.select2-container--open.select2-container--below .select2-selection--single, .select2-container--default.select2-container--open.select2-container--below .select2-selection--multiple {
+    border-bottom-left-radius: 0 !important;
+    border-bottom-right-radius: 0 !important;
+}
+
+#select2-cidade_id-container {
+    height: 3.5rem !important;
+    padding: 0.75rem 1rem;
+}
+
+.select2-container .select2-selection--single,
+.select2-container--default .select2-selection--single .select2-selection__arrow {
+    height: 3.5rem !important;
+}
+
+.select2-search__field {
+    color: var(--cinza-escuro);
+    outline: none;
+    border-color: var(--borda) !important;
+}
+
+.select2-container--default .select2-results__option--highlighted.select2-results__option--selectable {
+    background-color: var(--verde-claro) !important;
+}
+
+.select2-dropdown {
+    border-color: var(--borda) !important;
+}
+
+.select2-results__option {
+    color: var(--cinza-escuro);
 }
