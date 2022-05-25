@@ -276,19 +276,9 @@ section .section-title {
     transition: border-color 0.15s ease-in-out;
 }
 
-/* .auth input[type="checkbox"] {
-    height: 1.5rem;
-    width: 1.5rem;
-} */
-
 .auth input:focus {
     border-color: var(--cinza-escuro);
 }
-
-/* .auth .check-label {
-    display: inline-flex;
-    align-items: center;
-} */
 
 .auth .botoes {
     display: flex;
@@ -929,13 +919,13 @@ section.sub-footer .payment-methods ul {
     font-size: 20px;
 }
 
-#delivery-info-modal .input-group-text{
+#delivery-info-modal .input-group-text {
     width: 40%;
     display: block;
     text-align: center;
 }
 
 /**** resets ****/
-.navbar-toggler:focus{
+.navbar-toggler:focus {
     box-shadow: none;
 }
