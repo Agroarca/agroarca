@@ -291,7 +291,7 @@ section .section-title {
     font-size: 18px;
     padding: 1.3rem 2.8rem;
     border-radius: 0.8rem;
-    color: var(--branco);
+    color: var(--preto);
     font-weight: bold;
     text-decoration: none;
     text-transform: uppercase;
