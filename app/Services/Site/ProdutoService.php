@@ -3,7 +3,7 @@
 namespace App\Services\Site;
 
 use App\Classes\Interfaces\ProdutoPreco;
-use App\Models\Estoque\Produto;
+use App\Models\Produtos\Produto;
 use App\Services\Administracao\DominioService;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;

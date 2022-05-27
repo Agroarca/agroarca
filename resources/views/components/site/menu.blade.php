@@ -7,9 +7,9 @@
                 <li class="nav-item">
                     <a class="menu-item" href="{{ route('site.categoria', null) }}">Todas as Categorias</a>
                 </li>
-                @if (!is_null(\App\Models\Estoque\Produto::first()))
+                @if (!is_null(\App\Models\Produtos\Produto::first()))
                     <li class="nav-item">
-                        <a class="menu-item" href="{{ route('site.produto', \App\Models\Estoque\Produto::first()) }}">Produto Exemplo</a>
+                        <a class="menu-item" href="{{ route('site.produto', \App\Models\Produtos\Produto::first()) }}">Produto Exemplo</a>
                     </li>
                 @endif
                 <li class="nav-item"></li>

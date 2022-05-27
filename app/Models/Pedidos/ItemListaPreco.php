@@ -3,7 +3,8 @@
 namespace App\Models\Pedidos;
 
 use App\Models\Cadastros\CentroDistribuicao;
-use App\Models\Estoque\Produto;
+use App\Models\Estoque\Lote;
+use App\Models\Produtos\Produto;
 use App\Traits\Dominio;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Factories\HasFactory;

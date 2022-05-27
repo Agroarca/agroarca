@@ -236,7 +236,7 @@ return [
         ],
         [
             'text' => 'Administração',
-            'icon' => 'fas fa-clipboard-list',
+            'icon' => 'fas fa-tools',
             'submenu' => [
                 [
                     'text' => 'Domínios',
@@ -283,32 +283,32 @@ return [
             ]
         ],
         [
-            'text' => 'Estoque',
+            'text' => 'Produtos',
             'icon' => 'fas fa-boxes',
             'submenu' => [
                 [
                     'text' => 'Produtos',
                     'icon' => 'fas fa-pallet',
-                    'route' => 'admin.estoque.produtos',
-                    'active' => ['admin/estoque/produtos/*']
+                    'route' => 'admin.produtos.produtos',
+                    'active' => ['admin/produtos/produtos/*']
                 ],
                 [
                     'text' => 'Marcas',
                     'icon' => 'fas fa-tags',
-                    'route' => 'admin.estoque.marcas',
-                    'active' => ['admin/estoque/marcas/*']
+                    'route' => 'admin.produtos.marcas',
+                    'active' => ['admin/produtos/marcas/*']
                 ],
                 [
                     'text' => 'Categorias',
                     'icon' => 'fas fa-folder-open',
-                    'route' => 'admin.estoque.categorias',
-                    'active' => ['admin/estoque/categorias/*']
+                    'route' => 'admin.produtos.categorias',
+                    'active' => ['admin/produtos/categorias/*']
                 ],
                 [
                     'text' => 'Tipos de Produto',
                     'icon' => 'fas fa-shapes',
-                    'route' => 'admin.estoque.tiposProduto',
-                    'active' => ['admin/estoque/produto/tipos/*']
+                    'route' => 'admin.produtos.tiposProduto',
+                    'active' => ['admin/produtos/produto/tipos/*']
                 ],
             ]
         ],

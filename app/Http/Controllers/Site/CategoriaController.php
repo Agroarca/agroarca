@@ -5,7 +5,7 @@ namespace App\Http\Controllers\Site;
 use Illuminate\Http\Request;
 
 use App\Http\Controllers\Controller;
-use App\Models\Estoque\Categoria;
+use App\Models\Produtos\Categoria;
 use App\Services\Site\ListService;
 
 class CategoriaController extends Controller

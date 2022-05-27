@@ -3,7 +3,7 @@
 namespace App\View\Components\Site;
 
 use App\Classes\BreadcrumbLink;
-use App\Models\Estoque\Categoria;
+use App\Models\Produtos\Categoria;
 use Illuminate\View\Component;
 
 class BreadcrumbCategoria extends Breadcrumb

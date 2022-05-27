@@ -2,7 +2,7 @@
 
 namespace App\Services\Site;
 
-use App\Models\Estoque\Produto;
+use App\Models\Produtos\Produto;
 use App\Models\Pedidos\PedidoItem;
 use App\Services\Administracao\DominioService;
 use App\Services\Site\ProdutoService;

@@ -11,7 +11,7 @@ $(function () {
         let options = {}
         let data = $(this).data('s2-url')
 
-        if (data.length > 0) {
+        if (data && data.length > 0) {
             options.ajax = {
                 url: $(this).data('s2-url'),
                 dataType: 'json',

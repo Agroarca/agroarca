@@ -7,12 +7,12 @@ use App\Http\Controllers\Admin\Cadastros\CidadeController;
 use App\Http\Controllers\Admin\Cadastros\EstadoController;
 use App\Http\Controllers\Admin\Cadastros\UsuarioController;
 use App\Http\Controllers\Admin\Cadastros\UsuarioEnderecoController;
-use App\Http\Controllers\Admin\Estoque\CategoriaController;
-use App\Http\Controllers\Admin\Estoque\ICMSProdutoEstadoController;
-use App\Http\Controllers\Admin\Estoque\MarcaController;
-use App\Http\Controllers\Admin\Estoque\ProdutoController;
-use App\Http\Controllers\Admin\Estoque\ProdutoImagemController;
-use App\Http\Controllers\Admin\Estoque\TipoProdutoController;
+use App\Http\Controllers\Admin\Produtos\CategoriaController;
+use App\Http\Controllers\Admin\Produtos\ICMSProdutoEstadoController;
+use App\Http\Controllers\Admin\Produtos\MarcaController;
+use App\Http\Controllers\Admin\Produtos\ProdutoController;
+use App\Http\Controllers\Admin\Produtos\ProdutoImagemController;
+use App\Http\Controllers\Admin\Produtos\TipoProdutoController;
 use App\Http\Controllers\Admin\PainelController;
 use App\Http\Controllers\Admin\Pedidos\ItemListaPrecoController;
 use App\Http\Controllers\Admin\Pedidos\ListaPrecoController;
@@ -105,7 +105,7 @@ Route::middleware(['auth'])->prefix('admin')->name('admin')->group(function () {
         });
     });
 
-    Route::prefix('estoque')->name('.estoque')->group(function () {
+    Route::prefix('produtos')->name('.produtos')->group(function () {
 
         Route::prefix('produtos')->name('.produtos')->group(function () {
             Route::get('', [ProdutoController::class, 'inicio'])->name('');

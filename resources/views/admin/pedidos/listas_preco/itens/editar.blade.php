@@ -1,5 +1,5 @@
 @php
-    use \App\Models\Estoque\Produto;
+    use \App\Models\Produtos\Produto;
     use \App\Models\Cadastros\CentroDistribuicao;
 @endphp
 

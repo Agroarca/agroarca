@@ -45,4 +45,9 @@ class PedidoItem extends Model
     {
         return $this->hasMany(PedidoItem::class, 'pedido_item_pai_id');
     }
+
+    public function reservasProduto()
+    {
+        return $this->hasOne(ReservaProduto::class);
+    }
 }
