@@ -1,11 +1,11 @@
 {
-    "/js/vendor.js": "/js/vendor.js",
-    "/js/vendor-admin.js": "/js/vendor-admin.js",
-    "/js/script.js": "/js/script.js",
-    "/js/admin.js": "/js/admin.js",
-    "/js/vue.js": "/js/vue.js",
-    "/css/vendor-admin.css": "/css/vendor-admin.css",
-    "/css/vendor.css": "/css/vendor.css",
-    "/css/style.css": "/css/style.css",
-    "/css/admin.css": "/css/admin.css"
+    "/js/vendor.js": "/js/vendor.js?id=9e7567c92ff1c9a911db42fe493ae338",
+    "/js/vendor-admin.js": "/js/vendor-admin.js?id=9475ad5ad44382bb2027e0b65b9d71ae",
+    "/js/script.js": "/js/script.js?id=2a68bcf9f96626420afab0e4a583bc1f",
+    "/js/admin.js": "/js/admin.js?id=d41d8cd98f00b204e9800998ecf8427e",
+    "/js/vue.js": "/js/vue.js?id=acdeb7d8ae57f9a2f5fde0009a4c0402",
+    "/css/vendor-admin.css": "/css/vendor-admin.css?id=01174a5762b2ff56934e9a7287bebcf7",
+    "/css/vendor.css": "/css/vendor.css?id=2f72f6eea2b8f7d79bf203f5f8ce51b8",
+    "/css/style.css": "/css/style.css?id=8d842a18dbe00b8fd6b001b72595483e",
+    "/css/admin.css": "/css/admin.css?id=a1e1392c8253d1714025c29c6e422d7c"
 }
