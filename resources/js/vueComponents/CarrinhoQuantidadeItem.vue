@@ -1,6 +1,5 @@
 <script>
 import debounce from "lodash.debounce";
-import { computed } from '@vue/runtime-core';
 export default {
     props: ['value', 'name'],
     data(){

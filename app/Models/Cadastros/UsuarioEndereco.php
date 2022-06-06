@@ -4,6 +4,7 @@ namespace App\Models\Cadastros;
 
 use App\Jobs\EnderecoGeocodeJob;
 use App\Models\Cadastros\Usuario;
+use App\Services\Site\UsuarioService;
 use App\Traits\Dominio;
 use App\Traits\GooglePlaceId;
 use Carbon\Carbon;
@@ -25,6 +26,17 @@ class UsuarioEndereco extends Model
         'cidade_id',
         'usuario_id'
     ];
+
+    public static function booted()
+    {
+        static::created(function (UsuarioEndereco $model) {
+            UsuarioService::verificarEnderecoPadrao($model->usuario_id);
+        });
+
+        static::deleted(function (UsuarioEndereco $model) {
+            UsuarioService::verificarEnderecoPadrao($model->usuario_id);
+        });
+    }
 
     public function cidade()
     {

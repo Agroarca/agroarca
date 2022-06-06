@@ -12,7 +12,9 @@ trait GooglePlaceId
     public static function bootGooglePlaceId()
     {
         static::saved(function ($endereco) {
-            EnderecoGeocodeJob::dispatchAfterResponse($endereco);
+            if ($endereco->isDirty(['endereco', 'numero', 'cep'])) {
+                EnderecoGeocodeJob::dispatchAfterResponse($endereco);
+            }
         });
     }
 

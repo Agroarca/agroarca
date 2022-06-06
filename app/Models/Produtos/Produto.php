@@ -70,22 +70,16 @@ class Produto extends Model
 
     public function atualizarQuantidade()
     {
-        foreach ($this->lotes as $lote) {
-            $lote->atualizarQuantidade();
-        }
-
         DB::transaction(function () {
-            try {
-                DB::raw('lock table produtos write, lotes read, reservas_produto read');
-
-                $this->quantidade_total = $this->lotes()->sum('quantidade_disponivel');
-                $this->quantidade_reservada = $this->reservasProduto()->sum('quantidade');
-                $this->quantidade_disponivel = $this->quantidade_total - $this->quantidade_reservada;
-
-                $this->save();
-            } finally {
-                DB::raw('unlock tables');
+            foreach ($this->lotes as $lote) {
+                $lote->atualizarQuantidade();
             }
+
+            $this->quantidade_total = $this->lotes()->sum('quantidade_disponivel');
+            $this->quantidade_reservada = $this->reservasProduto()->sum('quantidade');
+            $this->quantidade_disponivel = $this->quantidade_total - $this->quantidade_reservada;
+
+            $this->save();
         });
     }
 }

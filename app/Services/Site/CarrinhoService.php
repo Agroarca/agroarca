@@ -3,6 +3,8 @@
 namespace App\Services\Site;
 
 use App\Helpers\Formatter;
+use App\Models\Cadastros\Usuario;
+use Illuminate\Support\Facades\Auth;
 
 class CarrinhoService
 {
@@ -13,7 +15,8 @@ class CarrinhoService
             'pedidoItens' => self::getPedidoItens(),
             'frete' => $pedido->frete,
             'subtotal' => $pedido->subtotal,
-            'total' => $pedido->total
+            'total' => $pedido->total,
+            'finalizarPedido' => route('site.carrinho.continuar'),
         ];
     }
 
@@ -21,7 +24,6 @@ class CarrinhoService
     {
         $pedido = PedidoService::getPedido();
         $pedidoItens = $pedido->pedidoItens()
-            ->whereNull('pedido_item_pai_id')
             ->with([
                 'itemListaPreco.produto',
                 'itemListaPreco.produto.imagens',
@@ -80,5 +82,41 @@ class CarrinhoService
     public static function getQuantidadeItens()
     {
         return session('quantidade_carrinho', 0);
+    }
+
+    public static function getDadosPedidoFinalizacao()
+    {
+        $pedido = PedidoService::getPedido();
+
+        return [
+            'data_entrega' => $pedido->data_entrega,
+            'enderecos' => self::getUsuarioEnderecos(),
+            'endereco_id' => $pedido->endereco_id,
+            'adicionar_endereco' => route('site.carrinho.enderecos.adicionar'),
+        ];
+    }
+
+    public static function getUsuarioEnderecos()
+    {
+        $enderecos = [];
+        $usuario = Usuario::findOrFail(Auth::id());
+
+        foreach ($usuario->enderecos as $endereco) {
+            array_push($enderecos, [
+                'id' => $endereco->id,
+                'nome' => $endereco->nome,
+                'endereco' => $endereco->endereco,
+                'bairro' => $endereco->bairro,
+                'complemento' => $endereco->complemento,
+                'numero' => $endereco->numero,
+                'cep' => $endereco->cep,
+                'cidade' => $endereco->cidade->nome,
+                'uf' => $endereco->cidade->estado->uf,
+                'excluir' => route('site.carrinho.enderecos.excluir', $endereco->id),
+                'selecionar' => route('site.carrinho.enderecos.selecionar', $endereco->id)
+            ]);
+        }
+
+        return $enderecos;
     }
 }

@@ -6,6 +6,7 @@ use App\Models\Produtos\Produto;
 use App\Models\Pedidos\PedidoItem;
 use App\Services\Administracao\DominioService;
 use App\Services\Site\ProdutoService;
+use Carbon\Carbon;
 
 class ListService
 {
@@ -22,10 +23,10 @@ class ListService
             ->with([
                 'itensListaPreco' => function ($query) {
                     $query = $query->select('itens_lista_preco.*')
-                        ->selectRaw('juroItemListaPreco(itens_lista_preco.id, ?) as preco_item',  [PedidoService::getDataPagamento()]);
+                        ->selectRaw('juroItemListaPreco(itens_lista_preco.id, ?) as preco_item',  [Carbon::now()->toAtomString()]);
 
                     ProdutoService::itemListaPrecoCompravel($query);
-                    ProdutoService::queryItensListaPrecoOrdenadosValor($query, PedidoService::getDataPagamento());
+                    ProdutoService::queryItensListaPrecoOrdenadosValor($query);
                 },
                 'imagens' => fn ($query) => $query->whereIn(
                     'produto_imagens.id',

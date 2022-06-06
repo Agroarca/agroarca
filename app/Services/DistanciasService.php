@@ -63,7 +63,7 @@ class DistanciasService
             $model->google_place_id = $retorno->placeId;
             $model->latitude = $retorno->latitude;
             $model->longitude = $retorno->longitude;
-            $model->save();
+            $model->saveQuietly();
         }
     }
 

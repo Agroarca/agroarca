@@ -49,6 +49,19 @@ Route::name('site')->group(function () {
                 Route::get('adicionar', [PerfilController::class, 'adicionarEndereco'])->name('.adicionar');
                 Route::post('salvar', [PerfilController::class, 'salvarEndereco'])->name('.salvar');
                 Route::get('excluir/{id}', [PerfilController::class, 'excluirEndereco'])->name('.excluir');
+                Route::get('selecionar_padrao/{id}', [PerfilController::class, 'selecionarPadrao'])->name('.selecionarPadrao');
+            });
+        });
+
+        Route::prefix('carrinho')->name('.carrinho')->group(function () {
+            Route::get('continuar', [CarrinhoController::class, 'continuar'])->name('.continuar');
+            Route::post('finalizar', [CarrinhoController::class, 'finalizar'])->name('.finalizar');
+
+            Route::prefix('enderecos')->name('.enderecos')->group(function () {
+                Route::get('adicionar', [CarrinhoController::class, 'adicionarEndereco'])->name('.adicionar');
+                Route::post('salvar', [CarrinhoController::class, 'salvarEndereco'])->name('.salvar');
+                Route::post('excluir/{id}', [CarrinhoController::class, 'excluirEndereco'])->name('.excluir');
+                Route::post('selecionar/{id}', [CarrinhoController::class, 'selecionarEndereco'])->name('.selecionar');
             });
         });
     });

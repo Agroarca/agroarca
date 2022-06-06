@@ -34,18 +34,12 @@ class Lote extends Model
     public function atualizarQuantidade()
     {
         DB::transaction(function () {
-            try {
-                DB::raw('lock table lotes write, movimentos_lotes read');
+            $this->quantidade_disponivel = $this->movimentoLotes()->where('operacao', OperacaoMovimentoLote::Soma)->sum('quantidade');
+            $this->quantidade_disponivel -= $this->movimentoLotes()->where('operacao', OperacaoMovimentoLote::Diminui)->sum('quantidade');
 
-                $this->quantidade_disponivel = $this->movimentoLotes()->where('operacao', OperacaoMovimentoLote::Soma)->sum('quantidade');
-                $this->quantidade_disponivel -= $this->movimentoLotes()->where('operacao', OperacaoMovimentoLote::Diminui)->sum('quantidade');
+            $this->quantidade_total = $this->movimentoLotes()->where('operacao', OperacaoMovimentoLote::Soma)->sum('quantidade');
 
-                $this->quantidade_total = $this->movimentoLotes()->where('operacao', OperacaoMovimentoLote::Soma)->sum('quantidade');
-
-                $this->save();
-            } finally {
-                DB::raw('unlock tables');
-            }
+            $this->save();
         });
     }
 }

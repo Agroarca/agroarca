@@ -35,8 +35,10 @@
         </div>
 
         <div class="header-item arca-container order-3">
-            <a href="{{ route('site.carrinho') }}"><i class="fas fa-shopping-cart"></i></a>
-            <span class="cart-placeholder" id="cart-amount">{{ CarrinhoService::getQuantidadeItens() }}</span>
+            <a href="{{ route('site.carrinho') }}">
+                <i class="fas fa-shopping-cart"></i>
+                <span class="cart-placeholder" id="cart-amount">{{ CarrinhoService::getQuantidadeItens() }}</span>
+            </a>
         </div>
         <a class="header-item profile-container order-4" href="{{ route('site.perfil') }}">
             <i class="fas fa-user-circle"></i>

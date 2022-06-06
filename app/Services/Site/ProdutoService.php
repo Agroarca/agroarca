@@ -16,8 +16,8 @@ class ProdutoService
 
         $produtoPrecos = [];
         $query = $produto->itensListaPreco();
-        self::itemListaPrecoCompravel($query, EntregaService::getDataEntrega());
-        self::queryItensListaPrecoOrdenadosValor($query, EntregaService::getDataEntrega());
+        self::itemListaPrecoCompravel($query);
+        self::queryItensListaPrecoOrdenadosValor($query);
         $query->with(['centroDistribuicao']);
 
         $itens = $query->limit($limit ?? 1)->get();
@@ -49,10 +49,6 @@ class ProdutoService
             ->join('listas_preco', 'itens_lista_preco.lista_preco_id', '=', 'listas_preco.id')
             ->where('listas_preco.dominio_id', DominioService::getDominioId())
             ->where('itens_lista_preco.preco_quilo', '>', DB::raw(0))
-            ->where(
-                fn ($query) => $query->whereNull('estoque_disponivel')
-                    ->orWhere('estoque_disponivel', '>', DB::raw(0))
-            )
             ->whereRaw('sysdate() between listas_preco.data_inicio and listas_preco.data_fim');
 
         return $query;
@@ -65,6 +61,7 @@ class ProdutoService
     {
         return $query
             ->whereNotNull('produtos.icms_padrao')
+            ->where('produtos.quantidade_disponivel', '>', DB::raw(0))
             ->whereExists(
                 function ($query) {
                     $query->select('*')

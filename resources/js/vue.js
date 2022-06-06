@@ -1,6 +1,7 @@
 import { createApp } from 'vue'
 import CarrinhoQuantidadeItem from './vueComponents/CarrinhoQuantidadeItem.vue'
 import Carrinho from './vueComponents/Carrinho.vue'
+import Checkout from './vueComponents/Checkout.vue'
 
 const app = createApp({
     methods: {
@@ -28,4 +29,5 @@ const app = createApp({
 window.vueapp = app;
 app.component('CarrinhoQuantidadeItem', CarrinhoQuantidadeItem)
 app.component('Carrinho', Carrinho)
+app.component('Checkout', Checkout)
 app.mount('#vue-app')

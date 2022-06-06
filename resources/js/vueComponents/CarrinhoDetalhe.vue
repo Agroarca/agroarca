@@ -1,6 +1,11 @@
 <script>
 export default {
-    props: ['carrinho']
+    props: ['carrinho'],
+    methods: {
+        finalizarPedido(){
+            this.$emit('finalizarPedido')
+        }
+    }
 }
 </script>
 
@@ -17,9 +22,16 @@ export default {
             <h4>Frete:</h4>
             <span>{{ carrinho.frete }}</span>
         </div>
+        <div class="subtotal" v-if="carrinho.icms && carrinho.icms != 0">
+            <h4>ICMS:</h4>
+            <span>{{ carrinho.icms }}</span>
+        </div>
         <div class="total">
             <h4>Total</h4>
             <span>{{ carrinho.total }}</span>
+        </div>
+        <div class="finalizar">
+            <button class="btn btn-primary" @click="finalizarPedido">Continuar</button>
         </div>
     </div>
 </template>
@@ -69,4 +81,22 @@ export default {
     font-size: 18px;
     margin-bottom: 1rem;
 }
+
+.carrinho-detalhe .finalizar{
+    margin-top: 1rem;
+}
+
+.carrinho-detalhe .finalizar button{
+    background-color: var(--verde-claro);
+    font-size: 18px;
+    padding: 0.8rem 1.6rem;
+    border-radius: 0.8rem;
+    color: var(--branco);
+    text-decoration: none;
+    text-transform: uppercase;
+    border: none;
+    display: block;
+    width: 100%;
+}
+
 </style>

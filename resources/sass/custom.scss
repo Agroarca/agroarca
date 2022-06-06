@@ -5,6 +5,7 @@
 **/
 
 .btn-primary {
+
     &,
     &:active {
         background-color: var(--verde-claro);
@@ -12,11 +13,14 @@
         color: var(--branco);
         box-shadow: unset;
     }
+
     &:hover,
     &:focus {
-        background-color: var(--verde-escuro);
+        color: var(--verde-escuro);
         border-color: var(--verde-escuro);
+        background-color: var(--verde-claro);
     }
+
     &:active:focus {
         box-shadow: 0 0 0 0.25rem rgba(0, 153, 52, 0.3);
     }
@@ -27,6 +31,7 @@
 **/
 
 .btn-secondary {
+
     &,
     &:active {
         background-color: #343434;
@@ -34,11 +39,13 @@
         color: var(--branco);
         box-shadow: unset;
     }
+
     &:hover,
     &:focus {
         background-color: #343434;
         border-color: #343434;
     }
+
     &:active:focus {
         box-shadow: 0 0 0 0.25rem #34343438;
     }
@@ -51,6 +58,7 @@
     &.uppercase {
         text-transform: uppercase;
     }
+
     @media only screen and (max-width: 992px) {
         font-size: 24px !important;
     }
@@ -65,6 +73,7 @@ input[type="checkbox"] {
         background-color: var(--verde-claro);
         border-color: var(--verde-claro);
     }
+
     &:focus {
         box-shadow: 0 0 0 0.25rem #00993442 !important;
     }

@@ -30,7 +30,7 @@ class EntregaService
 
         //se usuario está logado e não possui endereço ou CEP setado
         if (Auth::check()) {
-            $endereco = Auth::user()->enderecos()->first();
+            $endereco = UsuarioService::retornarEnderecoPadrao();
             if ($endereco) {
                 self::atualizarCepEnderecoPadrao($endereco);
                 return $endereco;
@@ -64,14 +64,27 @@ class EntregaService
         session(['cep' => $param]);
     }
 
-    public static function getDataEntrega()
-    {
-        return Carbon::now()->addDays(15)->toAtomString();;
-    }
-
     public static function calcularFrete(ItemListaPreco $item, $cep)
     {
         $distancia = DistanciasService::calcularDistancia($cep, $item->centroDistribuicao);
         return $item->base_frete * ($distancia / 1000);
+    }
+
+    public static function verificarEnderecoLogin()
+    {
+        $endereco = self::getCepEnderecoPadrao();
+
+        if (!($endereco instanceof Cep)) {
+            return;
+        }
+
+        $enderecoUsuario = UsuarioEndereco::where('usuario_id', Auth::id())->where('cep', $endereco->cep)->first();
+        if (is_null($enderecoUsuario)) {
+            return;
+        }
+
+        $pedido = PedidoService::getPedido();
+        $pedido->endereco_id = $enderecoUsuario->id;
+        $pedido->save();
     }
 }

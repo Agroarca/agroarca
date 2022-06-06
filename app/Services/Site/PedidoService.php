@@ -3,20 +3,23 @@
 namespace App\Services\Site;
 
 use App\Enums\Pedidos\StatusPedido;
+use App\Events\Site\CarrinhoAlteradoEvent;
+use App\Exceptions\EstoqueIndisponivelException;
 use App\Exceptions\OperacaoIlegalException;
 use App\Models\Cadastros\UsuarioEndereco;
+use App\Models\Estoque\ReservaProduto;
 use App\Models\Pedidos\ItemListaPreco;
 use App\Models\Pedidos\Pedido;
 use App\Models\Pedidos\PedidoItem;
-use Carbon\Carbon;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 
 class PedidoService
 {
     public static function getPedido()
     {
         $pedido = Pedido::find(session('pedidoId', null));
-        if ($pedido) {
+        if ($pedido && $pedido->status == StatusPedido::Aberto) {
             return $pedido;
         }
 
@@ -50,7 +53,10 @@ class PedidoService
         ]);
 
         session(['pedidoId' => $pedido->id]);
-        self::atualizarQuantidadeCarrinho();
+
+        EntregaService::verificarEnderecoLogin();
+
+        CarrinhoAlteradoEvent::dispatch($pedido);
     }
 
     public static function deletePedido(Pedido $pedido)
@@ -65,6 +71,7 @@ class PedidoService
         }
 
         $pedido->delete();
+        CarrinhoAlteradoEvent::dispatch($pedido);
     }
 
     public static function adicionarItem(ItemListaPreco $item, $quantidade)
@@ -80,7 +87,7 @@ class PedidoService
         $pedidoItem->quantidade += $quantidade;
         $pedidoItem->save();
 
-        self::atualizarQuantidadeCarrinho();
+        CarrinhoAlteradoEvent::dispatch();
         return $pedidoItem;
     }
 
@@ -96,7 +103,7 @@ class PedidoService
             $pedidoItem->pedidoItensAdicionais()->delete();
             $pedidoItem->delete();
 
-            self::atualizarQuantidadeCarrinho();
+            CarrinhoAlteradoEvent::dispatch();
         }
     }
 
@@ -118,7 +125,7 @@ class PedidoService
         $pedidoItemAdicional->quantidade = $pedidoItem->quantidade;
         $pedidoItemAdicional->save();
 
-        self::atualizarQuantidadeCarrinho();
+        CarrinhoAlteradoEvent::dispatch();
         return $pedidoItemAdicional;
     }
 
@@ -143,7 +150,7 @@ class PedidoService
                 $item->delete();
             }
 
-            self::atualizarQuantidadeCarrinho();
+            CarrinhoAlteradoEvent::dispatch();
         }
     }
 
@@ -153,12 +160,12 @@ class PedidoService
             $pedido = self::getPedido();
         }
 
-        $itens = $pedido->pedidoItens()->whereNull('pedido_item_pai_id')->all();
+        $itens = $pedido->pedidoItens;
         foreach ($itens as $item) {
             self::calcularPedidoItem($item);
         }
 
-        $pedidoItens = $pedido->pedidoItens()->whereNull('pedido_item_pai_id');
+        $pedidoItens = $pedido->pedidoItens;
 
         $pedido->subtotal = $pedidoItens->sum('total');
         $pedido->frete = $pedidoItens->sum('frete');
@@ -177,11 +184,15 @@ class PedidoService
         }
 
         if ($pedidoItem->pedido->status == StatusPedido::Aberto) {
-            $dataEntrega = EntregaService::getDataEntrega();
-            $pedidoItem->preco_quilo = $pedidoItem->itemListaPreco->calculaPreco($dataEntrega);
+            $pedidoItem->preco_quilo = $pedidoItem->itemListaPreco->calculaPreco();
 
             $cepEntrega = EntregaService::getCepEnderecoPadrao();
-            $pedidoItem->frete = EntregaService::calcularFrete($pedidoItem->itemListaPreco, $cepEntrega);
+            if (!is_null($cepEntrega)) {
+                $pedidoItem->frete = EntregaService::calcularFrete($pedidoItem->itemListaPreco, $cepEntrega);
+            } else {
+                $pedidoItem->frete = 0;
+            }
+
             $pedidoItem->frete += $pedidoItem->pedidoItensAdicionais()->sum('frete');
         }
 
@@ -218,15 +229,73 @@ class PedidoService
         return ($pedidoItem->subtotal * $valorIcms) / 100;
     }
 
-    public static function getDataPagamento()
+    public static function atualizarQuantidadeCarrinho(Pedido $pedido = null)
     {
-        return Carbon::now();
+        if (is_null($pedido)) {
+            $pedido = self::getPedido();
+        }
+
+        $quantidade = $pedido->pedidoItens()->count();
+        session(['quantidade_carrinho' => $quantidade]);
     }
 
-    public static function atualizarQuantidadeCarrinho()
+    public static function submeterPedido()
     {
-        $pedido = PedidoService::getPedido();
-        $quantidade = $pedido->pedidoItens()->whereNull('pedido_item_pai_id')->count();
-        session(['quantidade_carrinho' => $quantidade]);
+        DB::transaction(function () {
+            $pedido = self::getPedido();
+            $pedido->load([
+                'pedidoItens',
+                'pedidoItens.itemListaPreco',
+                'pedidoItens.itemListaPreco.produto',
+            ]);
+
+            if ($pedido->status != StatusPedido::Aberto) {
+                throw new OperacaoIlegalException("Não é permitido finalizar um pedido que não esteja aberto");
+            }
+
+            if ($pedido->pedidoItens->count() == 0) {
+                throw new OperacaoIlegalException("Não é permitido finalizar um pedido sem itens");
+            }
+
+            foreach ($pedido->pedidoItens as $item) {
+                self::submeterPedidoItem($item);
+            }
+
+            $pedido->status = StatusPedido::Analise;
+            $pedido->save();
+        });
+    }
+
+    public static function submeterPedidoItem(PedidoItem $pedidoItem)
+    {
+        DB::transaction(function () use ($pedidoItem) {
+            if ($pedidoItem->quantidade > $pedidoItem->itemListaPreco->produto->quantidade_disponivel) {
+                throw new EstoqueIndisponivelException("O produto {$pedidoItem->itemListaPreco->produto->nome} não possui quantidade suficiente em estoque");
+            }
+
+            ReservaProduto::create([
+                'quantidade' => $pedidoItem->quantidade,
+                'produto_id' => $pedidoItem->itemListaPreco->produto_id,
+                'pedido_item_id' => $pedidoItem->id,
+            ]);
+
+            $pedidoItem->save();
+            $pedidoItem->itemListaPreco->produto->atualizarQuantidade();
+        });
+    }
+
+    public static function verificarEnderecoPadrao(Pedido $pedido = null)
+    {
+        if (is_null($pedido)) {
+            $pedido = self::getPedido();
+        }
+
+        if (is_null($pedido->endereco_id)) {
+            $endereco = EntregaService::getCepEnderecoPadrao();
+            if (!is_null($endereco) && $endereco instanceof UsuarioEndereco) {
+                $pedido->endereco_id = $endereco->id;
+                $pedido->save();
+            }
+        }
     }
 }

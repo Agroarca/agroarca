@@ -15,6 +15,9 @@ export default{
     methods: {
         alterarCarrinho(carrinho){
             this.carrinho = carrinho
+        },
+        finalizarPedido(){
+            window.location = this.carrinho.finalizarPedido
         }
     }
 }
@@ -27,7 +30,7 @@ export default{
                 <CarrinhoItem v-for='carrinhoitem in carrinho.pedidoItens' :carrinhoitem="carrinhoitem" :key="carrinhoitem.id" @alterarCarrinho="alterarCarrinho"/>
             </div>
             <div class="col-xl-4 col-12 pt-4 pt-xl-0">
-                <CarrinhoDetalhe :carrinho="carrinho" />
+                <CarrinhoDetalhe :carrinho="carrinho" @finalizarPedido="finalizarPedido" />
             </div>
         </div>
         </section>

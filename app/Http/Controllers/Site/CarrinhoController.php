@@ -2,14 +2,19 @@
 
 namespace App\Http\Controllers\Site;
 
+use App\Events\Site\CarrinhoAlteradoEvent;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Cadastros\UsuarioEnderecoRequest;
+use App\Models\Cadastros\Usuario;
+use App\Models\Cadastros\UsuarioEndereco;
 use App\Models\Pedidos\ItemListaPreco;
 use App\Models\Pedidos\PedidoItem;
 use App\Services\Site\CarrinhoService;
 use App\Services\Site\ListService;
 use App\Services\Site\PedidoService;
-use App\View\Components\Site\Carrinho\CarrinhoItem;
+use App\Services\Site\UsuarioService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 
 class CarrinhoController extends Controller
 {
@@ -69,6 +74,61 @@ class CarrinhoController extends Controller
         $item->quantidade = $request->input('quantidade');
         $item->save();
 
+        CarrinhoAlteradoEvent::dispatch();
+
         return response()->json(['carrinho' => CarrinhoService::getCarrinho()]);
+    }
+
+    public function continuar()
+    {
+        $usuario = Usuario::findOrFail(Auth::id());
+        $checkoutDados = CarrinhoService::getDadosPedidoFinalizacao();
+        return view('site.checkout.checkout', compact('usuario'), compact('checkoutDados'));
+    }
+
+    public function finalizar(Request $request)
+    {
+        var_dump($request->all());
+    }
+
+    public function adicionarEndereco()
+    {
+        return view('site.checkout.adicionar_endereco');
+    }
+
+    public function salvarEndereco(UsuarioEnderecoRequest $request)
+    {
+        $endereco = new UsuarioEndereco($request->all());
+        $endereco->usuario_id = Auth::id();
+        $endereco->save();
+
+        UsuarioService::verificarEnderecoPadrao();
+        return redirect()->route('site.carrinho.continuar');
+    }
+
+    public function excluirEndereco($id)
+    {
+        $endereco = UsuarioEndereco::where('usuario_id', Auth::id())->findOrFail($id);
+        $pedido = PedidoService::getPedido();
+
+        if ($pedido->endereco_id == $endereco->id) {
+            $pedido->endereco_id = null;
+            $pedido->save();
+        }
+
+        $endereco->delete();
+
+        UsuarioService::verificarEnderecoPadrao();
+        return response()->json(['checkout' => CarrinhoService::getDadosPedidoFinalizacao()]);
+    }
+
+    public function selecionarEndereco($id)
+    {
+        $endereco = UsuarioEndereco::where('usuario_id', Auth::id())->findOrFail($id);
+        $pedido = PedidoService::getPedido();
+        $pedido->endereco_id = $endereco->id;
+        $pedido->save();
+
+        return response()->json(['checkout' => CarrinhoService::getDadosPedidoFinalizacao()]);
     }
 }

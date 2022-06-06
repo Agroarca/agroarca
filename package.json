@@ -12,6 +12,7 @@
     },
     "dependencies": {
         "@fortawesome/fontawesome-free": "^6.0.0",
+        "@vuepic/vue-datepicker": "^3.2.1",
         "autoprefixer": "^10.1.0",
         "axios": "^0.21.4",
         "bootstrap": "^5.1.3",

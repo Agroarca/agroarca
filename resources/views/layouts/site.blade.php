@@ -17,7 +17,7 @@
 
         {{ $slot }}
 
-        {{-- <x-site.footer></x-site.footer> --}}
+        <x-site.footer></x-site.footer>
     </div>
 
     <script src="{{ mix('js/script.js') }}"></script>

@@ -31,7 +31,7 @@ class Pedido extends Model
 
     public function pedidoItens()
     {
-        return  $this->hasMany(PedidoItem::class);
+        return $this->hasMany(PedidoItem::class);
     }
 
     public function usuarioEndereco()

@@ -18,9 +18,6 @@ class ItemListaPreco extends Model
     protected $table = 'itens_lista_preco';
     protected $fillable = [
         'preco_quilo',
-        'estoque_total',
-        'estoque_vendido',
-        'estoque_disponivel',
         'produto_id',
         'lista_preco_id',
         'centro_distribuicao_id',

@@ -1,1 +1,14 @@
-.crop-image-container .crop-image{max-width:100%}.select2-container{padding:0;width:100%!important}.select2-container .select2-selection--single,.select2-container--default .select2-selection--single .select2-selection__arrow{height:calc(2.25rem + 2px)!important}
+.crop-image-container .crop-image{
+    max-width: 100%;
+}
+
+.select2-container {
+    width: 100% !important;
+    padding: 0;
+}
+
+.select2-container .select2-selection--single,
+.select2-container--default .select2-selection--single .select2-selection__arrow {
+    height: calc(2.25rem + 2px) !important;
+}
+

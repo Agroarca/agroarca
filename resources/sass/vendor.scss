@@ -5,3 +5,10 @@
 
 // https://getbootstrap.com/docs/5.0
 @import "~bootstrap/scss/bootstrap";
+
+//Vue Datepicker
+@import '@vuepic/vue-datepicker/src/VueDatePicker/style/main.scss';
+
+.dp__calendar_header {
+    font-weight: normal;
+}

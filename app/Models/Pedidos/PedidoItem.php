@@ -26,6 +26,13 @@ class PedidoItem extends Model
         'pedido_item_pai_id',
     ];
 
+    public static function booted()
+    {
+        static::addGlobalScope('pedidoItensSemAdicionais', function ($query) {
+            $query->whereNull('pedido_item_pai_id');
+        });
+    }
+
     public function pedido()
     {
         return $this->belongsTo(Pedido::class);
@@ -43,7 +50,7 @@ class PedidoItem extends Model
 
     public function pedidoItensAdicionais()
     {
-        return $this->hasMany(PedidoItem::class, 'pedido_item_pai_id');
+        return $this->hasMany(PedidoItem::class, 'pedido_item_pai_id')->withoutGlobalScope('pedidoItensSemAdicionais');
     }
 
     public function reservasProduto()

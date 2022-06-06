@@ -2,6 +2,8 @@
 
 namespace App\Providers;
 
+use App\Events\Site\CarrinhoAlteradoEvent;
+use App\Listeners\CarrinhoAlteradoListener;
 use Illuminate\Auth\Events\Registered;
 use Illuminate\Auth\Listeners\SendEmailVerificationNotification;
 use Illuminate\Foundation\Support\Providers\EventServiceProvider as ServiceProvider;
@@ -21,6 +23,9 @@ class EventServiceProvider extends ServiceProvider
         Registered::class => [
             SendEmailVerificationNotification::class,
         ],
+        CarrinhoAlteradoEvent::class => [
+            CarrinhoAlteradoListener::class,
+        ]
     ];
 
     /**
@@ -45,7 +50,7 @@ class EventServiceProvider extends ServiceProvider
     {
         $modo_escuro = false;
 
-        if(Auth::user() != null){
+        if (Auth::user() != null) {
             $modo_escuro = Auth::user()->modo_escuro;
         }
 

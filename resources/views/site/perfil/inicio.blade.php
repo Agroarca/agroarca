@@ -57,10 +57,17 @@
                                 <span>{{ $endereco->complemento }}</span>
                             @endif
                         </div>
-                        <div class="d-flex justify-content-end align-self-center">
-                            <a href="{{ route('site.perfil.enderecos.excluir', $endereco->id) }}" class="btn icone excluir">
-                                <i class="fas fa-trash-can"></i>
-                            </a>
+                        <div class="d-flex align-self-center flex-row align-items-end justify-content-center botoes">
+                            <div class="d-flex justify-content-end align-self-center">
+                                <a href="{{ route('site.perfil.enderecos.selecionarPadrao', $endereco->id) }}" @class(["btn icone alt", 'ativo' => $endereco->padrao])>
+                                    <i class="fa-solid fa-truck-moving"></i>
+                                </a>
+                            </div>
+                            <div class="d-flex justify-content-end align-self-center">
+                                <a href="{{ route('site.perfil.enderecos.excluir', $endereco->id) }}" class="btn icone alt">
+                                    <i class="fas fa-trash-can"></i>
+                                </a>
+                            </div>
                         </div>
                     </div>
                 </div>

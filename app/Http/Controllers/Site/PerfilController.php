@@ -8,7 +8,7 @@ use App\Http\Requests\Cadastros\UsuarioEnderecoRequest;
 use App\Http\Requests\Site\Perfil\AtualizarUsuarioRequest;
 use App\Models\Cadastros\Usuario;
 use App\Models\Cadastros\UsuarioEndereco;
-use Illuminate\Http\Request;
+use App\Services\Site\UsuarioService;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 
@@ -51,12 +51,22 @@ class PerfilController extends Controller
         $endereco->usuario_id = Auth::id();
         $endereco->save();
 
+        UsuarioService::verificarEnderecoPadrao();
         return redirect()->route('site.perfil');
     }
 
     public function excluirEndereco($id)
     {
         UsuarioEndereco::where('usuario_id', Auth::id())->find($id)->delete();
+
+        UsuarioService::verificarEnderecoPadrao();
+        return redirect()->route('site.perfil');
+    }
+
+    public function selecionarPadrao($id)
+    {
+        $endereco = UsuarioEndereco::where('usuario_id', Auth::id())->findOrFail($id);
+        UsuarioService::selecionarEnderecoPadrao($endereco);
         return redirect()->route('site.perfil');
     }
 }

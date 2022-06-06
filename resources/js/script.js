@@ -81,51 +81,6 @@ owlCarouselInit({
     nav: { right: "#banners-nav-right", left: "#banners-nav-left" },
 });
 
-const deliveryContent = document.getElementById("delivery-content");
-
-const deliveryModal = new Modal(document.getElementById("delivery-info-modal"));
-
-if (deliveryContent && deliveryModal) {
-    deliveryContent.addEventListener("click", () => {
-        deliveryModal.show();
-    });
-
-    const submitDeliveryForm = document.getElementById("submit-delivery-form");
-    const deliveryForm = document.getElementById("form-delivery-info");
-
-    submitDeliveryForm.addEventListener("click", () => {
-        const formData = Object.fromEntries(new FormData(deliveryForm));
-
-        const cep = formData.cep && formData.cep.replace("-", "");
-
-        if (!cep || cep.length !== 8) {
-            toastr.warning("Por favor, insira um cep valido!");
-            return;
-        }
-
-        if (!formData.deliveryDate) {
-            toastr.warning("Por favor, insira uma data de entrega!");
-            return;
-        }
-
-        reqwest({
-            url: "/api/save/delivery/info",
-            method: "post",
-            data: formData,
-        })
-            .then((response) => {
-                console.log(response);
-            })
-            .fail((response) => {
-                console.log(response);
-                // @TODO: Implementar tratamento de erro com o que retorna do backend.
-            });
-
-        // @TODO: Apos request funcionando, devera ficar no success.
-        deliveryModal.hide();
-        toastr.success("Endereço salvo com sucesso!");
-    });
-}
 
 window.verificarCep = function (input) {
     var cep = input.value.replace(/\D/g, '')
