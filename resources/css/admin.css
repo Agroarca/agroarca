@@ -1,4 +1,4 @@
-.crop-image-container .crop-image{
+.crop-image-container .crop-image {
     max-width: 100%;
 }
 
@@ -10,4 +10,10 @@
 .select2-container .select2-selection--single,
 .select2-container--default .select2-selection--single .select2-selection__arrow {
     height: calc(2.25rem + 2px) !important;
+}
+
+.alert-primary {
+    color: #004085;
+    background-color: #cce5ff;
+    border-color: #b8daff;
 }

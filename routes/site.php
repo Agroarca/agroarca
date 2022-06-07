@@ -56,6 +56,10 @@ Route::name('site')->group(function () {
         Route::prefix('carrinho')->name('.carrinho')->group(function () {
             Route::get('continuar', [CarrinhoController::class, 'continuar'])->name('.continuar');
             Route::post('finalizar', [CarrinhoController::class, 'finalizar'])->name('.finalizar');
+            Route::post('selecionarFormaPagamento/{id}', [CarrinhoController::class, 'selecionarFormaPagamento'])->name('.selecionarFormaPagamento');
+            Route::post('alterarDataPagamento', [CarrinhoController::class, 'alterarDataPagamento'])->name('.alterarDataPagamento');
+            Route::post('alterarDataEntrega', [CarrinhoController::class, 'alterarDataEntrega'])->name('.alterarDataEntrega');
+            Route::get('resumo', [CarrinhoController::class, 'resumo'])->name('.resumo');
 
             Route::prefix('enderecos')->name('.enderecos')->group(function () {
                 Route::get('adicionar', [CarrinhoController::class, 'adicionarEndereco'])->name('.adicionar');

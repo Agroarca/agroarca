@@ -14,6 +14,7 @@ use App\Http\Controllers\Admin\Produtos\ProdutoController;
 use App\Http\Controllers\Admin\Produtos\ProdutoImagemController;
 use App\Http\Controllers\Admin\Produtos\TipoProdutoController;
 use App\Http\Controllers\Admin\PainelController;
+use App\Http\Controllers\Admin\Pedidos\FormaPagamentoController;
 use App\Http\Controllers\Admin\Pedidos\ItemListaPrecoController;
 use App\Http\Controllers\Admin\Pedidos\ListaPrecoController;
 use Illuminate\Support\Facades\Route;
@@ -177,6 +178,15 @@ Route::middleware(['auth'])->prefix('admin')->name('admin')->group(function () {
                 Route::post('atualizar/{id}', [ItemListaPrecoController::class, 'atualizar'])->name('.atualizar');
                 Route::get('excluir/{id}', [ItemListaPrecoController::class, 'excluir'])->name('.excluir');
             });
+        });
+
+        Route::prefix('formasPagamento')->name('.formas_pagamento')->group(function () {
+            Route::get('', [FormaPagamentoController::class, 'inicio'])->name('');
+            Route::get('criar/', [FormaPagamentoController::class, 'criar'])->name('.criar');
+            Route::post('salvar/', [FormaPagamentoController::class, 'salvar'])->name('.salvar');
+            Route::get('editar/{id}', [FormaPagamentoController::class, 'editar'])->name('.editar');
+            Route::post('atualizar/{id}', [FormaPagamentoController::class, 'atualizar'])->name('.atualizar');
+            Route::get('excluir/{id}', [FormaPagamentoController::class, 'excluir'])->name('.excluir');
         });
     });
 });

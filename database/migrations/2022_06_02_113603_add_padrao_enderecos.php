@@ -26,7 +26,7 @@ class AddPadraoEnderecos extends Migration
     public function down()
     {
         Schema::table('usuario_enderecos', function (Blueprint $table) {
-            //
+            $table->dropColumn('padrao');
         });
     }
 }

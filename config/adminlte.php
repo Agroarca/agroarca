@@ -328,6 +328,12 @@ return [
                     'route' => 'admin.pedidos.listas_preco.item',
                     'active' => ['regex:@^admin/pedidos/listasPreco/((?:itemListaPreco).)*$@']
                 ],
+                [
+                    'text' => 'Formas de Pagamento',
+                    'icon' => 'fas fa-shapes',
+                    'route' => 'admin.pedidos.formas_pagamento',
+                    'active' => ['admin/pedidos/formasPagamento/*']
+                ],
             ]
         ]
         /* [

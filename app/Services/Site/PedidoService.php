@@ -2,6 +2,7 @@
 
 namespace App\Services\Site;
 
+use App\Enums\Pedidos\ModalidadeFormaPagamento;
 use App\Enums\Pedidos\StatusPedido;
 use App\Events\Site\CarrinhoAlteradoEvent;
 use App\Exceptions\EstoqueIndisponivelException;
@@ -11,8 +12,11 @@ use App\Models\Estoque\ReservaProduto;
 use App\Models\Pedidos\ItemListaPreco;
 use App\Models\Pedidos\Pedido;
 use App\Models\Pedidos\PedidoItem;
+use App\Rules\ExistsDominio;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Validator;
+use Illuminate\Validation\Rule;
 
 class PedidoService
 {
@@ -257,6 +261,8 @@ class PedidoService
                 throw new OperacaoIlegalException("Não é permitido finalizar um pedido sem itens");
             }
 
+            self::calcularPedido($pedido);
+
             foreach ($pedido->pedidoItens as $item) {
                 self::submeterPedidoItem($item);
             }
@@ -297,5 +303,31 @@ class PedidoService
                 $pedido->save();
             }
         }
+    }
+
+    public static function validatorPedido(Pedido $pedido)
+    {
+        if (is_null($pedido)) {
+            $pedido = self::getPedido();
+        }
+
+        $validator = Validator::make([
+            'data_entrega' => $pedido->data_entrega,
+            'endereco_id' => $pedido->endereco_id,
+            'forma_pagamento_id' => $pedido->forma_pagamento_id,
+            'data_pagamento' => $pedido->data_pagamento
+        ], [
+            'data_entrega' => 'required|date',
+            'endereco_id' => ['required'],
+            'forma_pagamento_id' => ['required', new ExistsDominio('formas_pagamento')],
+            'data_pagamento' => [Rule::requiredIf($pedido->formaPagamento->modalidade == ModalidadeFormaPagamento::Credito), 'date']
+        ], [], [
+            'data_entrega' => 'Data de Entrega',
+            'endereco_id' => 'Endereço de Entrega',
+            'forma_pagamento_id' => 'Forma de Pagamento',
+            'data_pagamento' => 'Data de Pagamento'
+        ]);
+
+        return $validator;
     }
 }

@@ -22,6 +22,8 @@ class Pedido extends Model
         'observacao',
         'data_entrega',
         'endereco_id',
+        'forma_pagamento_id',
+        'data_pagamento'
     ];
 
     public function usuario()
@@ -37,5 +39,10 @@ class Pedido extends Model
     public function usuarioEndereco()
     {
         return $this->belongsTo(UsuarioEndereco::class);
+    }
+
+    public function formaPagamento()
+    {
+        return $this->belongsTo(FormaPagamento::class);
     }
 }

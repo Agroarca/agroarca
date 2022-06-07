@@ -2,7 +2,6 @@
 
 namespace App\Rules;
 
-use App\Models\Administracao\Dominio;
 use App\Services\Administracao\DominioService;
 use Illuminate\Contracts\Validation\Rule;
 use Illuminate\Support\Facades\DB;

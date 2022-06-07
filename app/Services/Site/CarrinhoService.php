@@ -2,8 +2,10 @@
 
 namespace App\Services\Site;
 
+use App\Enums\Pedidos\ModalidadeFormaPagamento;
 use App\Helpers\Formatter;
 use App\Models\Cadastros\Usuario;
+use App\Models\Pedidos\FormaPagamento;
 use Illuminate\Support\Facades\Auth;
 
 class CarrinhoService
@@ -17,6 +19,8 @@ class CarrinhoService
             'subtotal' => $pedido->subtotal,
             'total' => $pedido->total,
             'finalizarPedido' => route('site.carrinho.continuar'),
+            'data_pagamento' => $pedido->data_pagamento,
+            'data_entrega' => $pedido->data_entrega,
         ];
     }
 
@@ -90,9 +94,15 @@ class CarrinhoService
 
         return [
             'data_entrega' => $pedido->data_entrega,
+            'data_pagamento' => $pedido->data_pagamento,
             'enderecos' => self::getUsuarioEnderecos(),
             'endereco_id' => $pedido->endereco_id,
             'adicionar_endereco' => route('site.carrinho.enderecos.adicionar'),
+            'formas_pagamento' => self::getFormasPagamento(),
+            'forma_pagamento_id' => $pedido->forma_pagamento_id,
+            'alterarDataPagamento' => route('site.carrinho.alterarDataPagamento'),
+            'alterarDataEntrega' => route('site.carrinho.alterarDataEntrega'),
+            'finalizarPedido' => route('site.carrinho.finalizar'),
         ];
     }
 
@@ -118,5 +128,22 @@ class CarrinhoService
         }
 
         return $enderecos;
+    }
+
+    public function getFormasPagamento()
+    {
+        $formasPagamento = [];
+        foreach (FormaPagamento::all() as $formaPagamento) {
+            array_push($formasPagamento, [
+                'id' => $formaPagamento->id,
+                'nome' => $formaPagamento->nome,
+                'tipo' => $formaPagamento->tipo,
+                'modalidade' => $formaPagamento->modalidade,
+                'mostrarData' => $formaPagamento->modalidade == ModalidadeFormaPagamento::Credito,
+                'selecionar' => route('site.carrinho.selecionarFormaPagamento', $formaPagamento->id)
+            ]);
+        }
+
+        return $formasPagamento;
     }
 }

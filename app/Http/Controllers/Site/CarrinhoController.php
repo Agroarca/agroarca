@@ -2,17 +2,22 @@
 
 namespace App\Http\Controllers\Site;
 
+use App\Enums\Pedidos\ModalidadeFormaPagamento;
 use App\Events\Site\CarrinhoAlteradoEvent;
+use App\Exceptions\OperacaoIlegalException;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Cadastros\UsuarioEnderecoRequest;
 use App\Models\Cadastros\Usuario;
 use App\Models\Cadastros\UsuarioEndereco;
+use App\Models\Pedidos\FormaPagamento;
 use App\Models\Pedidos\ItemListaPreco;
 use App\Models\Pedidos\PedidoItem;
 use App\Services\Site\CarrinhoService;
 use App\Services\Site\ListService;
 use App\Services\Site\PedidoService;
 use App\Services\Site\UsuarioService;
+use Carbon\Carbon;
+use Exception;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 
@@ -86,11 +91,6 @@ class CarrinhoController extends Controller
         return view('site.checkout.checkout', compact('usuario'), compact('checkoutDados'));
     }
 
-    public function finalizar(Request $request)
-    {
-        var_dump($request->all());
-    }
-
     public function adicionarEndereco()
     {
         return view('site.checkout.adicionar_endereco');
@@ -130,5 +130,62 @@ class CarrinhoController extends Controller
         $pedido->save();
 
         return response()->json(['checkout' => CarrinhoService::getDadosPedidoFinalizacao()]);
+    }
+
+    public function selecionarFormaPagamento($id)
+    {
+        $formaPagamento = FormaPagamento::findOrFail($id);
+
+        $pedido = PedidoService::getPedido();
+        $pedido->forma_pagamento_id = $formaPagamento->id;
+
+        if ($formaPagamento->modalidade == ModalidadeFormaPagamento::AVista) {
+            $formaPagamento->data_pagamento = null;
+        }
+
+        $pedido->save();
+
+        return response()->json(['checkout' => CarrinhoService::getDadosPedidoFinalizacao()]);
+    }
+
+    public function alterarDataPagamento(Request $request)
+    {
+        $data = Carbon::parse($request->input('data'));
+        $pedido = PedidoService::getPedido();
+        $pedido->data_pagamento = $data;
+        $pedido->save();
+
+        return response()->json(['checkout' => CarrinhoService::getDadosPedidoFinalizacao()]);
+    }
+
+    public function alterarDataEntrega(Request $request)
+    {
+        $data = Carbon::parse($request->input('data'));
+        $pedido = PedidoService::getPedido();
+        $pedido->data_entrega = $data;
+        $pedido->save();
+
+        return response()->json(['checkout' => CarrinhoService::getDadosPedidoFinalizacao()]);
+    }
+
+    public function finalizar()
+    {
+        $pedido = PedidoService::getPedido();
+        $validator = PedidoService::validatorPedido($pedido);
+        if ($validator->fails()) {
+            return response()->json(['erros' => $validator->errors(), 'checkout' => CarrinhoService::getDadosPedidoFinalizacao()]);
+        }
+
+        try {
+            PedidoService::submeterPedido($pedido);
+        } catch (OperacaoIlegalException $e) {
+            return response()->json(['erros' => [$e->getMessage()], 'checkout' => CarrinhoService::getDadosPedidoFinalizacao()]);
+        }
+
+        return response()->json(['redirect' => route('site.carrinho.resumo')]);
+    }
+
+    public function resumo()
+    {
     }
 }
