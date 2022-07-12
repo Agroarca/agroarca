@@ -130,7 +130,7 @@ class CarrinhoService
         return $enderecos;
     }
 
-    public function getFormasPagamento()
+    public static function getFormasPagamento()
     {
         $formasPagamento = [];
         foreach (FormaPagamento::all() as $formaPagamento) {

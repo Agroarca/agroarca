@@ -2,6 +2,8 @@
 
 namespace App\Models\Pedidos;
 
+use App\Models\Estoque\MovimentoLote;
+use App\Models\Produtos\Produto;
 use App\Traits\Dominio;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -24,6 +26,7 @@ class PedidoItem extends Model
         'pedido_id',
         'item_lista_preco_id',
         'pedido_item_pai_id',
+        'produto_id'
     ];
 
     public static function booted()
@@ -31,6 +34,11 @@ class PedidoItem extends Model
         static::addGlobalScope('pedidoItensSemAdicionais', function ($query) {
             $query->whereNull('pedido_item_pai_id');
         });
+    }
+
+    public function getProdutoNomeAttribute()
+    {
+        return (!is_null($this->produto)) ? $this->produto->nome : $this->itemListaPreco->produto->nome;
     }
 
     public function pedido()
@@ -56,5 +64,15 @@ class PedidoItem extends Model
     public function reservasProduto()
     {
         return $this->hasOne(ReservaProduto::class);
+    }
+
+    public function produto()
+    {
+        return $this->belongsTo(Produto::class);
+    }
+
+    public function movimentosLote()
+    {
+        return $this->hasMany(MovimentoLote::class);
     }
 }

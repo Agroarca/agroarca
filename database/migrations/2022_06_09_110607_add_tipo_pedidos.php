@@ -4,7 +4,7 @@ use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
-class AddPagamentoPedidos extends Migration
+class AddTipoPedidos extends Migration
 {
     /**
      * Run the migrations.
@@ -14,10 +14,7 @@ class AddPagamentoPedidos extends Migration
     public function up()
     {
         Schema::table('pedidos', function (Blueprint $table) {
-            $table->foreignId('forma_pagamento_id')->nullable();
-            $table->foreign('forma_pagamento_id')->references('id')->on('formas_pagamento');
-
-            $table->date('data_pagamento')->nullable();
+            $table->smallInteger('tipo')->default(0);
         });
     }
 
@@ -29,9 +26,7 @@ class AddPagamentoPedidos extends Migration
     public function down()
     {
         Schema::table('pedidos', function (Blueprint $table) {
-            $table->dropForeign(['forma_pagamento_id']);
-            $table->dropColumn('forma_pagamento_id');
-            $table->dropColumn('data_pagamento');
+            $table->dropColumn('tipo');
         });
     }
 }

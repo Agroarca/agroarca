@@ -78,14 +78,14 @@ export default{
             </div>
         </div>
 
-            <div class="adicionais" v-for="(itensAdicionais,id) in carrinhoitem.pedidoItensAdicionais" :key="id">
-                <b>{{ itensAdicionais.tipo }}</b>
-                <ul class="informacoes">
-                    <li class="item-adicional" v-for="itemAdicional in itensAdicionais.itens" :key="itemAdicional.nomeProduto">
-                        {{ itemAdicional.nomeProduto }}
-                    </li>
-                </ul>
-            </div>
+        <div class="adicionais" v-for="(itensAdicionais,id) in carrinhoitem.pedidoItensAdicionais" :key="id">
+            <b>{{ itensAdicionais.tipo }}</b>
+            <ul class="informacoes">
+                <li class="item-adicional" v-for="itemAdicional in itensAdicionais.itens" :key="itemAdicional.nomeProduto">
+                    {{ itemAdicional.nomeProduto }}
+                </li>
+            </ul>
+        </div>
     </div>
 </template>
 

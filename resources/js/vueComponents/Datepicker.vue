@@ -3,12 +3,12 @@ import { ref } from 'vue'
 import VueDatepicker from '@vuepic/vue-datepicker'
 
 export default{
-    props: ['placeholder', 'name', 'minDate', 'maxDate', 'data'],
+    props: ['placeholder', 'name', 'minDate', 'maxDate', 'data', 'disabled'],
     components: {
         VueDatepicker
     },
     setup(props) {
-        const date = ref(props.data ?? new Date());
+        const date = ref(props.data);
 
         let config = {
             format: 'dd/MM/yyyy',
@@ -21,7 +21,8 @@ export default{
             name: props.name,
             enableTimePicker: false,
             placeholder: props.placeholder ?? "Selecione uma data",
-            weekStart: 0
+            weekStart: 0,
+            disabled: props.disabled ?? false,
         }
 
         if(props.minDate){

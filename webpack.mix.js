@@ -46,10 +46,15 @@ if (process.env.WITHOUT && process.env.WITHOUT == "vendor") {
     mix.js("resources/js/vue.js", "public/js/vue.js")
         .vue()
         .mergeManifest()
+
+    mix.js("resources/js/vue-admin.js", "public/js/vue-admin.js")
+        .vue()
+        .mergeManifest()
 } else {
     mix.postCss("resources/css/vendor.css", "public/css/")
         .sass("resources/sass/vendor.scss", "public/css/vendor.css")
         .postCss("resources/css/vendor-admin.css", "public/css/")
+        .sass("resources/sass/vendor-admin.scss", "public/css/vendor-admin.css")
         .js("resources/js/vendor.js", "public/js")
         .js("resources/js/vendor-admin.js", "public/js")
 
@@ -61,6 +66,7 @@ if (process.env.WITHOUT && process.env.WITHOUT == "vendor") {
         .sass("resources/sass/custom.scss", "public/css/style.css")
 
     mix.js("resources/js/vue.js", "public/js/vue.js").vue()
+    mix.js("resources/js/vue-admin.js", "public/js/vue-admin.js").vue()
 }
 
 if (mix.inProduction()) {

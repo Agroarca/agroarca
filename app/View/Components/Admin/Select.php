@@ -21,15 +21,17 @@ class Select extends Component
         $this->values = $values;
         $this->selected = null;
         $this->placeholder = $placeholder;
-        $this->class = $class;
+        $this->class = $class ?? [];
         $this->selectPlaceholder = $selectPlaceholder;
 
-        foreach($values as $key => $value){
-            if($selected == $key){
+        foreach ($values as $key => $value) {
+            if ($selected == $key) {
                 $this->selected = $selected;
                 break;
             }
         }
+
+        array_push($this->class, 'select2');
     }
 
     /**

@@ -3,6 +3,7 @@
 namespace App\Models\Pedidos;
 
 use App\Models\Cadastros\Usuario;
+use App\Models\Cadastros\UsuarioEndereco;
 use App\Traits\Dominio;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -23,7 +24,8 @@ class Pedido extends Model
         'data_entrega',
         'endereco_id',
         'forma_pagamento_id',
-        'data_pagamento'
+        'data_pagamento',
+        'tipo'
     ];
 
     public function usuario()
@@ -36,7 +38,7 @@ class Pedido extends Model
         return $this->hasMany(PedidoItem::class);
     }
 
-    public function usuarioEndereco()
+    public function endereco()
     {
         return $this->belongsTo(UsuarioEndereco::class);
     }

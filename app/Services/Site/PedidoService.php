@@ -4,6 +4,7 @@ namespace App\Services\Site;
 
 use App\Enums\Pedidos\ModalidadeFormaPagamento;
 use App\Enums\Pedidos\StatusPedido;
+use App\Enums\Pedidos\TipoPedido;
 use App\Events\Site\CarrinhoAlteradoEvent;
 use App\Exceptions\EstoqueIndisponivelException;
 use App\Exceptions\OperacaoIlegalException;
@@ -175,10 +176,12 @@ class PedidoService
         $pedido->frete = $pedidoItens->sum('frete');
         $pedido->icms = $pedidoItens->sum('icms');
         $pedido->total = $pedido->subtotal + $pedido->frete;
+        $pedido->save();
     }
 
     public static function calcularPedidoItem(PedidoItem $pedidoItem)
     {
+        $tipoPedido = $pedidoItem->pedido->tipo;
         foreach ($pedidoItem->pedidoItensAdicionais() as $item) {
             self::calcularPedidoItem($item);
         }
@@ -188,24 +191,35 @@ class PedidoService
         }
 
         if ($pedidoItem->pedido->status == StatusPedido::Aberto) {
-            $pedidoItem->preco_quilo = $pedidoItem->itemListaPreco->calculaPreco();
 
-            $cepEntrega = EntregaService::getCepEnderecoPadrao();
-            if (!is_null($cepEntrega)) {
-                $pedidoItem->frete = EntregaService::calcularFrete($pedidoItem->itemListaPreco, $cepEntrega);
-            } else {
-                $pedidoItem->frete = 0;
+            $endCepEntrega = $pedidoItem->pedido->endereco;
+            if (is_null($endCepEntrega) && $tipoPedido == TipoPedido::VendaEcommerce) {
+                $endCepEntrega = EntregaService::getCepEnderecoPadrao();
+            }
+
+            if ($tipoPedido != TipoPedido::Compra) {
+                if (!is_null($endCepEntrega)) {
+                    $pedidoItem->frete = EntregaService::calcularFrete($pedidoItem->itemListaPreco, $endCepEntrega);
+                } else {
+                    $pedidoItem->frete = 0;
+                }
+
+                $pedidoItem->preco_quilo = $pedidoItem->itemListaPreco->calculaPreco();
             }
 
             $pedidoItem->frete += $pedidoItem->pedidoItensAdicionais()->sum('frete');
         }
 
+        if ($tipoPedido != TipoPedido::Compra) {
+            $pedidoItem->icms = self::calcularIcmsPedidoItem($pedidoItem);
+            $pedidoItem->icms += $pedidoItem->pedidoItensAdicionais()->sum('icms');
+        }
+
         $pedidoItem->subtotal = $pedidoItem->preco_quilo * $pedidoItem->quantidade;
-        $pedidoItem->icms = self::calcularIcmsPedidoItem($pedidoItem);
-        $pedidoItem->icms += $pedidoItem->pedidoItensAdicionais()->sum('icms');
 
         $pedidoItem->total = $pedidoItem->subtotal + $pedidoItem->ajuste;
         $pedidoItem->total += $pedidoItem->pedidoItensAdicionais()->sum('total');
+        $pedidoItem->save();
     }
 
     public static function calcularIcmsPedidoItem(PedidoItem $pedidoItem)
@@ -243,10 +257,13 @@ class PedidoService
         session(['quantidade_carrinho' => $quantidade]);
     }
 
-    public static function submeterPedido()
+    public static function submeterPedido(Pedido $pedido)
     {
-        DB::transaction(function () {
+        if (is_null($pedido)) {
             $pedido = self::getPedido();
+        }
+
+        DB::transaction(function () use ($pedido) {
             $pedido->load([
                 'pedidoItens',
                 'pedidoItens.itemListaPreco',
@@ -274,6 +291,11 @@ class PedidoService
 
     public static function submeterPedidoItem(PedidoItem $pedidoItem)
     {
+        if ($pedidoItem->pedido->tipo == TipoPedido::Compra) {
+            //não reserva estoque
+            return;
+        }
+
         DB::transaction(function () use ($pedidoItem) {
             if ($pedidoItem->quantidade > $pedidoItem->itemListaPreco->produto->quantidade_disponivel) {
                 throw new EstoqueIndisponivelException("O produto {$pedidoItem->itemListaPreco->produto->nome} não possui quantidade suficiente em estoque");

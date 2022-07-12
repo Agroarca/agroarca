@@ -16,12 +16,20 @@
 @endsection
 
 @section('content')
-    {{ $slot }}
+<div class="loader" style="display:none"><div class="elemento"></div></div>
+    <div id="vue-app">
+        {{ $slot }}
+    </div>
 @endsection
 
 @push('js')
     <script src="{{ mix('js/vendor-admin.js') }}"></script>
     <script src="{{ mix('js/admin.js') }}"></script>
+    @hasSection('vue-app')
+        @once
+            <script src="{{ mix('js/vue-admin.js') }}"></script>
+        @endonce
+    @endif
     @isset($js)
         {{ $js }}
     @endisset

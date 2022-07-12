@@ -330,9 +330,20 @@ return [
                 ],
                 [
                     'text' => 'Formas de Pagamento',
-                    'icon' => 'fas fa-shapes',
+                    'icon' => 'fas fa-cash-register',
                     'route' => 'admin.pedidos.formas_pagamento',
                     'active' => ['admin/pedidos/formasPagamento/*']
+                ],
+            ]
+        ], [
+            'text' => 'Pedidos',
+            'icon' => 'fas fa-clipboard',
+            'submenu' => [
+                [
+                    'text' => 'Pedidos',
+                    'icon' => 'fas fa-shopping-cart',
+                    'route' => 'admin.pedidos.pedidos',
+                    'active' => ['admin/pedidos/pedidos/*']
                 ],
             ]
         ]

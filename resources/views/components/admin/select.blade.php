@@ -1,7 +1,6 @@
 <select
     id="{{ $id }}"
     name="{{ $name }}"
-    class="select2"
     @class($class)
     {{ $attributes }}
 >

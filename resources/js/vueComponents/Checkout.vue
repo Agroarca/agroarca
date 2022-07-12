@@ -148,7 +148,7 @@ export default {
 
             <div class="data-entrega mt-4">
                 <label for="data_entrega">Data de Entrega:</label>
-                <datepicker name="data_entrega" @alterarData="alterarDataEntrega" :data="checkout.data_entrega"></datepicker>
+                <datepicker name="data_entrega" @alterarData="alterarDataEntrega" :data="checkout.data_entrega ?? new Date()"></datepicker>
 
                 <div class="alert alert-danger mt-3" v-if="erros.data_entrega && erros.data_entrega.length > 0">
                     <span class="d-block" v-for="erro in erros.data_entrega" :key="erro">{{erro}}</span>
@@ -199,7 +199,7 @@ export default {
 
             <div class="forma-pagamento mt-4" v-if="mostrarDataPagamento">
                 <label for="data_pagamento">Data de Pagamento:</label>
-                <datepicker name="data_pagamento" @alterarData="alterarDataPagamento" :data="checkout.data_pagamento"></datepicker>
+                <datepicker name="data_pagamento" @alterarData="alterarDataPagamento" :data="checkout.data_pagamento ?? new Date()"></datepicker>
 
                 <div class="alert alert-danger mt-3" v-if="erros.data_pagamento && erros.data_pagamento.length > 0">
                     <span class="d-block" v-for="erro in erros.data_pagamento" :key="erro">{{erro}}</span>

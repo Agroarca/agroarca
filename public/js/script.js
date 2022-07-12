@@ -18,6 +18,14 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony import */ var owl_carousel__WEBPACK_IMPORTED_MODULE_4__ = __webpack_require__(/*! owl.carousel */ "./node_modules/owl.carousel/dist/owl.carousel.js");
 /* harmony import */ var owl_carousel__WEBPACK_IMPORTED_MODULE_4___default = /*#__PURE__*/__webpack_require__.n(owl_carousel__WEBPACK_IMPORTED_MODULE_4__);
 /* provided dependency */ var $ = __webpack_require__(/*! jquery */ "./node_modules/jquery/dist/jquery.js");
+function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
+
+function _defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } }
+
+function _createClass(Constructor, protoProps, staticProps) { if (protoProps) _defineProperties(Constructor.prototype, protoProps); if (staticProps) _defineProperties(Constructor, staticProps); Object.defineProperty(Constructor, "prototype", { writable: false }); return Constructor; }
+
+function _defineProperty(obj, key, value) { if (key in obj) { Object.defineProperty(obj, key, { value: value, enumerable: true, configurable: true, writable: true }); } else { obj[key] = value; } return obj; }
+
 
 
 
@@ -114,7 +122,38 @@ window.verificarCep = function (input) {
   if (cep.length == 8) {
     input.form.submit();
   }
-};
+}; //
+
+
+var Loader = /*#__PURE__*/function () {
+  function Loader() {
+    _classCallCheck(this, Loader);
+
+    _defineProperty(this, "ativo", false);
+  }
+
+  _createClass(Loader, [{
+    key: "mostrar",
+    value: function mostrar() {
+      if (!this.ativo) {
+        $('.loader').fadeIn('fast');
+        this.ativo = true;
+      }
+    }
+  }, {
+    key: "esconder",
+    value: function esconder() {
+      if (this.ativo) {
+        $('.loader').fadeOut('fast');
+        this.ativo = false;
+      }
+    }
+  }]);
+
+  return Loader;
+}();
+
+window.loader = new Loader();
 
 /***/ }),
 

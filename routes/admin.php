@@ -17,6 +17,9 @@ use App\Http\Controllers\Admin\PainelController;
 use App\Http\Controllers\Admin\Pedidos\FormaPagamentoController;
 use App\Http\Controllers\Admin\Pedidos\ItemListaPrecoController;
 use App\Http\Controllers\Admin\Pedidos\ListaPrecoController;
+use App\Http\Controllers\Admin\Pedidos\PedidoController;
+use App\Http\Controllers\Admin\Pedidos\PedidoItemController;
+use App\Http\Controllers\Admin\Pedidos\PedidoItemLoteController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -187,6 +190,28 @@ Route::middleware(['auth'])->prefix('admin')->name('admin')->group(function () {
             Route::get('editar/{id}', [FormaPagamentoController::class, 'editar'])->name('.editar');
             Route::post('atualizar/{id}', [FormaPagamentoController::class, 'atualizar'])->name('.atualizar');
             Route::get('excluir/{id}', [FormaPagamentoController::class, 'excluir'])->name('.excluir');
+        });
+
+        Route::prefix('pedidos')->name('.pedidos')->group(function () {
+            Route::get('', [PedidoController::class, 'inicio'])->name('');
+            Route::get('criar/', [PedidoController::class, 'criar'])->name('.criar');
+            Route::post('salvar/', [PedidoController::class, 'salvar'])->name('.salvar');
+            Route::get('editar/{id}', [PedidoController::class, 'editar'])->name('.editar');
+            Route::post('atualizar/{id}', [PedidoController::class, 'atualizar'])->name('.atualizar');
+            Route::get('aprovar/{id}', [PedidoController::class, 'aprovarPedido'])->name('.aprovar');
+            Route::get('submeter/{id}', [PedidoController::class, 'submeterPedido'])->name('.submeter');
+            Route::get('excluir/{id}', [PedidoController::class, 'excluir'])->name('.excluir');
+            Route::get('cancelar/{id}', [PedidoController::class, 'cancelar'])->name('.cancelar');
+
+            Route::prefix('{pedido_id}/itens')->name('.itens')->group(function () {
+                Route::post('adicionar', [PedidoItemController::class, 'adicionar'])->name('.adicionar');
+                Route::post('atualizar/{id}', [PedidoItemController::class, 'atualizar'])->name('.atualizar');
+                Route::post('excluir/{id}', [PedidoItemController::class, 'excluir'])->name('.excluir');
+
+                Route::prefix('lotes')->name('.lotes')->group(function () {
+                    Route::get('', [PedidoItemLoteController::class, 'inicio'])->name('');
+                });
+            });
         });
     });
 });

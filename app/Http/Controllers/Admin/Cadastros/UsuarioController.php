@@ -34,4 +34,25 @@ class UsuarioController extends Controller
 
         return redirect()->route('admin.cadastros.usuarios.editar', $id);
     }
+
+    public function pesquisar()
+    {
+        $pesquisa = '';
+
+        if (array_key_exists('q', $_GET)) {
+            $pesquisa = $_GET['q'];
+        }
+
+        $usuarios = Usuario::select('id', 'nome as text')
+            ->where('nome', 'like', "%$pesquisa%")
+            ->orWhere('email', 'like', "%$pesquisa%")
+            ->orWhere('cpf', 'like', "%$pesquisa%")
+            ->orWhere('cnpj', 'like', "%$pesquisa%")
+            ->orderBy('nome')
+            ->limit(30)
+            ->get()
+            ->toArray();
+
+        return response()->json(['results' => $usuarios]);
+    }
 }

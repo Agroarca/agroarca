@@ -25,6 +25,7 @@ class CarrinhoController extends Controller
 {
     public function inicio()
     {
+        CarrinhoAlteradoEvent::dispatch();
         $carrinho = CarrinhoService::getCarrinho();
         return view('site.carrinho.carrinho', compact('carrinho'));
     }

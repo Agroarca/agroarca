@@ -22,11 +22,9 @@ window.select2 = function (element) {
 }
 
 $(function () {
-
     $(".select2").each(function () {
         select2(this);
     })
-
 })
 
 
