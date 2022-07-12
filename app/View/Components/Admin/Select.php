@@ -21,7 +21,6 @@ class Select extends Component
         $this->values = $values;
         $this->selected = null;
         $this->placeholder = $placeholder;
-        $this->class = $class ?? [];
         $this->selectPlaceholder = $selectPlaceholder;
 
         foreach ($values as $key => $value) {
@@ -29,6 +28,12 @@ class Select extends Component
                 $this->selected = $selected;
                 break;
             }
+        }
+
+        $this->class = $this->class ?? [];
+
+        if (!is_array($this->class)) {
+            $this->class = [$this->class];
         }
 
         array_push($this->class, 'select2');
