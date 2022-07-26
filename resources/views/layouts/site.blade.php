@@ -10,8 +10,9 @@
     @stack('pre-js')
     <div id="vue-app">
         <div aria-live="polite" aria-atomic="true" class="position-relative">
-            <div id="erros-container" class="toast-container position-absolute top-0 end-0 p-3"></div>
+            <div id="erros-container" class="toast-container position-fixed top-0 end-0 p-3"></div>
         </div>
+        <div class="loader" style="display:none"><div class="elemento"></div></div>
 
         <x-site.header></x-site.header>
 

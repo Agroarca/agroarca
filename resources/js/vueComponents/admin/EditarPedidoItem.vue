@@ -8,7 +8,8 @@ export default {
     data() {
         return {
             showModal: false,
-            component_produto: {}
+            component_produto: {},
+            erros: []
         }
     },
     computed: {
@@ -28,16 +29,24 @@ export default {
             loader.mostrar()
 
             axios.post(this.produto.atualizar, this.component_produto).then(function(response){
+                loader.esconder();
 
                 if(response.data.pedido){
                     _this.$emit('atualizarPedido', response.data.pedido);
                 }
 
-                loader.esconder();
+                _this.erros = [];
                 _this.fechar();
             }).catch(function (error) {
                 loader.esconder()
-                console.log('catch')
+
+                if(error.response.data.hasOwnProperty('errors')){
+                    _this.erros = Object.values(error.response.data.errors).flat()
+                }else if(error.response.data.hasOwnProperty('message')){
+                    _this.erros = [error.response.data.message]
+                }else{
+                    _this.erros = ["Ocorreu um erro, tente novamente mais tarde"]
+                }
             })
         },
         mostrar(){
@@ -48,6 +57,7 @@ export default {
             this.component_produto.produto = this.produto.produto
             this.component_produto.id = this.produto.id
             this.showModal = true
+            this.erros = []
         },
         fechar(){
             this.showModal = false
@@ -65,6 +75,12 @@ export default {
             <template #header>
                 <h5 class="modal-title">Adicionar Item</h5>
             </template>
+
+            <div class="form-group" v-if="erros.length > 0">
+                <div class="alert alert-danger" role="alert">
+                    <span class="d-block" v-for="(erro, index) in erros" :key="index">{{erro}}</span>
+                </div>
+            </div>
 
             <div class="form-group">
                 <label for="produto">Produto:</label>

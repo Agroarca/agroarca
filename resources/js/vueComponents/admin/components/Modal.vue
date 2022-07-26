@@ -15,8 +15,9 @@ export default {
         <teleport to="body">
             <transition name="modal" @after-enter="onAfterEnter">
                 <div v-if="show">
-                    <div class="modal fade show" :class="class" tabindex="-1" @click="fechar" >
-                        <div class="modal-dialog" @click.stop="">
+                    <div class="modal fade show" :class="class" tabindex="-1">
+                    <div class="backdrop" @click="fechar"></div>
+                        <div class="modal-dialog">
                             <div class="modal-content">
                                 <div class="modal-header">
                                     <slot name="header"></slot>
@@ -33,7 +34,6 @@ export default {
                             </div>
                         </div>
                     </div>
-                    <div class="backdrop"></div>
                 </div>
             </transition>
         </teleport>
@@ -53,6 +53,10 @@ export default {
 
 .modal{
     display: block;
+}
+
+.modal-dialog{
+    z-index: 1046
 }
 
 .backdrop{

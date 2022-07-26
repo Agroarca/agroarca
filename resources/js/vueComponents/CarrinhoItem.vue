@@ -24,6 +24,7 @@ export default{
                     _this.$emit('alterarCarrinho', response.data.carrinho)
                 }
             }).catch(function(error){
+
                 _this.adicionarErro("ocorreu um erro ao alterar a quantidade, tente novamente mais tarde");
                 setTimeout(() => {
                     window.location.reload();
@@ -33,9 +34,11 @@ export default{
         removerItem(event){
             event.preventDefault();
             let _this = this;
+            loader.mostrar()
 
             axios.get(this.carrinhoitem.link_remover)
             .then(function (response){
+                loader.esconder()
 
                 if(response.data.erro){
                     _this.adicionarErro(response.data.erro)
@@ -47,6 +50,7 @@ export default{
                 }
 
             }).catch(function(error){
+                loader.esconder()
                 _this.adicionarErro("ocorreu um erro ao remover o item, tente novamente mais tarde");
                 setTimeout(() => {
                     window.location.reload();

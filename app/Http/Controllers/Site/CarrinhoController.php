@@ -17,7 +17,6 @@ use App\Services\Site\ListService;
 use App\Services\Site\PedidoService;
 use App\Services\Site\UsuarioService;
 use Carbon\Carbon;
-use Exception;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 

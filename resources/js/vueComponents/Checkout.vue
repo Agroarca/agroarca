@@ -26,14 +26,17 @@ export default {
     methods: {
         selecionarEndereco(endereco){
             let _this = this;
+            loader.mostrar()
 
             axios.post(endereco.selecionar).then(function (response){
+                loader.esconder()
 
                 if(response.data.checkout){
                     _this.checkout = response.data.checkout
                 }
 
             }).catch(function(error){
+                loader.esconder()
                 _this.adicionarErro("ocorreu um erro ao selecionar o endereço, tente novamente mais tarde");
                 setTimeout(() => {
                     window.location.reload();
@@ -42,14 +45,17 @@ export default {
         },
         excluirEndereco(endereco){
             let _this = this;
+            loader.mostrar()
 
             axios.post(endereco.excluir).then(function (response){
+                loader.esconder()
 
                 if(response.data.checkout){
                     _this.checkout = response.data.checkout
                 }
 
             }).catch(function(error){
+                loader.esconder()
                 _this.adicionarErro("ocorreu um erro ao excluir o endereço, tente novamente mais tarde");
                 setTimeout(() => {
                     window.location.reload();

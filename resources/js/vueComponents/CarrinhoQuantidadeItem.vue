@@ -49,6 +49,7 @@ export default {
     color: var(--verde-claro);
     font-weight: bold;
     font-size: 20px;
+    border-radius: 0;
 }
 
 .quantidade:focus-visible {

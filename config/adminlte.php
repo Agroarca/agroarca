@@ -283,6 +283,18 @@ return [
             ]
         ],
         [
+            'text' => 'Estoque',
+            'icon' => 'fas fa-dolly',
+            'submenu' => [
+                [
+                    'text' => 'Lotes',
+                    'icon' => 'fas fas fa-clipboard-check',
+                    'route' => 'admin.estoque.lotes',
+                    'active' => ['admin/estoque/lotes/*']
+                ],
+            ]
+        ],
+        [
             'text' => 'Produtos',
             'icon' => 'fas fa-boxes',
             'submenu' => [

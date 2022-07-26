@@ -7,6 +7,7 @@ use App\Http\Controllers\Admin\Cadastros\CidadeController;
 use App\Http\Controllers\Admin\Cadastros\EstadoController;
 use App\Http\Controllers\Admin\Cadastros\UsuarioController;
 use App\Http\Controllers\Admin\Cadastros\UsuarioEnderecoController;
+use App\Http\Controllers\Admin\Estoque\Lotes\LoteController;
 use App\Http\Controllers\Admin\Produtos\CategoriaController;
 use App\Http\Controllers\Admin\Produtos\ICMSProdutoEstadoController;
 use App\Http\Controllers\Admin\Produtos\MarcaController;
@@ -210,8 +211,22 @@ Route::middleware(['auth'])->prefix('admin')->name('admin')->group(function () {
 
                 Route::prefix('lotes')->name('.lotes')->group(function () {
                     Route::get('', [PedidoItemLoteController::class, 'inicio'])->name('');
+                    Route::get('criar', [PedidoItemLoteController::class, 'criarLote'])->name('.criar');
+                    Route::post('salvar', [PedidoItemLoteController::class, 'salvarLote'])->name('.salvar');
+                    Route::post('/movimento/salvar', [PedidoItemLoteController::class, 'salvarMovimento'])->name('.movimento.salvar');
                 });
             });
+        });
+    });
+
+    Route::prefix('estoque')->name('.estoque')->group(function () {
+        Route::prefix('lotes')->name('.lotes')->group(function () {
+            Route::get('{produto_id?}', [LoteController::class, 'inicio'])->name('');
+            Route::get('{produto_id}/criar/', [LoteController::class, 'criar'])->name('.criar');
+            Route::post('{produto_id}/salvar/', [LoteController::class, 'salvar'])->name('.salvar');
+            Route::get('{produto_id}/editar/{id}', [LoteController::class, 'editar'])->name('.editar');
+            Route::post('{produto_id}/atualizar/{id}', [LoteController::class, 'atualizar'])->name('.atualizar');
+            Route::get('{produto_id}/excluir/{id}', [LoteController::class, 'excluir'])->name('.excluir');
         });
     });
 });

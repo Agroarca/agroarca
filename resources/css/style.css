@@ -982,3 +982,7 @@ section.sub-footer .payment-methods ul {
         transform: rotate(360deg);
     }
 }
+
+#erros-container {
+    z-index: 2000;
+}

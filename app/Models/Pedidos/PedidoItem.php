@@ -3,6 +3,7 @@
 namespace App\Models\Pedidos;
 
 use App\Models\Estoque\MovimentoLote;
+use App\Models\Estoque\ReservaProduto;
 use App\Models\Produtos\Produto;
 use App\Traits\Dominio;
 use Illuminate\Database\Eloquent\Factories\HasFactory;

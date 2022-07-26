@@ -1,12 +1,12 @@
 {
-    "/js/vendor.js": "/js/vendor.js?id=fba5daa69501b0cef6afe1a8f9dd94e3",
-    "/js/vendor-admin.js": "/js/vendor-admin.js?id=d9fe946b73c673b2dbcc297a5f44d196",
-    "/js/script.js": "/js/script.js?id=20c4d2ad8d7cd07965c89bf3036f3a32",
-    "/js/admin.js": "/js/admin.js?id=3593f75f0e362dad2ae8fdabf999d6e4",
-    "/js/vue.js": "/js/vue.js?id=0f521a92f1c1690991dcd8bcdebfdae3",
-    "/js/vue-admin.js": "/js/vue-admin.js?id=95569368d7e77dba017518462d23a6b7",
-    "/css/vendor-admin.css": "/css/vendor-admin.css?id=48fbb44a325459fab353a9093cb4c365",
-    "/css/vendor.css": "/css/vendor.css?id=2f72f6eea2b8f7d79bf203f5f8ce51b8",
-    "/css/style.css": "/css/style.css?id=62c6c33f38ca97da23d7c0b765b4b307",
-    "/css/admin.css": "/css/admin.css?id=e057ddace158955fffca4b185da151bc"
+    "/js/vendor.js": "/js/vendor.js",
+    "/js/vendor-admin.js": "/js/vendor-admin.js",
+    "/js/script.js": "/js/script.js",
+    "/js/admin.js": "/js/admin.js",
+    "/js/vue.js": "/js/vue.js",
+    "/js/vue-admin.js": "/js/vue-admin.js",
+    "/css/vendor-admin.css": "/css/vendor-admin.css",
+    "/css/vendor.css": "/css/vendor.css",
+    "/css/style.css": "/css/style.css",
+    "/css/admin.css": "/css/admin.css"
 }

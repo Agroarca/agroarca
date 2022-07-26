@@ -1,6 +1,3 @@
-@php
-    use \App\Enums\Pedidos\TipoPedido;
-@endphp
 @section('vue-app', true)
 
 <script>

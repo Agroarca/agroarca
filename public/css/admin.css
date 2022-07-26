@@ -1,1 +1,79 @@
-.crop-image-container .crop-image{max-width:100%}.select2-container{padding:0;width:100%!important}.select2-container .select2-selection--single,.select2-container--default .select2-selection--single .select2-selection__arrow{height:calc(2.25rem + 2px)!important}.alert-primary{background-color:#cce5ff;border-color:#b8daff;color:#004085}.loader{background:#000;height:100vh;left:0;opacity:.5;position:fixed;top:0;width:100vw;z-index:9999}.loader .elemento{display:inline-block;height:80px;left:50%;position:absolute;top:50%;transform:translate(-50%,-50%);width:80px}.loader .elemento:after{-webkit-animation:lds-dual-ring 1.2s linear infinite;animation:lds-dual-ring 1.2s linear infinite;border-color:#fff transparent;border-radius:50%;border-style:solid;border-width:6px;content:" ";display:block;height:64px;margin:8px;width:64px}@-webkit-keyframes lds-dual-ring{0%{transform:rotate(0deg)}to{transform:rotate(1turn)}}@keyframes lds-dual-ring{0%{transform:rotate(0deg)}to{transform:rotate(1turn)}}
+.crop-image-container .crop-image {
+    max-width: 100%;
+}
+
+.select2-container {
+    width: 100% !important;
+    padding: 0;
+}
+
+.select2-container .select2-selection--single,
+.select2-container--default .select2-selection--single .select2-selection__arrow {
+    height: calc(2.25rem + 2px) !important;
+}
+
+.alert-primary {
+    color: #004085;
+    background-color: #cce5ff;
+    border-color: #b8daff;
+}
+
+/* loader */
+.loader {
+    position: fixed;
+    height: 100vh;
+    width: 100vw;
+    background: #000;
+    z-index: 9999;
+    top: 0;
+    left: 0;
+    opacity: 0.5;
+}
+
+.loader .elemento {
+    position: absolute;
+    display: inline-block;
+    width: 80px;
+    height: 80px;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+}
+
+.loader .elemento:after {
+    content: " ";
+    display: block;
+    width: 64px;
+    height: 64px;
+    margin: 8px;
+    border-radius: 50%;
+    border: 6px solid #fff;
+    border-color: #fff transparent #fff transparent;
+    -webkit-animation: lds-dual-ring 1.2s linear infinite;
+            animation: lds-dual-ring 1.2s linear infinite;
+}
+
+@-webkit-keyframes lds-dual-ring {
+    0% {
+        transform: rotate(0deg);
+    }
+
+    100% {
+        transform: rotate(360deg);
+    }
+}
+
+@keyframes lds-dual-ring {
+    0% {
+        transform: rotate(0deg);
+    }
+
+    100% {
+        transform: rotate(360deg);
+    }
+}
+
+/* .main-header, .main-sidebar {
+    z-index: auto;
+} */
+

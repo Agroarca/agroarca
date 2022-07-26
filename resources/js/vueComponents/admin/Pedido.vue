@@ -12,7 +12,8 @@ export default {
     },
     data() {
         return{
-            pedido: window.pedidoDados
+            pedido: window.pedidoDados,
+            erros: []
         }
     },
     computed: {
@@ -34,6 +35,7 @@ export default {
         },
         salvarPedido(){
             let _this = this;
+            loader.mostrar()
 
             axios.post(this.pedido.atualizar, {
                 'usuario_id': this.pedido.usuarioId,
@@ -43,45 +45,73 @@ export default {
                 'data_entrega': this.pedido.data_entrega,
                 'observacao': this.pedido.observacao
             }).then(function (response) {
+                loader.esconder()
 
                 if(response.data.pedido){
                     _this.pedido = response.data.pedido
                 }
 
-            }).catch(function (error) { console.log(error)})
+            }).catch(function (error) {
+                loader.esconder()
+                _this.erros = _this.handle(error)
+            })
         },
         submeterPedido(){
             let _this = this;
+            loader.mostrar()
 
             axios.get(this.pedido.submeter).then(function (response) {
+                loader.esconder()
 
                 if(response.data.pedido){
                     _this.pedido = response.data.pedido
                 }
 
-            }).catch(function (error) { console.log(error)})
+            }).catch(function (error) {
+                loader.esconder()
+                _this.erros = _this.handle(error)
+            })
         },
         aprovarPedido(){
             let _this = this;
+            loader.mostrar()
 
             axios.get(this.pedido.aprovar).then(function (response) {
+                loader.esconder()
 
                 if(response.data.pedido){
                     _this.pedido = response.data.pedido
                 }
 
-            }).catch(function (error) { console.log(error)})
+            }).catch(function (error) {
+                loader.esconder()
+                _this.erros = _this.handle(error)
+            })
         },
         excluirItem(url){
             let _this = this;
+            loader.mostrar()
 
             axios.post(url).then(function (response) {
+                loader.esconder()
 
                 if(response.data.pedido){
                     _this.pedido = response.data.pedido
                 }
 
-            }).catch(function (error) { console.log(error)})
+            }).catch(function (error) {
+                loader.esconder()
+                _this.erros = _this.handle(error)
+            })
+        },
+        handle(error){
+            if(error.response.data.hasOwnProperty('errors')){
+                return Object.values(error.response.data.errors).flat()
+            }else if(error.response.data.hasOwnProperty('message')){
+                return [error.response.data.message]
+            }else{
+                return ["Ocorreu um erro, tente novamente mais tarde"]
+            }
         }
     }
 }
@@ -90,6 +120,12 @@ export default {
 <template>
     <div class="card card-default">
         <div class="card-body">
+
+            <div class="form-group" v-if="erros.length > 0">
+                <div class="alert alert-danger" role="alert">
+                    <span class="d-block" v-for="(erro, index) in erros" :key="index">{{erro}}</span>
+                </div>
+            </div>
 
             <div class="row">
                 <div class="form-group col-6">
