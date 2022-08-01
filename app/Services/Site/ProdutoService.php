@@ -61,7 +61,11 @@ class ProdutoService
     {
         return $query
             ->whereNotNull('produtos.icms_padrao')
-            ->where('produtos.quantidade_disponivel', '>', DB::raw(0))
+            ->join('tipos_produto', 'tipos_produto.id', '=', 'produtos.tipo_produto_id')
+            ->where(function ($query) {
+                $query->where('produtos.quantidade_disponivel', '>', DB::raw(0))
+                    ->orwhere('tipos_produto.controlar_estoque', '=', 0);
+            })
             ->whereExists(
                 function ($query) {
                     $query->select('*')

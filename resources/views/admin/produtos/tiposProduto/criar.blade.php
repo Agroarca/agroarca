@@ -11,10 +11,15 @@
                     <input type="text" name="nome" value="{{ old('nome') }}" @class(['form-control', 'is-invalid' => $errors->has('nome')]) />
                     <x-admin.form-error property='nome'></x-admin.form-error>
                 </div>
-                <div class="form-check" data-toggle="tooltip" data-placement="top" title="Mínimo de dias a partir do dia corrente que pode ser selecionada uma data para entrega">
+                <div class="form-check">
                     <input type="checkbox" name="listavel" value="1" {{ old('listavel') ? 'checked' : '' }} @class(['form-check-input', 'is-invalid' => $errors->has('listavel')]) />
                     <label for="listavel" class="form-check-label">Listavel</label>
                     <x-admin.form-error property='listavel'></x-admin.form-error>
+                </div>
+                <div class="form-check">
+                    <input type="checkbox" name="controlar_estoque" value="1" {{ old('controlar_estoque')?? true ? 'checked' : '' }} @class(['form-check-input', 'is-invalid' => $errors->has('controlar_estoque')]) />
+                    <label for="controlar_estoque" class="form-check-label">Controlar Estoque</label>
+                    <x-admin.form-error property='controlar_estoque'></x-admin.form-error>
                 </div>
             </div>
             <div class="card-footer">

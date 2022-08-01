@@ -6,6 +6,8 @@ use App\Enums\Pedidos\ModalidadeFormaPagamento;
 use App\Helpers\Formatter;
 use App\Models\Cadastros\Usuario;
 use App\Models\Pedidos\FormaPagamento;
+use App\Models\Pedidos\Pedido;
+use App\Models\Pedidos\PedidoItem;
 use Illuminate\Support\Facades\Auth;
 
 class CarrinhoService
@@ -13,8 +15,17 @@ class CarrinhoService
     public static function getCarrinho()
     {
         $pedido = PedidoService::getPedido();
+        $pedido->load([
+            'pedidoItens.itemListaPreco.produto',
+            'pedidoItens.itemListaPreco.produto.imagens',
+            'pedidoItens.pedidoItensAdicionais',
+            'pedidoItens.pedidoItensAdicionais.itemListaPreco',
+            'pedidoItens.pedidoItensAdicionais.itemListaPreco.produto',
+            'pedidoItens.pedidoItensAdicionais.itemListaPreco.produto.tipoProduto'
+        ]);
+
         return [
-            'pedidoItens' => self::getPedidoItens(),
+            'pedidoItens' => self::getPedidoItens($pedido),
             'frete' => $pedido->frete,
             'subtotal' => $pedido->subtotal,
             'total' => $pedido->total,
@@ -24,22 +35,10 @@ class CarrinhoService
         ];
     }
 
-    public static function getPedidoItens()
+    public static function getPedidoItens(Pedido $pedido)
     {
-        $pedido = PedidoService::getPedido();
-        $pedidoItens = $pedido->pedidoItens()
-            ->with([
-                'itemListaPreco.produto',
-                'itemListaPreco.produto.imagens',
-                'pedidoItensAdicionais',
-                'pedidoItensAdicionais.itemListaPreco',
-                'pedidoItensAdicionais.itemListaPreco.produto',
-                'pedidoItensAdicionais.itemListaPreco.produto.tipoProduto'
-            ])
-            ->get();
-
         $itens = [];
-        foreach ($pedidoItens as $pedidoItem) {
+        foreach ($pedido->pedidoItens as $pedidoItem) {
             array_push($itens, [
                 'id' => $pedidoItem->id,
                 'nomeProduto' => $pedidoItem->itemListaPreco->produto->nome,
@@ -50,7 +49,10 @@ class CarrinhoService
                 'quantidade' => $pedidoItem->quantidade,
                 'link_remover' => route('site.carrinho.remover', $pedidoItem->id),
                 'pedidoItensAdicionais' => self::getAdicionais($pedidoItem),
-                'link_alterar_quantidade' => route('site.carrinho.alterar_quantidade', $pedidoItem->id)
+                'link_alterar_quantidade' => route('site.carrinho.alterar_quantidade', $pedidoItem->id),
+                'link_adicionais' => route('site.carrinho.adicionais', $pedidoItem->id),
+                'link_salvar_adicionais' => route('site.carrinho.salvar_adicionais', $pedidoItem->id),
+                'tem_adicionais' => self::temAdicionais($pedidoItem)
             ]);
         }
 
@@ -145,5 +147,44 @@ class CarrinhoService
         }
 
         return $formasPagamento;
+    }
+
+    private static function temAdicionais(PedidoItem $pedidoItem)
+    {
+        return ListService::queryItensAdicionaisPedido($pedidoItem)->count() > 0;
+    }
+
+    public static function adicionaisPedidoItem(PedidoItem $pedidoItem)
+    {
+        $itens = ListService::queryItensAdicionaisPedido($pedidoItem)->get();
+        //return $itens;
+        $adicionais = [];
+        foreach ($itens as $item) {
+            $itemListaPreco = self::selecionarItemListaPreco($item->itensListaPreco);
+            array_push($adicionais, [
+                'id' => $item->id,
+                'codigo' => $item->codigo,
+                'nome' => $item->nome,
+                'descricao' => $item->descricao,
+                'preco' => $itemListaPreco->preco_item,
+                'imagem' => self::getImagem($item),
+                'adicionado' => $item->adicionado,
+                'item_lista_preco_id' => $itemListaPreco->id,
+                'selecionado' => $itemListaPreco->selecionado
+            ]);
+        }
+
+        return $adicionais;
+    }
+
+    private static function selecionarItemListaPreco($itensListaPreco)
+    {
+        foreach ($itensListaPreco as $item) {
+            if ($item->selecionado) {
+                return $item;
+            }
+        }
+
+        return $itensListaPreco->first();
     }
 }

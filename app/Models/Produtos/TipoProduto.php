@@ -10,7 +10,7 @@ class TipoProduto extends Model
 {
     use HasFactory, Dominio;
     protected $table = 'tipos_produto';
-    protected $fillable = ['nome', 'listavel'];
+    protected $fillable = ['nome', 'listavel', 'controlar_estoque'];
 
     public function produtos()
     {

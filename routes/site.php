@@ -38,6 +38,8 @@ Route::name('site')->group(function () {
         Route::get('item/{item_id}/editar', [CarrinhoController::class, 'editar'])->name('.editar');
         Route::post('item/{item_id}/salvar', [CarrinhoController::class, 'salvar'])->name('.salvar');
         Route::post('item/{item_id}/alterar_quantidade', [CarrinhoController::class, 'alterar_quantidade'])->name('.alterar_quantidade');
+        Route::get('item/{item_id}/adicionais', [CarrinhoController::class, 'adicionais'])->name('.adicionais');
+        Route::get('item/{item_id}/adicionais/salvar', [CarrinhoController::class, 'salvarAdicionais'])->name('.salvar_adicionais');
     });
 
     Route::middleware(['auth'])->group(function () {

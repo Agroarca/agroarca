@@ -342,7 +342,12 @@ class PedidoService
             'data_entrega' => 'required|date',
             'endereco_id' => ['required'],
             'forma_pagamento_id' => ['required', new ExistsDominio('formas_pagamento')],
-            'data_pagamento' => [Rule::requiredIf($pedido->formaPagamento->modalidade == ModalidadeFormaPagamento::Credito), 'date']
+            'data_pagamento' => ['nullable', Rule::requiredIf(function () use ($pedido) {
+                if (!is_null($pedido->formaPagamento)) {
+                    return $pedido->formaPagamento->modalidade == ModalidadeFormaPagamento::Credito;
+                }
+                return false;
+            }), 'date']
         ], [], [
             'data_entrega' => 'Data de Entrega',
             'endereco_id' => 'Endereço de Entrega',

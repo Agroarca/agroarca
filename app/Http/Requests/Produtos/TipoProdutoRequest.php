@@ -15,7 +15,8 @@ class TipoProdutoRequest extends FormRequest
     {
         return [
             'nome' => 'string|required|min:3|max:100',
-            'listavel' => 'nullable',
+            'listavel' => 'nullable|boolean',
+            'controlar_estoque' => 'nullable|boolean',
         ];
     }
 
@@ -24,13 +25,15 @@ class TipoProdutoRequest extends FormRequest
         return [
             'nome' => 'Nome',
             'listavel' => 'Listavel',
+            'controlar_estoque' => 'Controlar Estoque',
         ];
     }
 
     protected function prepareForValidation()
     {
         $this->merge([
-            'listavel' => $this->boolean('listavel')
+            'listavel' => $this->boolean('listavel'),
+            'controlar_estoque' => $this->boolean('controlar_estoque')
         ]);
     }
 }

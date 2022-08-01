@@ -148,11 +148,6 @@ header .search-container input::-moz-placeholder {
   padding-bottom: 2rem;
   color: var(--cinza-escuro);
 }
-header .search-container input:-ms-input-placeholder {
-  font-size: 24px;
-  padding-bottom: 2rem;
-  color: var(--cinza-escuro);
-}
 header .search-container input::placeholder {
   font-size: 24px;
   padding-bottom: 2rem;
@@ -160,9 +155,6 @@ header .search-container input::placeholder {
 }
 @media (max-width: 1199.98px) {
   header .search-container input::-moz-placeholder {
-    font-size: 18px;
-  }
-  header .search-container input:-ms-input-placeholder {
     font-size: 18px;
   }
   header .search-container input::placeholder {
@@ -646,7 +638,7 @@ input[type=checkbox]:focus {
   margin: 0 auto;
 }
 .modal .modal-body {
-  padding: 3rem 1rem;
+  padding: 1rem 1rem;
 }
 .modal .modal-footer {
   border: unset;
@@ -655,6 +647,15 @@ input[type=checkbox]:focus {
   font-weight: 300;
   font-size: 14px;
   text-transform: capitalize;
+}
+.modal .close {
+  width: 32px;
+  height: 32px;
+  color: var(--borda);
+  border: 1px solid var(--borda);
+  background: var(--branco);
+  font-size: 24px;
+  border-radius: 6px;
 }
 .link {
     color: var(--verde-claro);
@@ -815,10 +816,6 @@ section .section-title {
 }
 
 .newsletter .grid-container .newsletter-item.form-newsletter input[type="text"]::-moz-placeholder {
-    color: var(--cinza-escuro);
-}
-
-.newsletter .grid-container .newsletter-item.form-newsletter input[type="text"]:-ms-input-placeholder {
     color: var(--cinza-escuro);
 }
 

@@ -86,6 +86,7 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony export */   "generate": () => (/* binding */ generate),
 /* harmony export */   "generateCodeFrame": () => (/* reexport safe */ _vue_shared__WEBPACK_IMPORTED_MODULE_0__.generateCodeFrame),
 /* harmony export */   "getBaseTransformPreset": () => (/* binding */ getBaseTransformPreset),
+/* harmony export */   "getConstantType": () => (/* binding */ getConstantType),
 /* harmony export */   "getInnerRange": () => (/* binding */ getInnerRange),
 /* harmony export */   "getMemoedVNodeCall": () => (/* binding */ getMemoedVNodeCall),
 /* harmony export */   "getVNodeBlockHelper": () => (/* binding */ getVNodeBlockHelper),
@@ -1921,6 +1922,14 @@ function getConstantType(node, context) {
                 // static then they don't need to be blocks since there will be no
                 // nested updates.
                 if (codegenNode.isBlock) {
+                    // except set custom directives.
+                    for (let i = 0; i < node.props.length; i++) {
+                        const p = node.props[i];
+                        if (p.type === 7 /* DIRECTIVE */) {
+                            constantCache.set(node, 0 /* NOT_CONSTANT */);
+                            return 0 /* NOT_CONSTANT */;
+                        }
+                    }
                     context.removeHelper(OPEN_BLOCK);
                     context.removeHelper(getVNodeBlockHelper(context.inSSR, codegenNode.isComponent));
                     codegenNode.isBlock = false;
@@ -2327,6 +2336,7 @@ function createStructuralDirectiveTransform(name, fn) {
 }
 
 const PURE_ANNOTATION = `/*#__PURE__*/`;
+const aliasHelper = (s) => `${helperNameMap[s]}: _${helperNameMap[s]}`;
 function createCodegenContext(ast, { mode = 'function', prefixIdentifiers = mode === 'module', sourceMap = false, filename = `template.vue.html`, scopeId = null, optimizeImports = false, runtimeGlobalName = `Vue`, runtimeModuleName = `vue`, ssrRuntimeModuleName = 'vue/server-renderer', ssr = false, isTS = false, inSSR = false }) {
     const context = {
         mode,
@@ -2403,9 +2413,7 @@ function generate(ast, options = {}) {
         // function mode const declarations should be inside with block
         // also they should be renamed to avoid collision with user properties
         if (hasHelpers) {
-            push(`const { ${ast.helpers
-                .map(s => `${helperNameMap[s]}: _${helperNameMap[s]}`)
-                .join(', ')} } = _Vue`);
+            push(`const { ${ast.helpers.map(aliasHelper).join(', ')} } = _Vue`);
             push(`\n`);
             newline();
         }
@@ -2465,7 +2473,6 @@ function generate(ast, options = {}) {
 function genFunctionPreamble(ast, context) {
     const { ssr, prefixIdentifiers, push, newline, runtimeModuleName, runtimeGlobalName, ssrRuntimeModuleName } = context;
     const VueBinding = runtimeGlobalName;
-    const aliasHelper = (s) => `${helperNameMap[s]}: _${helperNameMap[s]}`;
     // Generate const declaration for helpers
     // In prefix mode, we place the const declaration at top so it's done
     // only once; But if we not prefixing, we place the declaration inside the
@@ -3183,14 +3190,14 @@ function processIf(node, dir, context, processCodegen) {
     }
 }
 function createIfBranch(node, dir) {
+    const isTemplateIf = node.tagType === 3 /* TEMPLATE */;
     return {
         type: 10 /* IF_BRANCH */,
         loc: node.loc,
         condition: dir.name === 'else' ? undefined : dir.exp,
-        children: node.tagType === 3 /* TEMPLATE */ && !findDir(node, 'for')
-            ? node.children
-            : [node],
-        userKey: findProp(node, `key`)
+        children: isTemplateIf && !findDir(node, 'for') ? node.children : [node],
+        userKey: findProp(node, `key`),
+        isTemplateIf
     };
 }
 function createCodegenNodeForBranch(branch, keyIndex, context) {
@@ -3226,6 +3233,7 @@ function createChildrenCodegenNode(branch, keyIndex, context) {
             // check if the fragment actually contains a single valid child with
             // the rest being comments
             if (( true) &&
+                !branch.isTemplateIf &&
                 children.filter(c => c.type !== 3 /* COMMENT */).length === 1) {
                 patchFlag |= 2048 /* DEV_ROOT_FRAGMENT */;
                 patchFlagText += `, ${_vue_shared__WEBPACK_IMPORTED_MODULE_0__.PatchFlagNames[2048]}`;
@@ -3803,7 +3811,7 @@ const transformElement = (node, context) => {
                 (tag === 'svg' || tag === 'foreignObject'));
         // props
         if (props.length > 0) {
-            const propsBuildResult = buildProps(node, context);
+            const propsBuildResult = buildProps(node, context, undefined, isComponent, isDynamicComponent);
             vnodeProps = propsBuildResult.props;
             patchFlag = propsBuildResult.patchFlag;
             dynamicPropNames = propsBuildResult.dynamicPropNames;
@@ -3943,9 +3951,8 @@ function resolveComponentType(node, context, ssr = false) {
     context.components.add(tag);
     return toValidAssetId(tag, `component`);
 }
-function buildProps(node, context, props = node.props, ssr = false) {
+function buildProps(node, context, props = node.props, isComponent, isDynamicComponent, ssr = false) {
     const { tag, loc: elementLoc, children } = node;
-    const isComponent = node.tagType === 1 /* COMPONENT */;
     let properties = [];
     const mergeArgs = [];
     const runtimeDirectives = [];
@@ -3964,8 +3971,8 @@ function buildProps(node, context, props = node.props, ssr = false) {
         if (isStaticExp(key)) {
             const name = key.content;
             const isEventHandler = (0,_vue_shared__WEBPACK_IMPORTED_MODULE_0__.isOn)(name);
-            if (!isComponent &&
-                isEventHandler &&
+            if (isEventHandler &&
+                (!isComponent || isDynamicComponent) &&
                 // omit the flag for click handlers because hydration gives click
                 // dedicated fast path.
                 name.toLowerCase() !== 'onclick' &&
@@ -4220,10 +4227,11 @@ function buildProps(node, context, props = node.props, ssr = false) {
                         classProp.value = createCallExpression(context.helper(NORMALIZE_CLASS), [classProp.value]);
                     }
                     if (styleProp &&
-                        !isStaticExp(styleProp.value) &&
                         // the static style is compiled into an object,
                         // so use `hasStyleBinding` to ensure that it is a dynamic style binding
                         (hasStyleBinding ||
+                            (styleProp.value.type === 4 /* SIMPLE_EXPRESSION */ &&
+                                styleProp.value.content.trim()[0] === `[`) ||
                             // v-bind:style and style both exist,
                             // v-bind:style with static literal object
                             styleProp.value.type === 17 /* JS_ARRAY_EXPRESSION */)) {
@@ -4421,7 +4429,7 @@ function processSlotOutlet(node, context) {
         }
     }
     if (nonNameProps.length > 0) {
-        const { props, directives } = buildProps(node, context, nonNameProps);
+        const { props, directives } = buildProps(node, context, nonNameProps, false, false);
         slotProps = props;
         if (directives.length) {
             context.onError(createCompilerError(36 /* X_V_SLOT_UNEXPECTED_DIRECTIVE_ON_SLOT_OUTLET */, directives[0].loc));
@@ -4592,11 +4600,7 @@ const transformText = (node, context) => {
                         const next = children[j];
                         if (isText(next)) {
                             if (!currentContainer) {
-                                currentContainer = children[i] = {
-                                    type: 8 /* COMPOUND_EXPRESSION */,
-                                    loc: child.loc,
-                                    children: [child]
-                                };
+                                currentContainer = children[i] = createCompoundExpression([child], child.loc);
                             }
                             // merge adjacent text node into current
                             currentContainer.children.push(` + `, next);
@@ -5095,6 +5099,7 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony export */   "generate": () => (/* reexport safe */ _vue_compiler_core__WEBPACK_IMPORTED_MODULE_0__.generate),
 /* harmony export */   "generateCodeFrame": () => (/* reexport safe */ _vue_compiler_core__WEBPACK_IMPORTED_MODULE_0__.generateCodeFrame),
 /* harmony export */   "getBaseTransformPreset": () => (/* reexport safe */ _vue_compiler_core__WEBPACK_IMPORTED_MODULE_0__.getBaseTransformPreset),
+/* harmony export */   "getConstantType": () => (/* reexport safe */ _vue_compiler_core__WEBPACK_IMPORTED_MODULE_0__.getConstantType),
 /* harmony export */   "getInnerRange": () => (/* reexport safe */ _vue_compiler_core__WEBPACK_IMPORTED_MODULE_0__.getInnerRange),
 /* harmony export */   "getMemoedVNodeCall": () => (/* reexport safe */ _vue_compiler_core__WEBPACK_IMPORTED_MODULE_0__.getMemoedVNodeCall),
 /* harmony export */   "getVNodeBlockHelper": () => (/* reexport safe */ _vue_compiler_core__WEBPACK_IMPORTED_MODULE_0__.getVNodeBlockHelper),
@@ -5332,7 +5337,9 @@ const transformVText = (dir, node, context) => {
     return {
         props: [
             (0,_vue_compiler_core__WEBPACK_IMPORTED_MODULE_0__.createObjectProperty)((0,_vue_compiler_core__WEBPACK_IMPORTED_MODULE_0__.createSimpleExpression)(`textContent`, true), exp
-                ? (0,_vue_compiler_core__WEBPACK_IMPORTED_MODULE_0__.createCallExpression)(context.helperString(_vue_compiler_core__WEBPACK_IMPORTED_MODULE_0__.TO_DISPLAY_STRING), [exp], loc)
+                ? (0,_vue_compiler_core__WEBPACK_IMPORTED_MODULE_0__.getConstantType)(exp, context) > 0
+                    ? exp
+                    : (0,_vue_compiler_core__WEBPACK_IMPORTED_MODULE_0__.createCallExpression)(context.helperString(_vue_compiler_core__WEBPACK_IMPORTED_MODULE_0__.TO_DISPLAY_STRING), [exp], loc)
                 : (0,_vue_compiler_core__WEBPACK_IMPORTED_MODULE_0__.createSimpleExpression)('', true))
         ]
     };
@@ -5544,18 +5551,37 @@ const transformShow = (dir, node, context) => {
     };
 };
 
-const warnTransitionChildren = (node, context) => {
+const transformTransition = (node, context) => {
     if (node.type === 1 /* ELEMENT */ &&
         node.tagType === 1 /* COMPONENT */) {
         const component = context.isBuiltInComponent(node.tag);
         if (component === TRANSITION) {
             return () => {
-                if (node.children.length && hasMultipleChildren(node)) {
+                if (!node.children.length) {
+                    return;
+                }
+                // warn multiple transition children
+                if (hasMultipleChildren(node)) {
                     context.onError(createDOMCompilerError(59 /* X_TRANSITION_INVALID_CHILDREN */, {
                         start: node.children[0].loc.start,
                         end: node.children[node.children.length - 1].loc.end,
                         source: ''
                     }));
+                }
+                // check if it's s single child w/ v-show
+                // if yes, inject "persisted: true" to the transition props
+                const child = node.children[0];
+                if (child.type === 1 /* ELEMENT */) {
+                    for (const p of child.props) {
+                        if (p.type === 7 /* DIRECTIVE */ && p.name === 'show') {
+                            node.props.push({
+                                type: 6 /* ATTRIBUTE */,
+                                name: 'persisted',
+                                value: undefined,
+                                loc: node.loc
+                            });
+                        }
+                    }
                 }
             };
         }
@@ -5582,7 +5608,7 @@ const ignoreSideEffectTags = (node, context) => {
 
 const DOMNodeTransforms = [
     transformStyle,
-    ...(( true) ? [warnTransitionChildren] : 0)
+    ...(( true) ? [transformTransition] : 0)
 ];
 const DOMDirectiveTransforms = {
     cloak: _vue_compiler_core__WEBPACK_IMPORTED_MODULE_0__.noopDirectiveTransform,
@@ -6031,17 +6057,28 @@ function trigger(target, type, key, newValue, oldValue, oldTarget) {
 }
 function triggerEffects(dep, debuggerEventExtraInfo) {
     // spread into array for stabilization
-    for (const effect of (0,_vue_shared__WEBPACK_IMPORTED_MODULE_0__.isArray)(dep) ? dep : [...dep]) {
-        if (effect !== activeEffect || effect.allowRecurse) {
-            if (( true) && effect.onTrigger) {
-                effect.onTrigger((0,_vue_shared__WEBPACK_IMPORTED_MODULE_0__.extend)({ effect }, debuggerEventExtraInfo));
-            }
-            if (effect.scheduler) {
-                effect.scheduler();
-            }
-            else {
-                effect.run();
-            }
+    const effects = (0,_vue_shared__WEBPACK_IMPORTED_MODULE_0__.isArray)(dep) ? dep : [...dep];
+    for (const effect of effects) {
+        if (effect.computed) {
+            triggerEffect(effect, debuggerEventExtraInfo);
+        }
+    }
+    for (const effect of effects) {
+        if (!effect.computed) {
+            triggerEffect(effect, debuggerEventExtraInfo);
+        }
+    }
+}
+function triggerEffect(effect, debuggerEventExtraInfo) {
+    if (effect !== activeEffect || effect.allowRecurse) {
+        if (( true) && effect.onTrigger) {
+            effect.onTrigger((0,_vue_shared__WEBPACK_IMPORTED_MODULE_0__.extend)({ effect }, debuggerEventExtraInfo));
+        }
+        if (effect.scheduler) {
+            effect.scheduler();
+        }
+        else {
+            effect.run();
         }
     }
 }
@@ -6050,6 +6087,10 @@ const isNonTrackableKeys = /*#__PURE__*/ (0,_vue_shared__WEBPACK_IMPORTED_MODULE
 const builtInSymbols = new Set(
 /*#__PURE__*/
 Object.getOwnPropertyNames(Symbol)
+    // ios10.x Object.getOwnPropertyNames(Symbol) can enumerate 'arguments' and 'caller'
+    // but accessing them on Symbol leads to TypeError because Symbol is a strict mode
+    // function
+    .filter(key => key !== 'arguments' && key !== 'caller')
     .map(key => Symbol[key])
     .filter(_vue_shared__WEBPACK_IMPORTED_MODULE_0__.isSymbol));
 const get = /*#__PURE__*/ createGetter();
@@ -6123,9 +6164,8 @@ function createGetter(isReadonly = false, shallow = false) {
             return res;
         }
         if (isRef(res)) {
-            // ref unwrapping - does not apply for Array + integer key.
-            const shouldUnwrap = !targetIsArray || !(0,_vue_shared__WEBPACK_IMPORTED_MODULE_0__.isIntegerKey)(key);
-            return shouldUnwrap ? res.value : res;
+            // ref unwrapping - skip unwrap for Array + integer key.
+            return targetIsArray && (0,_vue_shared__WEBPACK_IMPORTED_MODULE_0__.isIntegerKey)(key) ? res : res.value;
         }
         if ((0,_vue_shared__WEBPACK_IMPORTED_MODULE_0__.isObject)(res)) {
             // Convert returned value into a proxy as well. we do the isObject check
@@ -6231,10 +6271,12 @@ function get$1(target, key, isReadonly = false, isShallow = false) {
     target = target["__v_raw" /* RAW */];
     const rawTarget = toRaw(target);
     const rawKey = toRaw(key);
-    if (key !== rawKey) {
-        !isReadonly && track(rawTarget, "get" /* GET */, key);
+    if (!isReadonly) {
+        if (key !== rawKey) {
+            track(rawTarget, "get" /* GET */, key);
+        }
+        track(rawTarget, "get" /* GET */, rawKey);
     }
-    !isReadonly && track(rawTarget, "get" /* GET */, rawKey);
     const { has } = getProto(rawTarget);
     const wrap = isShallow ? toShallow : isReadonly ? toReadonly : toReactive;
     if (has.call(rawTarget, key)) {
@@ -6253,10 +6295,12 @@ function has$1(key, isReadonly = false) {
     const target = this["__v_raw" /* RAW */];
     const rawTarget = toRaw(target);
     const rawKey = toRaw(key);
-    if (key !== rawKey) {
-        !isReadonly && track(rawTarget, "has" /* HAS */, key);
+    if (!isReadonly) {
+        if (key !== rawKey) {
+            track(rawTarget, "has" /* HAS */, key);
+        }
+        track(rawTarget, "has" /* HAS */, rawKey);
     }
-    !isReadonly && track(rawTarget, "has" /* HAS */, rawKey);
     return key === rawKey
         ? target.has(key)
         : target.has(key) || target.has(rawKey);
@@ -6583,7 +6627,7 @@ function createReactiveObject(target, isReadonly, baseHandlers, collectionHandle
     if (existingProxy) {
         return existingProxy;
     }
-    // only a whitelist of value types can be observed.
+    // only specific value types can be observed.
     const targetType = getTargetType(target);
     if (targetType === 0 /* INVALID */) {
         return target;
@@ -7359,6 +7403,8 @@ function flushPreFlushCbs(seen, parentJob = null) {
     }
 }
 function flushPostFlushCbs(seen) {
+    // flush any pre cbs queued during the flush (e.g. pre watchers)
+    flushPreFlushCbs();
     if (pendingPostFlushCbs.length) {
         const deduped = [...new Set(pendingPostFlushCbs)];
         pendingPostFlushCbs.length = 0;
@@ -7620,7 +7666,6 @@ function setDevtoolsHook(hook, target) {
     // handle late devtools injection - only do this if we are in an actual
     // browser environment to avoid the timer handle stalling test runner exit
     // (#4815)
-    // eslint-disable-next-line no-restricted-globals
     typeof window !== 'undefined' &&
         // some envs mock window but not fully
         window.HTMLElement &&
@@ -7714,7 +7759,7 @@ function emit$1(instance, event, ...rawArgs) {
         if (trim) {
             args = rawArgs.map(a => a.trim());
         }
-        else if (number) {
+        if (number) {
             args = rawArgs.map(_vue_shared__WEBPACK_IMPORTED_MODULE_1__.toNumber);
         }
     }
@@ -8013,6 +8058,8 @@ function renderComponentRoot(instance) {
             warn(`Runtime directive used on component with non-element root node. ` +
                 `The directives will not function as intended.`);
         }
+        // clone before mutating since the root may be a hoisted vnode
+        root = cloneVNode(root);
         root.dirs = root.dirs ? root.dirs.concat(vnode.dirs) : vnode.dirs;
     }
     // inherit transition data
@@ -8717,7 +8764,7 @@ function doWatch(source, cb, { immediate, deep, flush, onTrack, onTrigger } = _v
     }
     else if ((0,_vue_shared__WEBPACK_IMPORTED_MODULE_1__.isArray)(source)) {
         isMultiSource = true;
-        forceTrigger = source.some(_vue_reactivity__WEBPACK_IMPORTED_MODULE_0__.isReactive);
+        forceTrigger = source.some(s => (0,_vue_reactivity__WEBPACK_IMPORTED_MODULE_0__.isReactive)(s) || (0,_vue_reactivity__WEBPACK_IMPORTED_MODULE_0__.isShallow)(s));
         getter = () => source.map(s => {
             if ((0,_vue_reactivity__WEBPACK_IMPORTED_MODULE_0__.isRef)(s)) {
                 return s.value;
@@ -8826,16 +8873,7 @@ function doWatch(source, cb, { immediate, deep, flush, onTrack, onTrigger } = _v
     }
     else {
         // default: 'pre'
-        scheduler = () => {
-            if (!instance || instance.isMounted) {
-                queuePreFlushCb(job);
-            }
-            else {
-                // with 'pre' option, the first call must happen before
-                // the component is mounted so it is called synchronously.
-                job();
-            }
-        };
+        scheduler = () => queuePreFlushCb(job);
     }
     const effect = new _vue_reactivity__WEBPACK_IMPORTED_MODULE_0__.ReactiveEffect(getter, scheduler);
     if ((true)) {
@@ -9091,6 +9129,17 @@ function resolveTransitionHooks(vnode, props, state, instance) {
         hook &&
             callWithAsyncErrorHandling(hook, instance, 9 /* TRANSITION_HOOK */, args);
     };
+    const callAsyncHook = (hook, args) => {
+        const done = args[1];
+        callHook(hook, args);
+        if ((0,_vue_shared__WEBPACK_IMPORTED_MODULE_1__.isArray)(hook)) {
+            if (hook.every(hook => hook.length <= 1))
+                done();
+        }
+        else if (hook.length <= 1) {
+            done();
+        }
+    };
     const hooks = {
         mode,
         persisted,
@@ -9149,10 +9198,7 @@ function resolveTransitionHooks(vnode, props, state, instance) {
                 el._enterCb = undefined;
             });
             if (hook) {
-                hook(el, done);
-                if (hook.length <= 1) {
-                    done();
-                }
+                callAsyncHook(hook, [el, done]);
             }
             else {
                 done();
@@ -9186,10 +9232,7 @@ function resolveTransitionHooks(vnode, props, state, instance) {
             });
             leavingVNodesCache[key] = vnode;
             if (onLeave) {
-                onLeave(el, done);
-                if (onLeave.length <= 1) {
-                    done();
-                }
+                callAsyncHook(onLeave, [el, done]);
             }
             else {
                 done();
@@ -9399,7 +9442,7 @@ function defineAsyncComponent(source) {
         }
     });
 }
-function createInnerComp(comp, { vnode: { ref, props, children } }) {
+function createInnerComp(comp, { vnode: { ref, props, children, shapeFlag }, parent }) {
     const vnode = createVNode(comp, props, children);
     // ensure inner component inherits the async wrapper's ref owner
     vnode.ref = ref;
@@ -9429,7 +9472,10 @@ const KeepAliveImpl = {
         // if the internal renderer is not registered, it indicates that this is server-side rendering,
         // for KeepAlive, we just need to render its children
         if (!sharedContext.renderer) {
-            return slots.default;
+            return () => {
+                const children = slots.default && slots.default();
+                return children && children.length === 1 ? children[0] : children;
+            };
         }
         const cache = new Map();
         const keys = new Set();
@@ -9608,7 +9654,7 @@ const KeepAliveImpl = {
             // avoid vnode being unmounted
             vnode.shapeFlag |= 256 /* COMPONENT_SHOULD_KEEP_ALIVE */;
             current = vnode;
-            return rawVNode;
+            return isSuspense(rawVNode.type) ? rawVNode : vnode;
         };
     }
 };
@@ -9746,6 +9792,568 @@ function onErrorCaptured(hook, target = currentInstance) {
     injectHook("ec" /* ERROR_CAPTURED */, hook, target);
 }
 
+/**
+Runtime helper for applying directives to a vnode. Example usage:
+
+const comp = resolveComponent('comp')
+const foo = resolveDirective('foo')
+const bar = resolveDirective('bar')
+
+return withDirectives(h(comp), [
+  [foo, this.x],
+  [bar, this.y]
+])
+*/
+function validateDirectiveName(name) {
+    if ((0,_vue_shared__WEBPACK_IMPORTED_MODULE_1__.isBuiltInDirective)(name)) {
+        warn('Do not use built-in directive ids as custom directive id: ' + name);
+    }
+}
+/**
+ * Adds directives to a VNode.
+ */
+function withDirectives(vnode, directives) {
+    const internalInstance = currentRenderingInstance;
+    if (internalInstance === null) {
+        ( true) && warn(`withDirectives can only be used inside render functions.`);
+        return vnode;
+    }
+    const instance = getExposeProxy(internalInstance) ||
+        internalInstance.proxy;
+    const bindings = vnode.dirs || (vnode.dirs = []);
+    for (let i = 0; i < directives.length; i++) {
+        let [dir, value, arg, modifiers = _vue_shared__WEBPACK_IMPORTED_MODULE_1__.EMPTY_OBJ] = directives[i];
+        if ((0,_vue_shared__WEBPACK_IMPORTED_MODULE_1__.isFunction)(dir)) {
+            dir = {
+                mounted: dir,
+                updated: dir
+            };
+        }
+        if (dir.deep) {
+            traverse(value);
+        }
+        bindings.push({
+            dir,
+            instance,
+            value,
+            oldValue: void 0,
+            arg,
+            modifiers
+        });
+    }
+    return vnode;
+}
+function invokeDirectiveHook(vnode, prevVNode, instance, name) {
+    const bindings = vnode.dirs;
+    const oldBindings = prevVNode && prevVNode.dirs;
+    for (let i = 0; i < bindings.length; i++) {
+        const binding = bindings[i];
+        if (oldBindings) {
+            binding.oldValue = oldBindings[i].value;
+        }
+        let hook = binding.dir[name];
+        if (hook) {
+            // disable tracking inside all lifecycle hooks
+            // since they can potentially be called inside effects.
+            (0,_vue_reactivity__WEBPACK_IMPORTED_MODULE_0__.pauseTracking)();
+            callWithAsyncErrorHandling(hook, instance, 8 /* DIRECTIVE_HOOK */, [
+                vnode.el,
+                binding,
+                vnode,
+                prevVNode
+            ]);
+            (0,_vue_reactivity__WEBPACK_IMPORTED_MODULE_0__.resetTracking)();
+        }
+    }
+}
+
+const COMPONENTS = 'components';
+const DIRECTIVES = 'directives';
+/**
+ * @private
+ */
+function resolveComponent(name, maybeSelfReference) {
+    return resolveAsset(COMPONENTS, name, true, maybeSelfReference) || name;
+}
+const NULL_DYNAMIC_COMPONENT = Symbol();
+/**
+ * @private
+ */
+function resolveDynamicComponent(component) {
+    if ((0,_vue_shared__WEBPACK_IMPORTED_MODULE_1__.isString)(component)) {
+        return resolveAsset(COMPONENTS, component, false) || component;
+    }
+    else {
+        // invalid types will fallthrough to createVNode and raise warning
+        return (component || NULL_DYNAMIC_COMPONENT);
+    }
+}
+/**
+ * @private
+ */
+function resolveDirective(name) {
+    return resolveAsset(DIRECTIVES, name);
+}
+// implementation
+function resolveAsset(type, name, warnMissing = true, maybeSelfReference = false) {
+    const instance = currentRenderingInstance || currentInstance;
+    if (instance) {
+        const Component = instance.type;
+        // explicit self name has highest priority
+        if (type === COMPONENTS) {
+            const selfName = getComponentName(Component, false /* do not include inferred name to avoid breaking existing code */);
+            if (selfName &&
+                (selfName === name ||
+                    selfName === (0,_vue_shared__WEBPACK_IMPORTED_MODULE_1__.camelize)(name) ||
+                    selfName === (0,_vue_shared__WEBPACK_IMPORTED_MODULE_1__.capitalize)((0,_vue_shared__WEBPACK_IMPORTED_MODULE_1__.camelize)(name)))) {
+                return Component;
+            }
+        }
+        const res = 
+        // local registration
+        // check instance[type] first which is resolved for options API
+        resolve(instance[type] || Component[type], name) ||
+            // global registration
+            resolve(instance.appContext[type], name);
+        if (!res && maybeSelfReference) {
+            // fallback to implicit self-reference
+            return Component;
+        }
+        if (( true) && warnMissing && !res) {
+            const extra = type === COMPONENTS
+                ? `\nIf this is a native custom element, make sure to exclude it from ` +
+                    `component resolution via compilerOptions.isCustomElement.`
+                : ``;
+            warn(`Failed to resolve ${type.slice(0, -1)}: ${name}${extra}`);
+        }
+        return res;
+    }
+    else if ((true)) {
+        warn(`resolve${(0,_vue_shared__WEBPACK_IMPORTED_MODULE_1__.capitalize)(type.slice(0, -1))} ` +
+            `can only be used in render() or setup().`);
+    }
+}
+function resolve(registry, name) {
+    return (registry &&
+        (registry[name] ||
+            registry[(0,_vue_shared__WEBPACK_IMPORTED_MODULE_1__.camelize)(name)] ||
+            registry[(0,_vue_shared__WEBPACK_IMPORTED_MODULE_1__.capitalize)((0,_vue_shared__WEBPACK_IMPORTED_MODULE_1__.camelize)(name))]));
+}
+
+/**
+ * Actual implementation
+ */
+function renderList(source, renderItem, cache, index) {
+    let ret;
+    const cached = (cache && cache[index]);
+    if ((0,_vue_shared__WEBPACK_IMPORTED_MODULE_1__.isArray)(source) || (0,_vue_shared__WEBPACK_IMPORTED_MODULE_1__.isString)(source)) {
+        ret = new Array(source.length);
+        for (let i = 0, l = source.length; i < l; i++) {
+            ret[i] = renderItem(source[i], i, undefined, cached && cached[i]);
+        }
+    }
+    else if (typeof source === 'number') {
+        if (( true) && !Number.isInteger(source)) {
+            warn(`The v-for range expect an integer value but got ${source}.`);
+        }
+        ret = new Array(source);
+        for (let i = 0; i < source; i++) {
+            ret[i] = renderItem(i + 1, i, undefined, cached && cached[i]);
+        }
+    }
+    else if ((0,_vue_shared__WEBPACK_IMPORTED_MODULE_1__.isObject)(source)) {
+        if (source[Symbol.iterator]) {
+            ret = Array.from(source, (item, i) => renderItem(item, i, undefined, cached && cached[i]));
+        }
+        else {
+            const keys = Object.keys(source);
+            ret = new Array(keys.length);
+            for (let i = 0, l = keys.length; i < l; i++) {
+                const key = keys[i];
+                ret[i] = renderItem(source[key], key, i, cached && cached[i]);
+            }
+        }
+    }
+    else {
+        ret = [];
+    }
+    if (cache) {
+        cache[index] = ret;
+    }
+    return ret;
+}
+
+/**
+ * Compiler runtime helper for creating dynamic slots object
+ * @private
+ */
+function createSlots(slots, dynamicSlots) {
+    for (let i = 0; i < dynamicSlots.length; i++) {
+        const slot = dynamicSlots[i];
+        // array of dynamic slot generated by <template v-for="..." #[...]>
+        if ((0,_vue_shared__WEBPACK_IMPORTED_MODULE_1__.isArray)(slot)) {
+            for (let j = 0; j < slot.length; j++) {
+                slots[slot[j].name] = slot[j].fn;
+            }
+        }
+        else if (slot) {
+            // conditional single slot generated by <template v-if="..." #foo>
+            slots[slot.name] = slot.fn;
+        }
+    }
+    return slots;
+}
+
+/**
+ * Compiler runtime helper for rendering `<slot/>`
+ * @private
+ */
+function renderSlot(slots, name, props = {}, 
+// this is not a user-facing function, so the fallback is always generated by
+// the compiler and guaranteed to be a function returning an array
+fallback, noSlotted) {
+    if (currentRenderingInstance.isCE ||
+        (currentRenderingInstance.parent &&
+            isAsyncWrapper(currentRenderingInstance.parent) &&
+            currentRenderingInstance.parent.isCE)) {
+        return createVNode('slot', name === 'default' ? null : { name }, fallback && fallback());
+    }
+    let slot = slots[name];
+    if (( true) && slot && slot.length > 1) {
+        warn(`SSR-optimized slot function detected in a non-SSR-optimized render ` +
+            `function. You need to mark this component with $dynamic-slots in the ` +
+            `parent template.`);
+        slot = () => [];
+    }
+    // a compiled slot disables block tracking by default to avoid manual
+    // invocation interfering with template-based block tracking, but in
+    // `renderSlot` we can be sure that it's template-based so we can force
+    // enable it.
+    if (slot && slot._c) {
+        slot._d = false;
+    }
+    openBlock();
+    const validSlotContent = slot && ensureValidVNode(slot(props));
+    const rendered = createBlock(Fragment, { key: props.key || `_${name}` }, validSlotContent || (fallback ? fallback() : []), validSlotContent && slots._ === 1 /* STABLE */
+        ? 64 /* STABLE_FRAGMENT */
+        : -2 /* BAIL */);
+    if (!noSlotted && rendered.scopeId) {
+        rendered.slotScopeIds = [rendered.scopeId + '-s'];
+    }
+    if (slot && slot._c) {
+        slot._d = true;
+    }
+    return rendered;
+}
+function ensureValidVNode(vnodes) {
+    return vnodes.some(child => {
+        if (!isVNode(child))
+            return true;
+        if (child.type === Comment)
+            return false;
+        if (child.type === Fragment &&
+            !ensureValidVNode(child.children))
+            return false;
+        return true;
+    })
+        ? vnodes
+        : null;
+}
+
+/**
+ * For prefixing keys in v-on="obj" with "on"
+ * @private
+ */
+function toHandlers(obj) {
+    const ret = {};
+    if (( true) && !(0,_vue_shared__WEBPACK_IMPORTED_MODULE_1__.isObject)(obj)) {
+        warn(`v-on with no argument expects an object value.`);
+        return ret;
+    }
+    for (const key in obj) {
+        ret[(0,_vue_shared__WEBPACK_IMPORTED_MODULE_1__.toHandlerKey)(key)] = obj[key];
+    }
+    return ret;
+}
+
+/**
+ * #2437 In Vue 3, functional components do not have a public instance proxy but
+ * they exist in the internal parent chain. For code that relies on traversing
+ * public $parent chains, skip functional ones and go to the parent instead.
+ */
+const getPublicInstance = (i) => {
+    if (!i)
+        return null;
+    if (isStatefulComponent(i))
+        return getExposeProxy(i) || i.proxy;
+    return getPublicInstance(i.parent);
+};
+const publicPropertiesMap = 
+// Move PURE marker to new line to workaround compiler discarding it
+// due to type annotation
+/*#__PURE__*/ (0,_vue_shared__WEBPACK_IMPORTED_MODULE_1__.extend)(Object.create(null), {
+    $: i => i,
+    $el: i => i.vnode.el,
+    $data: i => i.data,
+    $props: i => (( true) ? (0,_vue_reactivity__WEBPACK_IMPORTED_MODULE_0__.shallowReadonly)(i.props) : 0),
+    $attrs: i => (( true) ? (0,_vue_reactivity__WEBPACK_IMPORTED_MODULE_0__.shallowReadonly)(i.attrs) : 0),
+    $slots: i => (( true) ? (0,_vue_reactivity__WEBPACK_IMPORTED_MODULE_0__.shallowReadonly)(i.slots) : 0),
+    $refs: i => (( true) ? (0,_vue_reactivity__WEBPACK_IMPORTED_MODULE_0__.shallowReadonly)(i.refs) : 0),
+    $parent: i => getPublicInstance(i.parent),
+    $root: i => getPublicInstance(i.root),
+    $emit: i => i.emit,
+    $options: i => ( true ? resolveMergedOptions(i) : 0),
+    $forceUpdate: i => i.f || (i.f = () => queueJob(i.update)),
+    $nextTick: i => i.n || (i.n = nextTick.bind(i.proxy)),
+    $watch: i => ( true ? instanceWatch.bind(i) : 0)
+});
+const isReservedPrefix = (key) => key === '_' || key === '$';
+const PublicInstanceProxyHandlers = {
+    get({ _: instance }, key) {
+        const { ctx, setupState, data, props, accessCache, type, appContext } = instance;
+        // for internal formatters to know that this is a Vue instance
+        if (( true) && key === '__isVue') {
+            return true;
+        }
+        // prioritize <script setup> bindings during dev.
+        // this allows even properties that start with _ or $ to be used - so that
+        // it aligns with the production behavior where the render fn is inlined and
+        // indeed has access to all declared variables.
+        if (( true) &&
+            setupState !== _vue_shared__WEBPACK_IMPORTED_MODULE_1__.EMPTY_OBJ &&
+            setupState.__isScriptSetup &&
+            (0,_vue_shared__WEBPACK_IMPORTED_MODULE_1__.hasOwn)(setupState, key)) {
+            return setupState[key];
+        }
+        // data / props / ctx
+        // This getter gets called for every property access on the render context
+        // during render and is a major hotspot. The most expensive part of this
+        // is the multiple hasOwn() calls. It's much faster to do a simple property
+        // access on a plain object, so we use an accessCache object (with null
+        // prototype) to memoize what access type a key corresponds to.
+        let normalizedProps;
+        if (key[0] !== '$') {
+            const n = accessCache[key];
+            if (n !== undefined) {
+                switch (n) {
+                    case 1 /* SETUP */:
+                        return setupState[key];
+                    case 2 /* DATA */:
+                        return data[key];
+                    case 4 /* CONTEXT */:
+                        return ctx[key];
+                    case 3 /* PROPS */:
+                        return props[key];
+                    // default: just fallthrough
+                }
+            }
+            else if (setupState !== _vue_shared__WEBPACK_IMPORTED_MODULE_1__.EMPTY_OBJ && (0,_vue_shared__WEBPACK_IMPORTED_MODULE_1__.hasOwn)(setupState, key)) {
+                accessCache[key] = 1 /* SETUP */;
+                return setupState[key];
+            }
+            else if (data !== _vue_shared__WEBPACK_IMPORTED_MODULE_1__.EMPTY_OBJ && (0,_vue_shared__WEBPACK_IMPORTED_MODULE_1__.hasOwn)(data, key)) {
+                accessCache[key] = 2 /* DATA */;
+                return data[key];
+            }
+            else if (
+            // only cache other properties when instance has declared (thus stable)
+            // props
+            (normalizedProps = instance.propsOptions[0]) &&
+                (0,_vue_shared__WEBPACK_IMPORTED_MODULE_1__.hasOwn)(normalizedProps, key)) {
+                accessCache[key] = 3 /* PROPS */;
+                return props[key];
+            }
+            else if (ctx !== _vue_shared__WEBPACK_IMPORTED_MODULE_1__.EMPTY_OBJ && (0,_vue_shared__WEBPACK_IMPORTED_MODULE_1__.hasOwn)(ctx, key)) {
+                accessCache[key] = 4 /* CONTEXT */;
+                return ctx[key];
+            }
+            else if ( false || shouldCacheAccess) {
+                accessCache[key] = 0 /* OTHER */;
+            }
+        }
+        const publicGetter = publicPropertiesMap[key];
+        let cssModule, globalProperties;
+        // public $xxx properties
+        if (publicGetter) {
+            if (key === '$attrs') {
+                (0,_vue_reactivity__WEBPACK_IMPORTED_MODULE_0__.track)(instance, "get" /* GET */, key);
+                ( true) && markAttrsAccessed();
+            }
+            return publicGetter(instance);
+        }
+        else if (
+        // css module (injected by vue-loader)
+        (cssModule = type.__cssModules) &&
+            (cssModule = cssModule[key])) {
+            return cssModule;
+        }
+        else if (ctx !== _vue_shared__WEBPACK_IMPORTED_MODULE_1__.EMPTY_OBJ && (0,_vue_shared__WEBPACK_IMPORTED_MODULE_1__.hasOwn)(ctx, key)) {
+            // user may set custom properties to `this` that start with `$`
+            accessCache[key] = 4 /* CONTEXT */;
+            return ctx[key];
+        }
+        else if (
+        // global properties
+        ((globalProperties = appContext.config.globalProperties),
+            (0,_vue_shared__WEBPACK_IMPORTED_MODULE_1__.hasOwn)(globalProperties, key))) {
+            {
+                return globalProperties[key];
+            }
+        }
+        else if (( true) &&
+            currentRenderingInstance &&
+            (!(0,_vue_shared__WEBPACK_IMPORTED_MODULE_1__.isString)(key) ||
+                // #1091 avoid internal isRef/isVNode checks on component instance leading
+                // to infinite warning loop
+                key.indexOf('__v') !== 0)) {
+            if (data !== _vue_shared__WEBPACK_IMPORTED_MODULE_1__.EMPTY_OBJ && isReservedPrefix(key[0]) && (0,_vue_shared__WEBPACK_IMPORTED_MODULE_1__.hasOwn)(data, key)) {
+                warn(`Property ${JSON.stringify(key)} must be accessed via $data because it starts with a reserved ` +
+                    `character ("$" or "_") and is not proxied on the render context.`);
+            }
+            else if (instance === currentRenderingInstance) {
+                warn(`Property ${JSON.stringify(key)} was accessed during render ` +
+                    `but is not defined on instance.`);
+            }
+        }
+    },
+    set({ _: instance }, key, value) {
+        const { data, setupState, ctx } = instance;
+        if (setupState !== _vue_shared__WEBPACK_IMPORTED_MODULE_1__.EMPTY_OBJ && (0,_vue_shared__WEBPACK_IMPORTED_MODULE_1__.hasOwn)(setupState, key)) {
+            setupState[key] = value;
+            return true;
+        }
+        else if (data !== _vue_shared__WEBPACK_IMPORTED_MODULE_1__.EMPTY_OBJ && (0,_vue_shared__WEBPACK_IMPORTED_MODULE_1__.hasOwn)(data, key)) {
+            data[key] = value;
+            return true;
+        }
+        else if ((0,_vue_shared__WEBPACK_IMPORTED_MODULE_1__.hasOwn)(instance.props, key)) {
+            ( true) &&
+                warn(`Attempting to mutate prop "${key}". Props are readonly.`, instance);
+            return false;
+        }
+        if (key[0] === '$' && key.slice(1) in instance) {
+            ( true) &&
+                warn(`Attempting to mutate public property "${key}". ` +
+                    `Properties starting with $ are reserved and readonly.`, instance);
+            return false;
+        }
+        else {
+            if (( true) && key in instance.appContext.config.globalProperties) {
+                Object.defineProperty(ctx, key, {
+                    enumerable: true,
+                    configurable: true,
+                    value
+                });
+            }
+            else {
+                ctx[key] = value;
+            }
+        }
+        return true;
+    },
+    has({ _: { data, setupState, accessCache, ctx, appContext, propsOptions } }, key) {
+        let normalizedProps;
+        return (!!accessCache[key] ||
+            (data !== _vue_shared__WEBPACK_IMPORTED_MODULE_1__.EMPTY_OBJ && (0,_vue_shared__WEBPACK_IMPORTED_MODULE_1__.hasOwn)(data, key)) ||
+            (setupState !== _vue_shared__WEBPACK_IMPORTED_MODULE_1__.EMPTY_OBJ && (0,_vue_shared__WEBPACK_IMPORTED_MODULE_1__.hasOwn)(setupState, key)) ||
+            ((normalizedProps = propsOptions[0]) && (0,_vue_shared__WEBPACK_IMPORTED_MODULE_1__.hasOwn)(normalizedProps, key)) ||
+            (0,_vue_shared__WEBPACK_IMPORTED_MODULE_1__.hasOwn)(ctx, key) ||
+            (0,_vue_shared__WEBPACK_IMPORTED_MODULE_1__.hasOwn)(publicPropertiesMap, key) ||
+            (0,_vue_shared__WEBPACK_IMPORTED_MODULE_1__.hasOwn)(appContext.config.globalProperties, key));
+    },
+    defineProperty(target, key, descriptor) {
+        if (descriptor.get != null) {
+            // invalidate key cache of a getter based property #5417
+            target._.accessCache[key] = 0;
+        }
+        else if ((0,_vue_shared__WEBPACK_IMPORTED_MODULE_1__.hasOwn)(descriptor, 'value')) {
+            this.set(target, key, descriptor.value, null);
+        }
+        return Reflect.defineProperty(target, key, descriptor);
+    }
+};
+if (true) {
+    PublicInstanceProxyHandlers.ownKeys = (target) => {
+        warn(`Avoid app logic that relies on enumerating keys on a component instance. ` +
+            `The keys will be empty in production mode to avoid performance overhead.`);
+        return Reflect.ownKeys(target);
+    };
+}
+const RuntimeCompiledPublicInstanceProxyHandlers = /*#__PURE__*/ (0,_vue_shared__WEBPACK_IMPORTED_MODULE_1__.extend)({}, PublicInstanceProxyHandlers, {
+    get(target, key) {
+        // fast path for unscopables when using `with` block
+        if (key === Symbol.unscopables) {
+            return;
+        }
+        return PublicInstanceProxyHandlers.get(target, key, target);
+    },
+    has(_, key) {
+        const has = key[0] !== '_' && !(0,_vue_shared__WEBPACK_IMPORTED_MODULE_1__.isGloballyWhitelisted)(key);
+        if (( true) && !has && PublicInstanceProxyHandlers.has(_, key)) {
+            warn(`Property ${JSON.stringify(key)} should not start with _ which is a reserved prefix for Vue internals.`);
+        }
+        return has;
+    }
+});
+// dev only
+// In dev mode, the proxy target exposes the same properties as seen on `this`
+// for easier console inspection. In prod mode it will be an empty object so
+// these properties definitions can be skipped.
+function createDevRenderContext(instance) {
+    const target = {};
+    // expose internal instance for proxy handlers
+    Object.defineProperty(target, `_`, {
+        configurable: true,
+        enumerable: false,
+        get: () => instance
+    });
+    // expose public properties
+    Object.keys(publicPropertiesMap).forEach(key => {
+        Object.defineProperty(target, key, {
+            configurable: true,
+            enumerable: false,
+            get: () => publicPropertiesMap[key](instance),
+            // intercepted by the proxy so no need for implementation,
+            // but needed to prevent set errors
+            set: _vue_shared__WEBPACK_IMPORTED_MODULE_1__.NOOP
+        });
+    });
+    return target;
+}
+// dev only
+function exposePropsOnRenderContext(instance) {
+    const { ctx, propsOptions: [propsOptions] } = instance;
+    if (propsOptions) {
+        Object.keys(propsOptions).forEach(key => {
+            Object.defineProperty(ctx, key, {
+                enumerable: true,
+                configurable: true,
+                get: () => instance.props[key],
+                set: _vue_shared__WEBPACK_IMPORTED_MODULE_1__.NOOP
+            });
+        });
+    }
+}
+// dev only
+function exposeSetupStateOnRenderContext(instance) {
+    const { ctx, setupState } = instance;
+    Object.keys((0,_vue_reactivity__WEBPACK_IMPORTED_MODULE_0__.toRaw)(setupState)).forEach(key => {
+        if (!setupState.__isScriptSetup) {
+            if (isReservedPrefix(key[0])) {
+                warn(`setup() return property ${JSON.stringify(key)} should not start with "$" or "_" ` +
+                    `which are reserved prefixes for Vue internals.`);
+                return;
+            }
+            Object.defineProperty(ctx, key, {
+                enumerable: true,
+                configurable: true,
+                get: () => setupState[key],
+                set: _vue_shared__WEBPACK_IMPORTED_MODULE_1__.NOOP
+            });
+        }
+    });
+}
+
 function createDuplicateChecker() {
     const cache = Object.create(null);
     return (type, key) => {
@@ -9843,7 +10451,7 @@ function applyOptions(instance) {
                 for (const key in data) {
                     checkDuplicateProperties("Data" /* DATA */, key);
                     // expose data on ctx during dev
-                    if (key[0] !== '$' && key[0] !== '_') {
+                    if (!isReservedPrefix(key[0])) {
                         Object.defineProperty(ctx, key, {
                             configurable: true,
                             enumerable: true,
@@ -10607,6 +11215,10 @@ const normalizeSlotValue = (value) => (0,_vue_shared__WEBPACK_IMPORTED_MODULE_1_
     ? value.map(normalizeVNode)
     : [normalizeVNode(value)];
 const normalizeSlot = (key, rawSlot, ctx) => {
+    if (rawSlot._n) {
+        // already normalized - #5353
+        return rawSlot;
+    }
     const normalized = withCtx((...args) => {
         if (( true) && currentInstance) {
             warn(`Slot "${key}" invoked outside of the render function: ` +
@@ -10721,81 +11333,6 @@ const updateSlots = (instance, children, optimized) => {
     }
 };
 
-/**
-Runtime helper for applying directives to a vnode. Example usage:
-
-const comp = resolveComponent('comp')
-const foo = resolveDirective('foo')
-const bar = resolveDirective('bar')
-
-return withDirectives(h(comp), [
-  [foo, this.x],
-  [bar, this.y]
-])
-*/
-function validateDirectiveName(name) {
-    if ((0,_vue_shared__WEBPACK_IMPORTED_MODULE_1__.isBuiltInDirective)(name)) {
-        warn('Do not use built-in directive ids as custom directive id: ' + name);
-    }
-}
-/**
- * Adds directives to a VNode.
- */
-function withDirectives(vnode, directives) {
-    const internalInstance = currentRenderingInstance;
-    if (internalInstance === null) {
-        ( true) && warn(`withDirectives can only be used inside render functions.`);
-        return vnode;
-    }
-    const instance = getExposeProxy(internalInstance) ||
-        internalInstance.proxy;
-    const bindings = vnode.dirs || (vnode.dirs = []);
-    for (let i = 0; i < directives.length; i++) {
-        let [dir, value, arg, modifiers = _vue_shared__WEBPACK_IMPORTED_MODULE_1__.EMPTY_OBJ] = directives[i];
-        if ((0,_vue_shared__WEBPACK_IMPORTED_MODULE_1__.isFunction)(dir)) {
-            dir = {
-                mounted: dir,
-                updated: dir
-            };
-        }
-        if (dir.deep) {
-            traverse(value);
-        }
-        bindings.push({
-            dir,
-            instance,
-            value,
-            oldValue: void 0,
-            arg,
-            modifiers
-        });
-    }
-    return vnode;
-}
-function invokeDirectiveHook(vnode, prevVNode, instance, name) {
-    const bindings = vnode.dirs;
-    const oldBindings = prevVNode && prevVNode.dirs;
-    for (let i = 0; i < bindings.length; i++) {
-        const binding = bindings[i];
-        if (oldBindings) {
-            binding.oldValue = oldBindings[i].value;
-        }
-        let hook = binding.dir[name];
-        if (hook) {
-            // disable tracking inside all lifecycle hooks
-            // since they can potentially be called inside effects.
-            (0,_vue_reactivity__WEBPACK_IMPORTED_MODULE_0__.pauseTracking)();
-            callWithAsyncErrorHandling(hook, instance, 8 /* DIRECTIVE_HOOK */, [
-                vnode.el,
-                binding,
-                vnode,
-                prevVNode
-            ]);
-            (0,_vue_reactivity__WEBPACK_IMPORTED_MODULE_0__.resetTracking)();
-        }
-    }
-}
-
 function createAppContext() {
     return {
         app: null,
@@ -10905,6 +11442,12 @@ function createAppAPI(render, hydrate) {
             },
             mount(rootContainer, isHydrate, isSVG) {
                 if (!isMounted) {
+                    // #5571
+                    if (( true) && rootContainer.__vue_app__) {
+                        warn(`There is already an app instance mounted on the host container.\n` +
+                            ` If you want to mount another app on the same host container,` +
+                            ` you need to unmount the previous app by calling \`app.unmount()\` first.`);
+                    }
                     const vnode = createVNode(rootComponent, rootProps);
                     // store app context on the root VNode.
                     // this will be set on the root instance on initial mount.
@@ -10955,8 +11498,6 @@ function createAppAPI(render, hydrate) {
                     warn(`App already provides property with key "${String(key)}". ` +
                         `It will be overwritten with the new value.`);
                 }
-                // TypeScript doesn't allow symbols as index type
-                // https://github.com/Microsoft/TypeScript/issues/24587
                 context.provides[key] = value;
                 return app;
             }
@@ -11041,7 +11582,7 @@ function setRef(rawRef, oldRawRef, parentSuspense, vnode, isUnmount = false) {
                         setupState[ref] = value;
                     }
                 }
-                else if ((0,_vue_reactivity__WEBPACK_IMPORTED_MODULE_0__.isRef)(ref)) {
+                else if (_isRef) {
                     ref.value = value;
                     if (rawRef.k)
                         refs[rawRef.k] = value;
@@ -11073,7 +11614,7 @@ const isComment = (node) => node.nodeType === 8 /* COMMENT */;
 // Hydration also depends on some renderer internal logic which needs to be
 // passed in via arguments.
 function createHydrationFunctions(rendererInternals) {
-    const { mt: mountComponent, p: patch, o: { patchProp, nextSibling, parentNode, remove, insert, createComment } } = rendererInternals;
+    const { mt: mountComponent, p: patch, o: { patchProp, createText, nextSibling, parentNode, remove, insert, createComment } } = rendererInternals;
     const hydrate = (vnode, container) => {
         if (!container.hasChildNodes()) {
             ( true) &&
@@ -11081,11 +11622,13 @@ function createHydrationFunctions(rendererInternals) {
                     `Performing full mount instead.`);
             patch(null, vnode, container);
             flushPostFlushCbs();
+            container._vnode = vnode;
             return;
         }
         hasMismatch = false;
         hydrateNode(container.firstChild, vnode, null, null, null);
         flushPostFlushCbs();
+        container._vnode = vnode;
         if (hasMismatch && !false) {
             // this error should show up in production
             console.error(`Hydration completed but contains mismatches.`);
@@ -11094,14 +11637,26 @@ function createHydrationFunctions(rendererInternals) {
     const hydrateNode = (node, vnode, parentComponent, parentSuspense, slotScopeIds, optimized = false) => {
         const isFragmentStart = isComment(node) && node.data === '[';
         const onMismatch = () => handleMismatch(node, vnode, parentComponent, parentSuspense, slotScopeIds, isFragmentStart);
-        const { type, ref, shapeFlag } = vnode;
+        const { type, ref, shapeFlag, patchFlag } = vnode;
         const domType = node.nodeType;
         vnode.el = node;
+        if (patchFlag === -2 /* BAIL */) {
+            optimized = false;
+            vnode.dynamicChildren = null;
+        }
         let nextNode = null;
         switch (type) {
             case Text:
                 if (domType !== 3 /* TEXT */) {
-                    nextNode = onMismatch();
+                    // #5728 empty text node inside a slot can cause hydration failure
+                    // because the server rendered HTML won't contain a text node
+                    if (vnode.children === '') {
+                        insert((vnode.el = createText('')), parentNode(node), node);
+                        nextNode = node;
+                    }
+                    else {
+                        nextNode = onMismatch();
+                    }
                 }
                 else {
                     if (node.data !== vnode.children) {
@@ -11124,7 +11679,7 @@ function createHydrationFunctions(rendererInternals) {
                 }
                 break;
             case Static:
-                if (domType !== 1 /* ELEMENT */) {
+                if (domType !== 1 /* ELEMENT */ && domType !== 3 /* TEXT */) {
                     nextNode = onMismatch();
                 }
                 else {
@@ -11135,7 +11690,10 @@ function createHydrationFunctions(rendererInternals) {
                     const needToAdoptContent = !vnode.children.length;
                     for (let i = 0; i < vnode.staticCount; i++) {
                         if (needToAdoptContent)
-                            vnode.children += nextNode.outerHTML;
+                            vnode.children +=
+                                nextNode.nodeType === 1 /* ELEMENT */
+                                    ? nextNode.outerHTML
+                                    : nextNode.data;
                         if (i === vnode.staticCount - 1) {
                             vnode.anchor = nextNode;
                         }
@@ -11176,6 +11734,12 @@ function createHydrationFunctions(rendererInternals) {
                     nextNode = isFragmentStart
                         ? locateClosingAsyncAnchor(node)
                         : nextSibling(node);
+                    // #4293 teleport as component root
+                    if (nextNode &&
+                        isComment(nextNode) &&
+                        nextNode.data === 'teleport end') {
+                        nextNode = nextSibling(nextNode);
+                    }
                     // #3787
                     // if component is async, it may get moved / unmounted before its
                     // inner component is loaded, so we need to give it a placeholder
@@ -11868,8 +12432,10 @@ function baseCreateRenderer(options, createHydrationFns) {
         const fragmentStartAnchor = (n2.el = n1 ? n1.el : hostCreateText(''));
         const fragmentEndAnchor = (n2.anchor = n1 ? n1.anchor : hostCreateText(''));
         let { patchFlag, dynamicChildren, slotScopeIds: fragmentSlotScopeIds } = n2;
-        if (( true) && isHmrUpdating) {
-            // HMR updated, force full diff
+        if (( true) &&
+            // #5523 dev root fragment may inherit directives
+            (isHmrUpdating || patchFlag & 2048 /* DEV_ROOT_FRAGMENT */)) {
+            // HMR updated / Dev root fragment (w/ comments), force full diff
             patchFlag = 0;
             optimized = false;
             dynamicChildren = null;
@@ -12003,7 +12569,6 @@ function baseCreateRenderer(options, createHydrationFns) {
         }
         else {
             // no update needed. just copy over properties
-            n2.component = n1.component;
             n2.el = n1.el;
             instance.vnode = n2;
         }
@@ -12086,7 +12651,10 @@ function baseCreateRenderer(options, createHydrationFns) {
                 // activated hook for keep-alive roots.
                 // #1742 activated hook must be accessed after first render
                 // since the hook may be injected by a child keep-alive
-                if (initialVNode.shapeFlag & 256 /* COMPONENT_SHOULD_KEEP_ALIVE */) {
+                if (initialVNode.shapeFlag & 256 /* COMPONENT_SHOULD_KEEP_ALIVE */ ||
+                    (parent &&
+                        isAsyncWrapper(parent.vnode) &&
+                        parent.vnode.shapeFlag & 256 /* COMPONENT_SHOULD_KEEP_ALIVE */)) {
                     instance.a && queuePostRenderEffect(instance.a, parentSuspense);
                 }
                 instance.isMounted = true;
@@ -12169,9 +12737,9 @@ function baseCreateRenderer(options, createHydrationFns) {
             }
         };
         // create reactive effect for rendering
-        const effect = (instance.effect = new _vue_reactivity__WEBPACK_IMPORTED_MODULE_0__.ReactiveEffect(componentUpdateFn, () => queueJob(instance.update), instance.scope // track it in component's effect scope
+        const effect = (instance.effect = new _vue_reactivity__WEBPACK_IMPORTED_MODULE_0__.ReactiveEffect(componentUpdateFn, () => queueJob(update), instance.scope // track it in component's effect scope
         ));
-        const update = (instance.update = effect.run.bind(effect));
+        const update = (instance.update = () => effect.run());
         update.id = instance.uid;
         // allowRecurse
         // #1801, #2043 component render effects should allow recursive updates
@@ -12183,7 +12751,6 @@ function baseCreateRenderer(options, createHydrationFns) {
             effect.onTrigger = instance.rtg
                 ? e => (0,_vue_shared__WEBPACK_IMPORTED_MODULE_1__.invokeArrayFns)(instance.rtg, e)
                 : void 0;
-            // @ts-ignore (for scheduler)
             update.ownerInstance = instance;
         }
         update();
@@ -12980,89 +13547,29 @@ function hydrateTeleport(node, vnode, parentComponent, parentSuspense, slotScope
             }
             else {
                 vnode.anchor = nextSibling(node);
-                vnode.targetAnchor = hydrateChildren(targetNode, vnode, target, parentComponent, parentSuspense, slotScopeIds, optimized);
+                // lookahead until we find the target anchor
+                // we cannot rely on return value of hydrateChildren() because there
+                // could be nested teleports
+                let targetAnchor = targetNode;
+                while (targetAnchor) {
+                    targetAnchor = nextSibling(targetAnchor);
+                    if (targetAnchor &&
+                        targetAnchor.nodeType === 8 &&
+                        targetAnchor.data === 'teleport anchor') {
+                        vnode.targetAnchor = targetAnchor;
+                        target._lpa =
+                            vnode.targetAnchor && nextSibling(vnode.targetAnchor);
+                        break;
+                    }
+                }
+                hydrateChildren(targetNode, vnode, target, parentComponent, parentSuspense, slotScopeIds, optimized);
             }
-            target._lpa =
-                vnode.targetAnchor && nextSibling(vnode.targetAnchor);
         }
     }
     return vnode.anchor && nextSibling(vnode.anchor);
 }
 // Force-casted public typing for h and TSX props inference
 const Teleport = TeleportImpl;
-
-const COMPONENTS = 'components';
-const DIRECTIVES = 'directives';
-/**
- * @private
- */
-function resolveComponent(name, maybeSelfReference) {
-    return resolveAsset(COMPONENTS, name, true, maybeSelfReference) || name;
-}
-const NULL_DYNAMIC_COMPONENT = Symbol();
-/**
- * @private
- */
-function resolveDynamicComponent(component) {
-    if ((0,_vue_shared__WEBPACK_IMPORTED_MODULE_1__.isString)(component)) {
-        return resolveAsset(COMPONENTS, component, false) || component;
-    }
-    else {
-        // invalid types will fallthrough to createVNode and raise warning
-        return (component || NULL_DYNAMIC_COMPONENT);
-    }
-}
-/**
- * @private
- */
-function resolveDirective(name) {
-    return resolveAsset(DIRECTIVES, name);
-}
-// implementation
-function resolveAsset(type, name, warnMissing = true, maybeSelfReference = false) {
-    const instance = currentRenderingInstance || currentInstance;
-    if (instance) {
-        const Component = instance.type;
-        // explicit self name has highest priority
-        if (type === COMPONENTS) {
-            const selfName = getComponentName(Component);
-            if (selfName &&
-                (selfName === name ||
-                    selfName === (0,_vue_shared__WEBPACK_IMPORTED_MODULE_1__.camelize)(name) ||
-                    selfName === (0,_vue_shared__WEBPACK_IMPORTED_MODULE_1__.capitalize)((0,_vue_shared__WEBPACK_IMPORTED_MODULE_1__.camelize)(name)))) {
-                return Component;
-            }
-        }
-        const res = 
-        // local registration
-        // check instance[type] first which is resolved for options API
-        resolve(instance[type] || Component[type], name) ||
-            // global registration
-            resolve(instance.appContext[type], name);
-        if (!res && maybeSelfReference) {
-            // fallback to implicit self-reference
-            return Component;
-        }
-        if (( true) && warnMissing && !res) {
-            const extra = type === COMPONENTS
-                ? `\nIf this is a native custom element, make sure to exclude it from ` +
-                    `component resolution via compilerOptions.isCustomElement.`
-                : ``;
-            warn(`Failed to resolve ${type.slice(0, -1)}: ${name}${extra}`);
-        }
-        return res;
-    }
-    else if ((true)) {
-        warn(`resolve${(0,_vue_shared__WEBPACK_IMPORTED_MODULE_1__.capitalize)(type.slice(0, -1))} ` +
-            `can only be used in render() or setup().`);
-    }
-}
-function resolve(registry, name) {
-    return (registry &&
-        (registry[name] ||
-            registry[(0,_vue_shared__WEBPACK_IMPORTED_MODULE_1__.camelize)(name)] ||
-            registry[(0,_vue_shared__WEBPACK_IMPORTED_MODULE_1__.capitalize)((0,_vue_shared__WEBPACK_IMPORTED_MODULE_1__.camelize)(name))]));
-}
 
 const Fragment = Symbol(( true) ? 'Fragment' : 0);
 const Text = Symbol(( true) ? 'Text' : 0);
@@ -13267,6 +13774,15 @@ function _createVNode(type, props = null, children = null, patchFlag = 0, dynami
         if (children) {
             normalizeChildren(cloned, children);
         }
+        if (isBlockTreeEnabled > 0 && !isBlockNode && currentBlock) {
+            if (cloned.shapeFlag & 6 /* COMPONENT */) {
+                currentBlock[currentBlock.indexOf(type)] = cloned;
+            }
+            else {
+                currentBlock.push(cloned);
+            }
+        }
+        cloned.patchFlag |= -2 /* BAIL */;
         return cloned;
     }
     // class component normalization.
@@ -13534,422 +14050,6 @@ function invokeVNodeHook(hook, instance, vnode, prevVNode = null) {
     ]);
 }
 
-/**
- * Actual implementation
- */
-function renderList(source, renderItem, cache, index) {
-    let ret;
-    const cached = (cache && cache[index]);
-    if ((0,_vue_shared__WEBPACK_IMPORTED_MODULE_1__.isArray)(source) || (0,_vue_shared__WEBPACK_IMPORTED_MODULE_1__.isString)(source)) {
-        ret = new Array(source.length);
-        for (let i = 0, l = source.length; i < l; i++) {
-            ret[i] = renderItem(source[i], i, undefined, cached && cached[i]);
-        }
-    }
-    else if (typeof source === 'number') {
-        if (( true) && !Number.isInteger(source)) {
-            warn(`The v-for range expect an integer value but got ${source}.`);
-            return [];
-        }
-        ret = new Array(source);
-        for (let i = 0; i < source; i++) {
-            ret[i] = renderItem(i + 1, i, undefined, cached && cached[i]);
-        }
-    }
-    else if ((0,_vue_shared__WEBPACK_IMPORTED_MODULE_1__.isObject)(source)) {
-        if (source[Symbol.iterator]) {
-            ret = Array.from(source, (item, i) => renderItem(item, i, undefined, cached && cached[i]));
-        }
-        else {
-            const keys = Object.keys(source);
-            ret = new Array(keys.length);
-            for (let i = 0, l = keys.length; i < l; i++) {
-                const key = keys[i];
-                ret[i] = renderItem(source[key], key, i, cached && cached[i]);
-            }
-        }
-    }
-    else {
-        ret = [];
-    }
-    if (cache) {
-        cache[index] = ret;
-    }
-    return ret;
-}
-
-/**
- * Compiler runtime helper for creating dynamic slots object
- * @private
- */
-function createSlots(slots, dynamicSlots) {
-    for (let i = 0; i < dynamicSlots.length; i++) {
-        const slot = dynamicSlots[i];
-        // array of dynamic slot generated by <template v-for="..." #[...]>
-        if ((0,_vue_shared__WEBPACK_IMPORTED_MODULE_1__.isArray)(slot)) {
-            for (let j = 0; j < slot.length; j++) {
-                slots[slot[j].name] = slot[j].fn;
-            }
-        }
-        else if (slot) {
-            // conditional single slot generated by <template v-if="..." #foo>
-            slots[slot.name] = slot.fn;
-        }
-    }
-    return slots;
-}
-
-/**
- * Compiler runtime helper for rendering `<slot/>`
- * @private
- */
-function renderSlot(slots, name, props = {}, 
-// this is not a user-facing function, so the fallback is always generated by
-// the compiler and guaranteed to be a function returning an array
-fallback, noSlotted) {
-    if (currentRenderingInstance.isCE ||
-        (currentRenderingInstance.parent &&
-            isAsyncWrapper(currentRenderingInstance.parent) &&
-            currentRenderingInstance.parent.isCE)) {
-        return createVNode('slot', name === 'default' ? null : { name }, fallback && fallback());
-    }
-    let slot = slots[name];
-    if (( true) && slot && slot.length > 1) {
-        warn(`SSR-optimized slot function detected in a non-SSR-optimized render ` +
-            `function. You need to mark this component with $dynamic-slots in the ` +
-            `parent template.`);
-        slot = () => [];
-    }
-    // a compiled slot disables block tracking by default to avoid manual
-    // invocation interfering with template-based block tracking, but in
-    // `renderSlot` we can be sure that it's template-based so we can force
-    // enable it.
-    if (slot && slot._c) {
-        slot._d = false;
-    }
-    openBlock();
-    const validSlotContent = slot && ensureValidVNode(slot(props));
-    const rendered = createBlock(Fragment, { key: props.key || `_${name}` }, validSlotContent || (fallback ? fallback() : []), validSlotContent && slots._ === 1 /* STABLE */
-        ? 64 /* STABLE_FRAGMENT */
-        : -2 /* BAIL */);
-    if (!noSlotted && rendered.scopeId) {
-        rendered.slotScopeIds = [rendered.scopeId + '-s'];
-    }
-    if (slot && slot._c) {
-        slot._d = true;
-    }
-    return rendered;
-}
-function ensureValidVNode(vnodes) {
-    return vnodes.some(child => {
-        if (!isVNode(child))
-            return true;
-        if (child.type === Comment)
-            return false;
-        if (child.type === Fragment &&
-            !ensureValidVNode(child.children))
-            return false;
-        return true;
-    })
-        ? vnodes
-        : null;
-}
-
-/**
- * For prefixing keys in v-on="obj" with "on"
- * @private
- */
-function toHandlers(obj) {
-    const ret = {};
-    if (( true) && !(0,_vue_shared__WEBPACK_IMPORTED_MODULE_1__.isObject)(obj)) {
-        warn(`v-on with no argument expects an object value.`);
-        return ret;
-    }
-    for (const key in obj) {
-        ret[(0,_vue_shared__WEBPACK_IMPORTED_MODULE_1__.toHandlerKey)(key)] = obj[key];
-    }
-    return ret;
-}
-
-/**
- * #2437 In Vue 3, functional components do not have a public instance proxy but
- * they exist in the internal parent chain. For code that relies on traversing
- * public $parent chains, skip functional ones and go to the parent instead.
- */
-const getPublicInstance = (i) => {
-    if (!i)
-        return null;
-    if (isStatefulComponent(i))
-        return getExposeProxy(i) || i.proxy;
-    return getPublicInstance(i.parent);
-};
-const publicPropertiesMap = 
-// Move PURE marker to new line to workaround compiler discarding it
-// due to type annotation
-/*#__PURE__*/ (0,_vue_shared__WEBPACK_IMPORTED_MODULE_1__.extend)(Object.create(null), {
-    $: i => i,
-    $el: i => i.vnode.el,
-    $data: i => i.data,
-    $props: i => (( true) ? (0,_vue_reactivity__WEBPACK_IMPORTED_MODULE_0__.shallowReadonly)(i.props) : 0),
-    $attrs: i => (( true) ? (0,_vue_reactivity__WEBPACK_IMPORTED_MODULE_0__.shallowReadonly)(i.attrs) : 0),
-    $slots: i => (( true) ? (0,_vue_reactivity__WEBPACK_IMPORTED_MODULE_0__.shallowReadonly)(i.slots) : 0),
-    $refs: i => (( true) ? (0,_vue_reactivity__WEBPACK_IMPORTED_MODULE_0__.shallowReadonly)(i.refs) : 0),
-    $parent: i => getPublicInstance(i.parent),
-    $root: i => getPublicInstance(i.root),
-    $emit: i => i.emit,
-    $options: i => ( true ? resolveMergedOptions(i) : 0),
-    $forceUpdate: i => () => queueJob(i.update),
-    $nextTick: i => nextTick.bind(i.proxy),
-    $watch: i => ( true ? instanceWatch.bind(i) : 0)
-});
-const PublicInstanceProxyHandlers = {
-    get({ _: instance }, key) {
-        const { ctx, setupState, data, props, accessCache, type, appContext } = instance;
-        // for internal formatters to know that this is a Vue instance
-        if (( true) && key === '__isVue') {
-            return true;
-        }
-        // prioritize <script setup> bindings during dev.
-        // this allows even properties that start with _ or $ to be used - so that
-        // it aligns with the production behavior where the render fn is inlined and
-        // indeed has access to all declared variables.
-        if (( true) &&
-            setupState !== _vue_shared__WEBPACK_IMPORTED_MODULE_1__.EMPTY_OBJ &&
-            setupState.__isScriptSetup &&
-            (0,_vue_shared__WEBPACK_IMPORTED_MODULE_1__.hasOwn)(setupState, key)) {
-            return setupState[key];
-        }
-        // data / props / ctx
-        // This getter gets called for every property access on the render context
-        // during render and is a major hotspot. The most expensive part of this
-        // is the multiple hasOwn() calls. It's much faster to do a simple property
-        // access on a plain object, so we use an accessCache object (with null
-        // prototype) to memoize what access type a key corresponds to.
-        let normalizedProps;
-        if (key[0] !== '$') {
-            const n = accessCache[key];
-            if (n !== undefined) {
-                switch (n) {
-                    case 1 /* SETUP */:
-                        return setupState[key];
-                    case 2 /* DATA */:
-                        return data[key];
-                    case 4 /* CONTEXT */:
-                        return ctx[key];
-                    case 3 /* PROPS */:
-                        return props[key];
-                    // default: just fallthrough
-                }
-            }
-            else if (setupState !== _vue_shared__WEBPACK_IMPORTED_MODULE_1__.EMPTY_OBJ && (0,_vue_shared__WEBPACK_IMPORTED_MODULE_1__.hasOwn)(setupState, key)) {
-                accessCache[key] = 1 /* SETUP */;
-                return setupState[key];
-            }
-            else if (data !== _vue_shared__WEBPACK_IMPORTED_MODULE_1__.EMPTY_OBJ && (0,_vue_shared__WEBPACK_IMPORTED_MODULE_1__.hasOwn)(data, key)) {
-                accessCache[key] = 2 /* DATA */;
-                return data[key];
-            }
-            else if (
-            // only cache other properties when instance has declared (thus stable)
-            // props
-            (normalizedProps = instance.propsOptions[0]) &&
-                (0,_vue_shared__WEBPACK_IMPORTED_MODULE_1__.hasOwn)(normalizedProps, key)) {
-                accessCache[key] = 3 /* PROPS */;
-                return props[key];
-            }
-            else if (ctx !== _vue_shared__WEBPACK_IMPORTED_MODULE_1__.EMPTY_OBJ && (0,_vue_shared__WEBPACK_IMPORTED_MODULE_1__.hasOwn)(ctx, key)) {
-                accessCache[key] = 4 /* CONTEXT */;
-                return ctx[key];
-            }
-            else if ( false || shouldCacheAccess) {
-                accessCache[key] = 0 /* OTHER */;
-            }
-        }
-        const publicGetter = publicPropertiesMap[key];
-        let cssModule, globalProperties;
-        // public $xxx properties
-        if (publicGetter) {
-            if (key === '$attrs') {
-                (0,_vue_reactivity__WEBPACK_IMPORTED_MODULE_0__.track)(instance, "get" /* GET */, key);
-                ( true) && markAttrsAccessed();
-            }
-            return publicGetter(instance);
-        }
-        else if (
-        // css module (injected by vue-loader)
-        (cssModule = type.__cssModules) &&
-            (cssModule = cssModule[key])) {
-            return cssModule;
-        }
-        else if (ctx !== _vue_shared__WEBPACK_IMPORTED_MODULE_1__.EMPTY_OBJ && (0,_vue_shared__WEBPACK_IMPORTED_MODULE_1__.hasOwn)(ctx, key)) {
-            // user may set custom properties to `this` that start with `$`
-            accessCache[key] = 4 /* CONTEXT */;
-            return ctx[key];
-        }
-        else if (
-        // global properties
-        ((globalProperties = appContext.config.globalProperties),
-            (0,_vue_shared__WEBPACK_IMPORTED_MODULE_1__.hasOwn)(globalProperties, key))) {
-            {
-                return globalProperties[key];
-            }
-        }
-        else if (( true) &&
-            currentRenderingInstance &&
-            (!(0,_vue_shared__WEBPACK_IMPORTED_MODULE_1__.isString)(key) ||
-                // #1091 avoid internal isRef/isVNode checks on component instance leading
-                // to infinite warning loop
-                key.indexOf('__v') !== 0)) {
-            if (data !== _vue_shared__WEBPACK_IMPORTED_MODULE_1__.EMPTY_OBJ &&
-                (key[0] === '$' || key[0] === '_') &&
-                (0,_vue_shared__WEBPACK_IMPORTED_MODULE_1__.hasOwn)(data, key)) {
-                warn(`Property ${JSON.stringify(key)} must be accessed via $data because it starts with a reserved ` +
-                    `character ("$" or "_") and is not proxied on the render context.`);
-            }
-            else if (instance === currentRenderingInstance) {
-                warn(`Property ${JSON.stringify(key)} was accessed during render ` +
-                    `but is not defined on instance.`);
-            }
-        }
-    },
-    set({ _: instance }, key, value) {
-        const { data, setupState, ctx } = instance;
-        if (setupState !== _vue_shared__WEBPACK_IMPORTED_MODULE_1__.EMPTY_OBJ && (0,_vue_shared__WEBPACK_IMPORTED_MODULE_1__.hasOwn)(setupState, key)) {
-            setupState[key] = value;
-            return true;
-        }
-        else if (data !== _vue_shared__WEBPACK_IMPORTED_MODULE_1__.EMPTY_OBJ && (0,_vue_shared__WEBPACK_IMPORTED_MODULE_1__.hasOwn)(data, key)) {
-            data[key] = value;
-            return true;
-        }
-        else if ((0,_vue_shared__WEBPACK_IMPORTED_MODULE_1__.hasOwn)(instance.props, key)) {
-            ( true) &&
-                warn(`Attempting to mutate prop "${key}". Props are readonly.`, instance);
-            return false;
-        }
-        if (key[0] === '$' && key.slice(1) in instance) {
-            ( true) &&
-                warn(`Attempting to mutate public property "${key}". ` +
-                    `Properties starting with $ are reserved and readonly.`, instance);
-            return false;
-        }
-        else {
-            if (( true) && key in instance.appContext.config.globalProperties) {
-                Object.defineProperty(ctx, key, {
-                    enumerable: true,
-                    configurable: true,
-                    value
-                });
-            }
-            else {
-                ctx[key] = value;
-            }
-        }
-        return true;
-    },
-    has({ _: { data, setupState, accessCache, ctx, appContext, propsOptions } }, key) {
-        let normalizedProps;
-        return (!!accessCache[key] ||
-            (data !== _vue_shared__WEBPACK_IMPORTED_MODULE_1__.EMPTY_OBJ && (0,_vue_shared__WEBPACK_IMPORTED_MODULE_1__.hasOwn)(data, key)) ||
-            (setupState !== _vue_shared__WEBPACK_IMPORTED_MODULE_1__.EMPTY_OBJ && (0,_vue_shared__WEBPACK_IMPORTED_MODULE_1__.hasOwn)(setupState, key)) ||
-            ((normalizedProps = propsOptions[0]) && (0,_vue_shared__WEBPACK_IMPORTED_MODULE_1__.hasOwn)(normalizedProps, key)) ||
-            (0,_vue_shared__WEBPACK_IMPORTED_MODULE_1__.hasOwn)(ctx, key) ||
-            (0,_vue_shared__WEBPACK_IMPORTED_MODULE_1__.hasOwn)(publicPropertiesMap, key) ||
-            (0,_vue_shared__WEBPACK_IMPORTED_MODULE_1__.hasOwn)(appContext.config.globalProperties, key));
-    },
-    defineProperty(target, key, descriptor) {
-        if (descriptor.get != null) {
-            // invalidate key cache of a getter based property #5417
-            target._.accessCache[key] = 0;
-        }
-        else if ((0,_vue_shared__WEBPACK_IMPORTED_MODULE_1__.hasOwn)(descriptor, 'value')) {
-            this.set(target, key, descriptor.value, null);
-        }
-        return Reflect.defineProperty(target, key, descriptor);
-    }
-};
-if (true) {
-    PublicInstanceProxyHandlers.ownKeys = (target) => {
-        warn(`Avoid app logic that relies on enumerating keys on a component instance. ` +
-            `The keys will be empty in production mode to avoid performance overhead.`);
-        return Reflect.ownKeys(target);
-    };
-}
-const RuntimeCompiledPublicInstanceProxyHandlers = /*#__PURE__*/ (0,_vue_shared__WEBPACK_IMPORTED_MODULE_1__.extend)({}, PublicInstanceProxyHandlers, {
-    get(target, key) {
-        // fast path for unscopables when using `with` block
-        if (key === Symbol.unscopables) {
-            return;
-        }
-        return PublicInstanceProxyHandlers.get(target, key, target);
-    },
-    has(_, key) {
-        const has = key[0] !== '_' && !(0,_vue_shared__WEBPACK_IMPORTED_MODULE_1__.isGloballyWhitelisted)(key);
-        if (( true) && !has && PublicInstanceProxyHandlers.has(_, key)) {
-            warn(`Property ${JSON.stringify(key)} should not start with _ which is a reserved prefix for Vue internals.`);
-        }
-        return has;
-    }
-});
-// dev only
-// In dev mode, the proxy target exposes the same properties as seen on `this`
-// for easier console inspection. In prod mode it will be an empty object so
-// these properties definitions can be skipped.
-function createDevRenderContext(instance) {
-    const target = {};
-    // expose internal instance for proxy handlers
-    Object.defineProperty(target, `_`, {
-        configurable: true,
-        enumerable: false,
-        get: () => instance
-    });
-    // expose public properties
-    Object.keys(publicPropertiesMap).forEach(key => {
-        Object.defineProperty(target, key, {
-            configurable: true,
-            enumerable: false,
-            get: () => publicPropertiesMap[key](instance),
-            // intercepted by the proxy so no need for implementation,
-            // but needed to prevent set errors
-            set: _vue_shared__WEBPACK_IMPORTED_MODULE_1__.NOOP
-        });
-    });
-    return target;
-}
-// dev only
-function exposePropsOnRenderContext(instance) {
-    const { ctx, propsOptions: [propsOptions] } = instance;
-    if (propsOptions) {
-        Object.keys(propsOptions).forEach(key => {
-            Object.defineProperty(ctx, key, {
-                enumerable: true,
-                configurable: true,
-                get: () => instance.props[key],
-                set: _vue_shared__WEBPACK_IMPORTED_MODULE_1__.NOOP
-            });
-        });
-    }
-}
-// dev only
-function exposeSetupStateOnRenderContext(instance) {
-    const { ctx, setupState } = instance;
-    Object.keys((0,_vue_reactivity__WEBPACK_IMPORTED_MODULE_0__.toRaw)(setupState)).forEach(key => {
-        if (!setupState.__isScriptSetup) {
-            if (key[0] === '$' || key[0] === '_') {
-                warn(`setup() return property ${JSON.stringify(key)} should not start with "$" or "_" ` +
-                    `which are reserved prefixes for Vue internals.`);
-                return;
-            }
-            Object.defineProperty(ctx, key, {
-                enumerable: true,
-                configurable: true,
-                get: () => setupState[key],
-                set: _vue_shared__WEBPACK_IMPORTED_MODULE_1__.NOOP
-            });
-        }
-    });
-}
-
 const emptyAppContext = createAppContext();
 let uid$1 = 0;
 function createComponentInstance(vnode, parent, suspense) {
@@ -13976,7 +14076,7 @@ function createComponentInstance(vnode, parent, suspense) {
         provides: parent ? parent.provides : Object.create(appContext.provides),
         accessCache: null,
         renderCache: [],
-        // local resovled assets
+        // local resolved assets
         components: null,
         directives: null,
         // resolved props and emits options
@@ -14310,10 +14410,10 @@ function getExposeProxy(instance) {
 }
 const classifyRE = /(?:^|[-_])(\w)/g;
 const classify = (str) => str.replace(classifyRE, c => c.toUpperCase()).replace(/[-_]/g, '');
-function getComponentName(Component) {
+function getComponentName(Component, includeInferred = true) {
     return (0,_vue_shared__WEBPACK_IMPORTED_MODULE_1__.isFunction)(Component)
         ? Component.displayName || Component.name
-        : Component.name;
+        : Component.name || (includeInferred && Component.__name);
 }
 /* istanbul ignore next */
 function formatComponentName(instance, Component, isRoot = false) {
@@ -14749,7 +14849,7 @@ function isMemoSame(cached, memo) {
         return false;
     }
     for (let i = 0; i < prev.length; i++) {
-        if (prev[i] !== memo[i]) {
+        if ((0,_vue_shared__WEBPACK_IMPORTED_MODULE_1__.hasChanged)(prev[i], memo[i])) {
             return false;
         }
     }
@@ -14761,7 +14861,7 @@ function isMemoSame(cached, memo) {
 }
 
 // Core API ------------------------------------------------------------------
-const version = "3.2.33";
+const version = "3.2.37";
 const _ssrUtils = {
     createComponentInstance,
     setupComponent,
@@ -14771,7 +14871,7 @@ const _ssrUtils = {
     normalizeVNode
 };
 /**
- * SSR utils for \@vue/server-renderer. Only exposed in cjs builds.
+ * SSR utils for \@vue/server-renderer. Only exposed in ssr-possible builds.
  * @internal
  */
 const ssrUtils = (_ssrUtils );
@@ -15246,7 +15346,7 @@ const [_getNow, skipTimestampCheck] = /*#__PURE__*/ (() => {
             // if the low-res timestamp which is bigger than the event timestamp
             // (which is evaluated AFTER) it means the event is using a hi-res timestamp,
             // and we need to use the hi-res version for event listeners as well.
-            _getNow = () => performance.now();
+            _getNow = performance.now.bind(performance);
         }
         // #3485: Firefox <= 53 has incorrect Event.timeStamp implementation
         // and does not fire microtasks in between event propagation, so safe to exclude.
@@ -15412,11 +15512,11 @@ function shouldSetAsProp(el, key, value, isSVG) {
     return key in el;
 }
 
-function defineCustomElement(options, hydate) {
+function defineCustomElement(options, hydrate) {
     const Comp = (0,_vue_runtime_core__WEBPACK_IMPORTED_MODULE_0__.defineComponent)(options);
     class VueCustomElement extends VueElement {
         constructor(initialProps) {
-            super(Comp, initialProps, hydate);
+            super(Comp, initialProps, hydrate);
         }
     }
     VueCustomElement.def = Comp;
@@ -15779,6 +15879,8 @@ function resolveTransitionProps(rawProps) {
         done && done();
     };
     const finishLeave = (el, done) => {
+        el._isLeaving = false;
+        removeTransitionClass(el, leaveFromClass);
         removeTransitionClass(el, leaveToClass);
         removeTransitionClass(el, leaveActiveClass);
         done && done();
@@ -15811,12 +15913,17 @@ function resolveTransitionProps(rawProps) {
         onEnter: makeEnterHook(false),
         onAppear: makeEnterHook(true),
         onLeave(el, done) {
+            el._isLeaving = true;
             const resolve = () => finishLeave(el, done);
             addTransitionClass(el, leaveFromClass);
             // force reflow so *-leave-from classes immediately take effect (#2593)
             forceReflow();
             addTransitionClass(el, leaveActiveClass);
             nextFrame(() => {
+                if (!el._isLeaving) {
+                    // cancelled
+                    return;
+                }
                 removeTransitionClass(el, leaveFromClass);
                 addTransitionClass(el, leaveToClass);
                 if (!hasExplicitCallback(onLeave)) {
@@ -16109,7 +16216,8 @@ function hasCSSTransform(el, root, moveClass) {
 }
 
 const getModelAssigner = (vnode) => {
-    const fn = vnode.props['onUpdate:modelValue'];
+    const fn = vnode.props['onUpdate:modelValue'] ||
+        (false );
     return (0,_vue_shared__WEBPACK_IMPORTED_MODULE_1__.isArray)(fn) ? value => (0,_vue_shared__WEBPACK_IMPORTED_MODULE_1__.invokeArrayFns)(fn, value) : fn;
 };
 function onCompositionStart(e) {
@@ -16119,13 +16227,8 @@ function onCompositionEnd(e) {
     const target = e.target;
     if (target.composing) {
         target.composing = false;
-        trigger(target, 'input');
+        target.dispatchEvent(new Event('input'));
     }
-}
-function trigger(el, type) {
-    const e = document.createEvent('HTMLEvents');
-    e.initEvent(type, true, true);
-    el.dispatchEvent(e);
 }
 // We are exporting the v-model runtime directly as vnode hooks so that it can
 // be tree-shaken in case v-model is never used.
@@ -16140,7 +16243,7 @@ const vModelText = {
             if (trim) {
                 domValue = domValue.trim();
             }
-            else if (castToNumber) {
+            if (castToNumber) {
                 domValue = (0,_vue_shared__WEBPACK_IMPORTED_MODULE_1__.toNumber)(domValue);
             }
             el._assign(domValue);
@@ -16169,7 +16272,7 @@ const vModelText = {
         // avoid clearing unresolved text. #2302
         if (el.composing)
             return;
-        if (document.activeElement === el) {
+        if (document.activeElement === el && el.type !== 'range') {
             if (lazy) {
                 return;
             }
@@ -16340,27 +16443,25 @@ const vModelDynamic = {
         callModelHook(el, binding, vnode, prevVNode, 'updated');
     }
 };
-function callModelHook(el, binding, vnode, prevVNode, hook) {
-    let modelToUse;
-    switch (el.tagName) {
+function resolveDynamicModel(tagName, type) {
+    switch (tagName) {
         case 'SELECT':
-            modelToUse = vModelSelect;
-            break;
+            return vModelSelect;
         case 'TEXTAREA':
-            modelToUse = vModelText;
-            break;
+            return vModelText;
         default:
-            switch (vnode.props && vnode.props.type) {
+            switch (type) {
                 case 'checkbox':
-                    modelToUse = vModelCheckbox;
-                    break;
+                    return vModelCheckbox;
                 case 'radio':
-                    modelToUse = vModelRadio;
-                    break;
+                    return vModelRadio;
                 default:
-                    modelToUse = vModelText;
+                    return vModelText;
             }
     }
+}
+function callModelHook(el, binding, vnode, prevVNode, hook) {
+    const modelToUse = resolveDynamicModel(el.tagName, vnode.props && vnode.props.type);
     const fn = modelToUse[hook];
     fn && fn(el, binding, vnode, prevVNode);
 }
@@ -16386,6 +16487,17 @@ function initVModelForSSR() {
         }
         else if (value) {
             return { checked: true };
+        }
+    };
+    vModelDynamic.getSSRProps = (binding, vnode) => {
+        if (typeof vnode.type !== 'string') {
+            return;
+        }
+        const modelToUse = resolveDynamicModel(
+        // resolveDynamicModel expects an uppercase tag name, but vnode.type is lowercase
+        vnode.type.toUpperCase(), vnode.props && vnode.props.type);
+        if (modelToUse.getSSRProps) {
+            return modelToUse.getSSRProps(binding, vnode);
         }
     };
 }
@@ -16656,6 +16768,7 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony export */   "escapeHtml": () => (/* binding */ escapeHtml),
 /* harmony export */   "escapeHtmlComment": () => (/* binding */ escapeHtmlComment),
 /* harmony export */   "extend": () => (/* binding */ extend),
+/* harmony export */   "genPropsAccessExp": () => (/* binding */ genPropsAccessExp),
 /* harmony export */   "generateCodeFrame": () => (/* binding */ generateCodeFrame),
 /* harmony export */   "getGlobalThis": () => (/* binding */ getGlobalThis),
 /* harmony export */   "hasChanged": () => (/* binding */ hasChanged),
@@ -17108,6 +17221,11 @@ function looseEqual(a, b) {
     if (aValidType || bValidType) {
         return aValidType && bValidType ? a.getTime() === b.getTime() : false;
     }
+    aValidType = isSymbol(a);
+    bValidType = isSymbol(b);
+    if (aValidType || bValidType) {
+        return a === b;
+    }
     aValidType = isArray(a);
     bValidType = isArray(b);
     if (aValidType || bValidType) {
@@ -17204,7 +17322,7 @@ const hasOwn = (val, key) => hasOwnProperty.call(val, key);
 const isArray = Array.isArray;
 const isMap = (val) => toTypeString(val) === '[object Map]';
 const isSet = (val) => toTypeString(val) === '[object Set]';
-const isDate = (val) => val instanceof Date;
+const isDate = (val) => toTypeString(val) === '[object Date]';
 const isFunction = (val) => typeof val === 'function';
 const isString = (val) => typeof val === 'string';
 const isSymbol = (val) => typeof val === 'symbol';
@@ -17289,6 +17407,12 @@ const getGlobalThis = () => {
                             ? __webpack_require__.g
                             : {}));
 };
+const identRE = /^[_$a-zA-Z\xA0-\uFFFF][_$a-zA-Z0-9\xA0-\uFFFF]*$/;
+function genPropsAccessExp(name) {
+    return identRE.test(name)
+        ? `__props.${name}`
+        : `__props[${JSON.stringify(name)}]`;
+}
 
 
 
@@ -17304,7 +17428,7 @@ const getGlobalThis = () => {
 "use strict";
 __webpack_require__.r(__webpack_exports__);
 /* harmony export */ __webpack_require__.d(__webpack_exports__, {
-/* harmony export */   "default": () => (/* binding */ yn)
+/* harmony export */   "default": () => (/* binding */ gn)
 /* harmony export */ });
 /* harmony import */ var vue__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! vue */ "./node_modules/vue/dist/vue.esm-bundler.js");
 /* harmony import */ var date_fns__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! date-fns */ "./node_modules/date-fns/esm/parse/index.js");
@@ -17329,17 +17453,18 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony import */ var date_fns__WEBPACK_IMPORTED_MODULE_20__ = __webpack_require__(/*! date-fns */ "./node_modules/date-fns/esm/add/index.js");
 /* harmony import */ var date_fns__WEBPACK_IMPORTED_MODULE_21__ = __webpack_require__(/*! date-fns */ "./node_modules/date-fns/esm/set/index.js");
 /* harmony import */ var date_fns__WEBPACK_IMPORTED_MODULE_22__ = __webpack_require__(/*! date-fns */ "./node_modules/date-fns/esm/sub/index.js");
-/* harmony import */ var date_fns__WEBPACK_IMPORTED_MODULE_23__ = __webpack_require__(/*! date-fns */ "./node_modules/date-fns/esm/startOfWeek/index.js");
-/* harmony import */ var date_fns__WEBPACK_IMPORTED_MODULE_24__ = __webpack_require__(/*! date-fns */ "./node_modules/date-fns/esm/endOfWeek/index.js");
-/* harmony import */ var date_fns__WEBPACK_IMPORTED_MODULE_25__ = __webpack_require__(/*! date-fns */ "./node_modules/date-fns/esm/getDay/index.js");
-/* harmony import */ var date_fns__WEBPACK_IMPORTED_MODULE_26__ = __webpack_require__(/*! date-fns */ "./node_modules/date-fns/esm/addDays/index.js");
-/* harmony import */ var date_fns__WEBPACK_IMPORTED_MODULE_27__ = __webpack_require__(/*! date-fns */ "./node_modules/date-fns/esm/subMonths/index.js");
-/* harmony import */ var date_fns__WEBPACK_IMPORTED_MODULE_28__ = __webpack_require__(/*! date-fns */ "./node_modules/date-fns/esm/addYears/index.js");
-/* harmony import */ var date_fns__WEBPACK_IMPORTED_MODULE_29__ = __webpack_require__(/*! date-fns */ "./node_modules/date-fns/esm/subYears/index.js");
-/* harmony import */ var date_fns__WEBPACK_IMPORTED_MODULE_30__ = __webpack_require__(/*! date-fns */ "./node_modules/date-fns/esm/differenceInCalendarDays/index.js");
-/* harmony import */ var date_fns__WEBPACK_IMPORTED_MODULE_31__ = __webpack_require__(/*! date-fns */ "./node_modules/date-fns/esm/eachDayOfInterval/index.js");
-/* harmony import */ var date_fns__WEBPACK_IMPORTED_MODULE_32__ = __webpack_require__(/*! date-fns */ "./node_modules/date-fns/esm/getISOWeek/index.js");
-var ma=Object.defineProperty,pa=Object.defineProperties;var va=Object.getOwnPropertyDescriptors;var gn=Object.getOwnPropertySymbols;var fa=Object.prototype.hasOwnProperty,ya=Object.prototype.propertyIsEnumerable;var wn=(e,a,n)=>a in e?ma(e,a,{enumerable:!0,configurable:!0,writable:!0,value:n}):e[a]=n,X=(e,a)=>{for(var n in a||(a={}))fa.call(a,n)&&wn(e,n,a[n]);if(gn)for(var n of gn(a))ya.call(a,n)&&wn(e,n,a[n]);return e},De=(e,a)=>pa(e,va(a));var rt=(e,a)=>{const n=e.__vccOpts||e;for(const[t,i]of a)n[t]=i;return n};const _a={},Va={version:"1.1",xmlns:"http://www.w3.org/2000/svg",width:"32",height:"32",viewBox:"0 0 32 32",class:"dp__icon"},Ba=(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementVNode)("path",{d:"M29.333 8c0-2.208-1.792-4-4-4h-18.667c-2.208 0-4 1.792-4 4v18.667c0 2.208 1.792 4 4 4h18.667c2.208 0 4-1.792 4-4v-18.667zM26.667 8v18.667c0 0.736-0.597 1.333-1.333 1.333 0 0-18.667 0-18.667 0-0.736 0-1.333-0.597-1.333-1.333 0 0 0-18.667 0-18.667 0-0.736 0.597-1.333 1.333-1.333 0 0 18.667 0 18.667 0 0.736 0 1.333 0.597 1.333 1.333z"},null,-1),Na=(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementVNode)("path",{d:"M20 2.667v5.333c0 0.736 0.597 1.333 1.333 1.333s1.333-0.597 1.333-1.333v-5.333c0-0.736-0.597-1.333-1.333-1.333s-1.333 0.597-1.333 1.333z"},null,-1),Ia=(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementVNode)("path",{d:"M9.333 2.667v5.333c0 0.736 0.597 1.333 1.333 1.333s1.333-0.597 1.333-1.333v-5.333c0-0.736-0.597-1.333-1.333-1.333s-1.333 0.597-1.333 1.333z"},null,-1),Ya=(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementVNode)("path",{d:"M4 14.667h24c0.736 0 1.333-0.597 1.333-1.333s-0.597-1.333-1.333-1.333h-24c-0.736 0-1.333 0.597-1.333 1.333s0.597 1.333 1.333 1.333z"},null,-1),Fa=[Ba,Na,Ia,Ya];function Ea(e,a){return (0,vue__WEBPACK_IMPORTED_MODULE_0__.openBlock)(),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementBlock)("svg",Va,Fa)}var Nt=rt(_a,[["render",Ea]]);const La={},Ha={version:"1.1",xmlns:"http://www.w3.org/2000/svg",width:"32",height:"32",viewBox:"0 0 32 32",class:"dp__icon"},Ua=(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementVNode)("path",{d:"M23.057 7.057l-16 16c-0.52 0.52-0.52 1.365 0 1.885s1.365 0.52 1.885 0l16-16c0.52-0.52 0.52-1.365 0-1.885s-1.365-0.52-1.885 0z"},null,-1),Ka=(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementVNode)("path",{d:"M7.057 8.943l16 16c0.52 0.52 1.365 0.52 1.885 0s0.52-1.365 0-1.885l-16-16c-0.52-0.52-1.365-0.52-1.885 0s-0.52 1.365 0 1.885z"},null,-1),Wa=[Ua,Ka];function ja(e,a){return (0,vue__WEBPACK_IMPORTED_MODULE_0__.openBlock)(),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementBlock)("svg",Ha,Wa)}var Ga=rt(La,[["render",ja]]);const za={},Xa={version:"1.1",xmlns:"http://www.w3.org/2000/svg",width:"32",height:"32",viewBox:"0 0 32 32",class:"dp__icon"},qa=(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementVNode)("path",{d:"M20.943 23.057l-7.057-7.057c0 0 7.057-7.057 7.057-7.057 0.52-0.52 0.52-1.365 0-1.885s-1.365-0.52-1.885 0l-8 8c-0.521 0.521-0.521 1.365 0 1.885l8 8c0.52 0.52 1.365 0.52 1.885 0s0.52-1.365 0-1.885z"},null,-1),Ja=[qa];function Za(e,a){return (0,vue__WEBPACK_IMPORTED_MODULE_0__.openBlock)(),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementBlock)("svg",Xa,Ja)}var An=rt(za,[["render",Za]]);const Qa={},xa={version:"1.1",xmlns:"http://www.w3.org/2000/svg",width:"32",height:"32",viewBox:"0 0 32 32",class:"dp__icon"},el=(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementVNode)("path",{d:"M12.943 24.943l8-8c0.521-0.521 0.521-1.365 0-1.885l-8-8c-0.52-0.52-1.365-0.52-1.885 0s-0.52 1.365 0 1.885l7.057 7.057c0 0-7.057 7.057-7.057 7.057-0.52 0.52-0.52 1.365 0 1.885s1.365 0.52 1.885 0z"},null,-1),tl=[el];function nl(e,a){return (0,vue__WEBPACK_IMPORTED_MODULE_0__.openBlock)(),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementBlock)("svg",xa,tl)}var Tn=rt(Qa,[["render",nl]]);const al={},ll={version:"1.1",xmlns:"http://www.w3.org/2000/svg",width:"32",height:"32",viewBox:"0 0 32 32",class:"dp__icon"},rl=(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementVNode)("path",{d:"M16 1.333c-8.095 0-14.667 6.572-14.667 14.667s6.572 14.667 14.667 14.667c8.095 0 14.667-6.572 14.667-14.667s-6.572-14.667-14.667-14.667zM16 4c6.623 0 12 5.377 12 12s-5.377 12-12 12c-6.623 0-12-5.377-12-12s5.377-12 12-12z"},null,-1),ol=(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementVNode)("path",{d:"M14.667 8v8c0 0.505 0.285 0.967 0.737 1.193l5.333 2.667c0.658 0.329 1.46 0.062 1.789-0.596s0.062-1.46-0.596-1.789l-4.596-2.298c0 0 0-7.176 0-7.176 0-0.736-0.597-1.333-1.333-1.333s-1.333 0.597-1.333 1.333z"},null,-1),sl=[rl,ol];function ul(e,a){return (0,vue__WEBPACK_IMPORTED_MODULE_0__.openBlock)(),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementBlock)("svg",ll,sl)}var Rn=rt(al,[["render",ul]]);const il={},dl={version:"1.1",xmlns:"http://www.w3.org/2000/svg",width:"32",height:"32",viewBox:"0 0 32 32",class:"dp__icon"},cl=(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementVNode)("path",{d:"M24.943 19.057l-8-8c-0.521-0.521-1.365-0.521-1.885 0l-8 8c-0.52 0.52-0.52 1.365 0 1.885s1.365 0.52 1.885 0l7.057-7.057c0 0 7.057 7.057 7.057 7.057 0.52 0.52 1.365 0.52 1.885 0s0.52-1.365 0-1.885z"},null,-1),ml=[cl];function pl(e,a){return (0,vue__WEBPACK_IMPORTED_MODULE_0__.openBlock)(),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementBlock)("svg",dl,ml)}var On=rt(il,[["render",pl]]);const vl={},fl={version:"1.1",xmlns:"http://www.w3.org/2000/svg",width:"32",height:"32",viewBox:"0 0 32 32",class:"dp__icon"},yl=(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementVNode)("path",{d:"M7.057 12.943l8 8c0.521 0.521 1.365 0.521 1.885 0l8-8c0.52-0.52 0.52-1.365 0-1.885s-1.365-0.52-1.885 0l-7.057 7.057c0 0-7.057-7.057-7.057-7.057-0.52-0.52-1.365-0.52-1.885 0s-0.52 1.365 0 1.885z"},null,-1),hl=[yl];function gl(e,a){return (0,vue__WEBPACK_IMPORTED_MODULE_0__.openBlock)(),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementBlock)("svg",fl,hl)}var _n=rt(vl,[["render",gl]]);const Jt=(e,a)=>{const n=(0,date_fns__WEBPACK_IMPORTED_MODULE_1__["default"])(e,a.slice(0,e.length),new Date);return (0,date_fns__WEBPACK_IMPORTED_MODULE_2__["default"])(n)&&(0,date_fns__WEBPACK_IMPORTED_MODULE_3__["default"])(n)?n:null},Le=e=>{let a=new Date(JSON.parse(JSON.stringify(e)));return a=(0,date_fns__WEBPACK_IMPORTED_MODULE_4__["default"])(a,0),a=(0,date_fns__WEBPACK_IMPORTED_MODULE_5__["default"])(a,0),a=(0,date_fns__WEBPACK_IMPORTED_MODULE_6__["default"])(a,0),a=(0,date_fns__WEBPACK_IMPORTED_MODULE_7__["default"])(a,0),a},Zt=e=>Array.isArray(e)?(0,date_fns__WEBPACK_IMPORTED_MODULE_2__["default"])(e[0])&&(e[1]?(0,date_fns__WEBPACK_IMPORTED_MODULE_2__["default"])(e[1]):!0):e?(0,date_fns__WEBPACK_IMPORTED_MODULE_2__["default"])(e):!1,Pe=(e,a,n,t)=>{let i=e?new Date(e):new Date;return(a||a===0)&&(i=(0,date_fns__WEBPACK_IMPORTED_MODULE_4__["default"])(i,+a)),(n||n===0)&&(i=(0,date_fns__WEBPACK_IMPORTED_MODULE_5__["default"])(i,+n)),(t||t===0)&&(i=(0,date_fns__WEBPACK_IMPORTED_MODULE_6__["default"])(i,+t)),(0,date_fns__WEBPACK_IMPORTED_MODULE_7__["default"])(i,0)},wl=e=>{const a=(0,date_fns__WEBPACK_IMPORTED_MODULE_8__["default"])(e,1);return{month:(0,date_fns__WEBPACK_IMPORTED_MODULE_9__["default"])(a),year:(0,date_fns__WEBPACK_IMPORTED_MODULE_10__["default"])(a)}},ot=(e,a,n)=>{let t=e?new Date(e):new Date;return(a||a===0)&&(t=(0,date_fns__WEBPACK_IMPORTED_MODULE_11__["default"])(t,a)),n&&(t=(0,date_fns__WEBPACK_IMPORTED_MODULE_12__["default"])(t,n)),t},Vn=(e,a)=>e?`HH:mm${a?":ss":""}`:`hh:mm${a?":ss":""} aa`,Bn=(e,a,n,t,i,p,v,f)=>e||(t?"MM/yyyy":i?Vn(a,n):p?"MM/dd/yyyy":v?"yyyy":f?`MM/dd/yyyy, ${Vn(a,n)}`:"MM/dd/yyyy"),Qt=e=>{const a=e||new Date;return{hours:(0,date_fns__WEBPACK_IMPORTED_MODULE_13__["default"])(a),minutes:(0,date_fns__WEBPACK_IMPORTED_MODULE_14__["default"])(a),seconds:(0,date_fns__WEBPACK_IMPORTED_MODULE_15__["default"])(a)}},It=e=>({month:(0,date_fns__WEBPACK_IMPORTED_MODULE_9__["default"])(e),year:(0,date_fns__WEBPACK_IMPORTED_MODULE_10__["default"])(e)}),Nn=e=>Array.isArray(e)?[It(e[0]),e[1]?It(e[1]):null]:It(e),xt=e=>Array.isArray(e)?[Qt(e[0]),Qt(e[1])]:Qt(e),en=(e,a,n)=>n?(0,date_fns__WEBPACK_IMPORTED_MODULE_16__["default"])(e,a,{locale:n}):(0,date_fns__WEBPACK_IMPORTED_MODULE_16__["default"])(e,a),Yt=(e,a,n,t)=>Array.isArray(e)?`${en(e[0],a,n)} ${t||"-"} ${e[1]?en(e[1],a,n):""}`:en(e,a,n),Ae=(e,a)=>!e||!a?!1:(0,date_fns__WEBPACK_IMPORTED_MODULE_17__["default"])(Le(e),Le(a)),be=(e,a)=>!e||!a?!1:(0,date_fns__WEBPACK_IMPORTED_MODULE_18__["default"])(Le(e),Le(a)),de=(e,a)=>!e||!a?!1:(0,date_fns__WEBPACK_IMPORTED_MODULE_19__["default"])(Le(e),Le(a)),kl=(e,a)=>(0,date_fns__WEBPACK_IMPORTED_MODULE_20__["default"])((0,date_fns__WEBPACK_IMPORTED_MODULE_21__["default"])(new Date,e),a),bl=(e,a)=>(0,date_fns__WEBPACK_IMPORTED_MODULE_22__["default"])((0,date_fns__WEBPACK_IMPORTED_MODULE_21__["default"])(new Date,e),a),tn=e=>(0,date_fns__WEBPACK_IMPORTED_MODULE_21__["default"])(new Date,{hours:(0,date_fns__WEBPACK_IMPORTED_MODULE_13__["default"])(e),minutes:(0,date_fns__WEBPACK_IMPORTED_MODULE_14__["default"])(e),seconds:(0,date_fns__WEBPACK_IMPORTED_MODULE_15__["default"])(e)}),In=e=>(0,date_fns__WEBPACK_IMPORTED_MODULE_21__["default"])(new Date,{hours:+e.hours||0,minutes:+e.minutes||0,seconds:+e.seconds||0}),nn=(e,a,n)=>{let t=!0;if(!e)return!0;const i=Array.isArray(e)?[e[0]?tn(e[0]):null,e[1]?tn(e[1]):null]:tn(e);if(a){const p=In(a);Array.isArray(i)?t=(i[0]?i[0].getTime()<=p.getTime():!0)&&(i[1]?i[1].getTime()<=p.getTime():!0):t=i.getTime()<=p.getTime()}if(n){const p=In(n);Array.isArray(i)?t=(i[0]?i[0].getTime()>=p.getTime():!0)&&(i[1]?i[1].getTime()>=p.getTime():!0)&&t:t=i.getTime()>=p.getTime()&&t}return t},$l=(e,a,n)=>{let t=!0;return a&&n&&(t=Ae(new Date(e),new Date(a))&&be(new Date(e),new Date(n))),a&&(t=Ae(new Date(e),new Date(a))),n&&(t=be(new Date(e),new Date(n))),t},Re=e=>{const a=Date.UTC(e.getUTCFullYear(),e.getUTCMonth(),e.getUTCDate(),e.getUTCHours(),e.getUTCMinutes(),e.getUTCSeconds());return new Date(a).toISOString()},Yn=(e,a,n)=>e&&e[0]&&e[1]?Ae(n,e[0])&&be(n,e[1]):e&&e[0]&&a?Ae(n,e[0])&&be(n,a)||be(n,e[0])&&Ae(n,a):!1,Ft=(e,a)=>{const n=(0,date_fns__WEBPACK_IMPORTED_MODULE_23__["default"])(e,{weekStartsOn:a}),t=(0,date_fns__WEBPACK_IMPORTED_MODULE_24__["default"])(e,{weekStartsOn:a});return[n,t]},Dl=(e,a,n,t,i,p,v,f)=>{const h=n?Ae(Re(e),Re(new Date(n))):!1,T=a?be(Re(e),Re(new Date(a))):!1,N=typeof t=="function"?t(e):t.some(C=>de(Re(new Date(C)),Re(e))),g=(p.months.length?p.months.map(C=>+C):[]).includes((0,date_fns__WEBPACK_IMPORTED_MODULE_9__["default"])(e)),R=v.length?v.some(C=>+C===(0,date_fns__WEBPACK_IMPORTED_MODULE_25__["default"])(e)):!1,E=i.length?!i.some(C=>de(Re(new Date(C)),Re(e))):!1,B=(0,date_fns__WEBPACK_IMPORTED_MODULE_10__["default"])(e),Y=B<+f[0]||B>+f[1];return!(h||T||N||g||Y||R||E)},Fn=(e,a,n,t,i,p,v)=>({validate:f=>Dl(f,e,a,n,t,i,p,v)}),Ml=(e,a,n)=>{const t=new Date(JSON.parse(JSON.stringify(e))),i=[];for(let p=0;p<7;p++){const v=(0,date_fns__WEBPACK_IMPORTED_MODULE_26__["default"])(t,p),f=(0,date_fns__WEBPACK_IMPORTED_MODULE_9__["default"])(v)!==a;i.push({text:n&&f?"":v.getDate(),value:v,current:!f})}return i},Sl=(e,a,n,t)=>{const i=[],p=new Date(a,e),v=new Date(a,e+1,0),f=(0,date_fns__WEBPACK_IMPORTED_MODULE_23__["default"])(p,{weekStartsOn:n}),h=T=>{const N=Ml(T,e,t);if(i.push({days:N}),!i[i.length-1].days.some(g=>de(Le(g.value),Le(v)))){const g=(0,date_fns__WEBPACK_IMPORTED_MODULE_26__["default"])(T,7);h(g)}};return h(f),i},Pl=(e,a=3)=>{const n=[];for(let t=0;t<e.length;t+=a)n.push([e[t],e[t+1],e[t+2]]);return n},Cl=(e,a)=>{const n=[1,2,3,4,5,6,7].map(p=>new Intl.DateTimeFormat(e,{weekday:"short",timeZone:"UTC"}).format(new Date(`2017-01-0${p}T00:00:00+00:00`)).slice(0,2)),t=n.slice(0,a),i=n.slice(a+1,n.length);return[n[a]].concat(...i).concat(...t)},Al=e=>{const a=[];for(let n=+e[0];n<=+e[1];n++)a.push({value:+n,text:`${n}`});return a},Tl=(e,a)=>{const n=new Intl.DateTimeFormat(e,{month:a,timeZone:"UTC"});return[1,2,3,4,5,6,7,8,9,10,11,12].map(t=>{const i=t<10?`0${t}`:t;return new Date(`2017-${i}-01T00:00:00+00:00`)}).map((t,i)=>({text:n.format(t),value:i}))},Rl=e=>[12,1,2,3,4,5,6,7,8,9,10,11,12,1,2,3,4,5,6,7,8,9,10,11][e],Ol=()=>({enterSubmit:!0,tabSubmit:!0,openMenu:!0,rangeSeparator:" - "}),_l=e=>Object.assign({months:[],years:[],times:{hours:[],minutes:[],seconds:[]}},e),Vl=e=>{function a(n){let t="";const i="ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789",p=i.length;for(let v=0;v<n;v++)t+=i.charAt(Math.floor(Math.random()*p));return t+e}return a(5)},he=e=>{var n;const a=(0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(e);return(n=a==null?void 0:a.$el)!=null?n:a},Bl=e=>Object.assign({type:"dot"},e),En=e=>Object.assign({menuAppear:"dp-menu-appear",open:"dp-slide-down",close:"dp-slide-up",next:"calendar-next",previous:"calendar-prev",vNext:"dp-slide-up",vPrevious:"dp-slide-down"},e),Nl=e=>Object.assign({toggleOverlay:"Toggle overlay",menu:"Datepicker menu",input:"Datepicker input",calendarWrap:"Calendar wrapper",calendarDays:"Calendar days",openTimePicker:"Open time picker",closeTimePicker:"Close time Picker",incrementValue:a=>`Increment ${a}`,decrementValue:a=>`Decrement ${a}`,openTpOverlay:a=>`Open ${a} overlay`,amPmButton:"Switch AM/PM mode",openYearsOverlay:"Open years overlay",openMonthsOverlay:"Open months overlay",nextMonth:"Next month",prevMonth:"Previous month"},e),Xe=Symbol(),Et=Symbol(),an=Symbol(),Ln=Symbol(),Hn=Symbol(),qe=Symbol(),ln={disabled:{type:Boolean,default:!1},readonly:{type:Boolean,default:!1},autoApply:{type:Boolean,default:!1},inline:{type:Boolean,default:!1},textInput:{type:Boolean,default:!1}},rn={range:{type:Boolean,default:!1},uid:{type:String,default:null}},Un={enableSeconds:{type:Boolean,default:!1},is24:{type:Boolean,default:!0},noHoursOverlay:{type:Boolean,default:!1},noMinutesOverlay:{type:Boolean,default:!1},noSecondsOverlay:{type:Boolean,default:!1},hoursGridIncrement:{type:[String,Number],default:1},minutesGridIncrement:{type:[String,Number],default:5},secondsGridIncrement:{type:[String,Number],default:5},hoursIncrement:{type:[Number,String],default:1},minutesIncrement:{type:[Number,String],default:1},secondsIncrement:{type:[Number,String],default:1}},Kn=De(X({},Un),{fixedStart:{type:Boolean,default:!1},fixedEnd:{type:Boolean,default:!1},timePicker:{type:Boolean,default:!1}}),Wn={name:{type:String,default:null},placeholder:{type:String,default:""},hideInputIcon:{type:Boolean,default:!1},clearable:{type:Boolean,default:!0},state:{type:Boolean,default:null},required:{type:Boolean,default:!1},autocomplete:{type:String,default:"off"},inputClassName:{type:String,default:null},inlineWithInput:{type:Boolean,default:!1},textInputOptions:{type:Object,default:()=>null},openMenuOnFocus:{type:Boolean,default:!0}},jn={minTime:{type:Object,default:null},maxTime:{type:Object,default:null}},on={minDate:{type:[Date,String],default:null},maxDate:{type:[Date,String],default:null}},Gn=X({selectText:{type:String,default:"Select"},cancelText:{type:String,default:"Cancel"},previewFormat:{type:[String,Function],default:()=>""},multiDates:{type:Boolean,default:!1}},jn),sn={monthPicker:{type:Boolean,default:!1},customProps:{type:Object,default:null},yearPicker:{type:Boolean,default:!1}},zn={locale:{type:String,default:"en-Us"},weekNumName:{type:String,default:"W"},weekStart:{type:[Number,String],default:1},weekNumbers:{type:Boolean,default:!1},calendarClassName:{type:String,default:null},noSwipe:{type:Boolean,default:!1}},Xn=De(X(X(X(X(X(X({},Kn),Gn),sn),on),zn),rn),{vertical:{type:Boolean,default:!1},disableMonthYearSelect:{type:Boolean,default:!1},menuClassName:{type:String,default:null},yearRange:{type:Array,default:()=>[1900,2100]},multiCalendarsSolo:{type:Boolean,default:!1},calendarCellClassName:{type:String,default:null},enableTimePicker:{type:Boolean,default:!0},autoApply:{type:Boolean,default:!1},disabledDates:{type:[Array,Function],default:()=>[]},monthNameFormat:{type:String,default:"short"},startDate:{type:[Date,String],default:null},startTime:{type:[Object,Array],default:null},monthYearComponent:{type:Object,default:null},timePickerComponent:{type:Object,default:null},actionRowComponent:{type:Object,default:null},hideOffsetDates:{type:Boolean,default:!1},autoRange:{type:[Number,String],default:null},noToday:{type:Boolean,default:!1},disabledWeekDays:{type:Array,default:()=>[]},allowedDates:{type:Array,default:()=>[]},showNowButton:{type:Boolean,default:!1},nowButtonLabel:{type:String,default:"Now"},monthChangeOnScroll:{type:[Boolean,String],default:!0},markers:{type:Array,default:()=>[]},modeHeight:{type:[Number,String],default:255},escClose:{type:Boolean,default:!0},spaceConfirm:{type:Boolean,default:!0},monthChangeOnArrows:{type:Boolean,default:!0},presetRanges:{type:Array,default:()=>[]},flow:{type:Array,default:()=>[]},preventMinMaxNavigation:{type:Boolean,default:!1},minRange:{type:[Number,String],default:null},maxRange:{type:[Number,String],default:null},multiDatesLimit:{type:[Number,String],default:null},reverseYears:{type:Boolean,default:!1},keepActionRow:{type:Boolean,default:!1},weekPicker:{type:Boolean,default:!1},filters:{type:Object,default:()=>({})},arrowNavigation:{type:Boolean,default:!1},multiStatic:{type:Boolean,default:!0}}),Il=De(X(X(X({},Wn),ln),Xn),{multiCalendars:{type:[Boolean,Number,String],default:null},modelValue:{type:[String,Date,Array,Object,Number],default:null},position:{type:String,default:"center"},dark:{type:Boolean,default:!1},format:{type:[String,Function],default:()=>null},closeOnScroll:{type:Boolean,default:!1},autoPosition:{type:Boolean,default:!0},closeOnAutoApply:{type:Boolean,default:!0},teleport:{type:[String,Object],default:"body"},altPosition:{type:[Boolean,Function],default:!1},partialRange:{type:Boolean,default:!0},transitions:{type:[Boolean,Object],default:!0},formatLocale:{type:Object,default:null},utc:{type:Boolean,default:!1},ariaLabels:{type:Object,default:()=>({})}}),qn={range:{type:Boolean,default:!1},multiCalendars:{type:Number,default:0},internalModelValue:{type:[Date,Array],default:null}},Jn=De(X(X({},sn),qn),{vertical:{type:Boolean,default:!1},month:{type:Number,default:0},year:{type:Number,default:0},instance:{type:Number,default:1}}),Lt=(0,vue__WEBPACK_IMPORTED_MODULE_0__.reactive)({menuFocused:!1,shiftKeyInMenu:!1}),un=()=>({setMenuFocused:e=>{Lt.menuFocused=e},getStore:()=>Lt,setShiftKey:e=>{Lt.shiftKeyInMenu!==e&&(Lt.shiftKeyInMenu=e)}}),Yl=["aria-label","aria-disabled","aria-readonly"],Fl={key:1,class:"dp__input_wrap"},El=["id","name","placeholder","disabled","readonly","required","value","autocomplete","onKeydown"],Ll={key:4,class:"dp__clear_icon"},Hl=(0,vue__WEBPACK_IMPORTED_MODULE_0__.defineComponent)({props:De(X(X(X({},Wn),ln),rn),{inputValue:{type:String,default:""},inline:{type:Boolean,default:!1},isMenuOpen:{type:Boolean,default:!1},pattern:{type:String,default:""}}),emits:["clear","open","update:inputValue","setInputDate","close","selectDate","setEmptyDate","toggle","focus-prev"],setup(e,{expose:a,emit:n}){const t=e,i=(0,vue__WEBPACK_IMPORTED_MODULE_0__.ref)(),p=(0,vue__WEBPACK_IMPORTED_MODULE_0__.ref)(null),v=(0,vue__WEBPACK_IMPORTED_MODULE_0__.ref)(!1),f=(0,vue__WEBPACK_IMPORTED_MODULE_0__.inject)(Xe),h=(0,vue__WEBPACK_IMPORTED_MODULE_0__.useSlots)(),{getStore:T}=un(),N=(0,vue__WEBPACK_IMPORTED_MODULE_0__.computed)(()=>({dp__pointer:!t.disabled&&!t.readonly&&!t.textInput,dp__disabled:t.disabled,dp__input:!0,dp__input_icon_pad:!t.hideInputIcon,dp__input_valid:t.state,dp__input_invalid:t.state===!1,dp__input_focus:v.value||t.isMenuOpen,[t.inputClassName]:!!t.inputClassName})),g=l=>{const{value:$}=l.target,{format:U,rangeSeparator:Z}=t.textInputOptions;if($!==""){if(t.range){const[ae,le]=$.split(`${Z}`);if(ae&&le){const x=Jt(ae.trim(),U||t.pattern),se=Jt(le.trim(),U||t.pattern);i.value=x&&se?[x,se]:null}}else i.value=Jt($,U||t.pattern);n("setInputDate",i.value)}else n("setInputDate",null),t.autoApply&&(n("setEmptyDate"),i.value=null);n("update:inputValue",$)},R=()=>{var l,$;((l=t.textInputOptions)==null?void 0:l.enterSubmit)&&Zt(i.value)&&t.inputValue!==""?(n("setInputDate",i.value,!0),i.value=null):(($=t.textInputOptions)==null?void 0:$.enterSubmit)&&t.inputValue===""&&(i.value=null,n("clear"))},E=()=>{var l,$;((l=t.textInputOptions)==null?void 0:l.tabSubmit)&&Zt(i.value)&&t.inputValue!==""?(n("setInputDate",i.value,!0),i.value=null):(($=t.textInputOptions)==null?void 0:$.tabSubmit)&&t.inputValue===""&&(i.value=null,n("clear")),n("close")},B=()=>{var l;if(T().shiftKeyInMenu&&t.openMenuOnFocus)return n("close"),n("focus-prev");!t.inline&&(t.textInput?t.textInput&&((l=t.textInputOptions)==null?void 0:l.openMenu):!0)&&(v.value=!0,t.openMenuOnFocus&&!t.isMenuOpen?n("open"):t.isMenuOpen&&!T().menuFocused&&(j(),n("close")))},Y=()=>{var l;!t.openMenuOnFocus||h["dp-input"]||h.trigger?t.textInput&&((l=t.textInputOptions)==null?void 0:l.openMenu)&&!t.isMenuOpen?n("open"):t.textInput||n("toggle"):t.textInput||v.value&&n("toggle")},C=()=>{v.value=!1,t.autoApply&&t.textInput&&i.value&&(n("setInputDate",i.value),n("selectDate"),i.value=null)},s=()=>{n("clear")},j=()=>{v.value=!1;const l=he(p);l&&l.blur()};return a({unFocus:j}),(l,$)=>((0,vue__WEBPACK_IMPORTED_MODULE_0__.openBlock)(),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementBlock)("div",{onClick:Y,"aria-label":(0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(f).input,role:"textbox","aria-multiline":"false","aria-disabled":l.disabled,"aria-readonly":l.readonly},[l.$slots.trigger&&!l.$slots["dp-input"]&&!e.inline?(0,vue__WEBPACK_IMPORTED_MODULE_0__.renderSlot)(l.$slots,"trigger",{key:0}):(0,vue__WEBPACK_IMPORTED_MODULE_0__.createCommentVNode)("",!0),!l.$slots.trigger&&(!e.inline||l.inlineWithInput)?((0,vue__WEBPACK_IMPORTED_MODULE_0__.openBlock)(),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementBlock)("div",Fl,[l.$slots["dp-input"]&&!l.$slots.trigger&&!e.inline?(0,vue__WEBPACK_IMPORTED_MODULE_0__.renderSlot)(l.$slots,"dp-input",{key:0,value:e.inputValue,onInput:g,onEnter:R,onTab:E,onClear:s}):(0,vue__WEBPACK_IMPORTED_MODULE_0__.createCommentVNode)("",!0),l.$slots["dp-input"]?(0,vue__WEBPACK_IMPORTED_MODULE_0__.createCommentVNode)("",!0):((0,vue__WEBPACK_IMPORTED_MODULE_0__.openBlock)(),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementBlock)("input",{key:1,ref_key:"inputRef",ref:p,id:l.uid?`dp-input-${l.uid}`:void 0,name:l.name,class:(0,vue__WEBPACK_IMPORTED_MODULE_0__.normalizeClass)((0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(N)),placeholder:l.placeholder,disabled:l.disabled,readonly:l.readonly||!l.textInput,required:l.required,value:e.inputValue,autocomplete:l.autocomplete,onInput:g,onKeydown:[(0,vue__WEBPACK_IMPORTED_MODULE_0__.withKeys)(R,["enter"]),(0,vue__WEBPACK_IMPORTED_MODULE_0__.withKeys)(E,["tab"])],onBlur:C,onFocus:B},null,42,El)),l.$slots["input-icon"]&&!l.hideInputIcon?((0,vue__WEBPACK_IMPORTED_MODULE_0__.openBlock)(),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementBlock)("span",{key:2,class:"dp__input_icon",onClick:$[0]||($[0]=U=>n("toggle"))},[(0,vue__WEBPACK_IMPORTED_MODULE_0__.renderSlot)(l.$slots,"input-icon")])):(0,vue__WEBPACK_IMPORTED_MODULE_0__.createCommentVNode)("",!0),!l.$slots["input-icon"]&&!l.hideInputIcon&&!l.$slots["dp-input"]?((0,vue__WEBPACK_IMPORTED_MODULE_0__.openBlock)(),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createBlock)((0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(Nt),{key:3,class:"dp__input_icon dp__input_icons",onClick:$[1]||($[1]=U=>n("toggle"))})):(0,vue__WEBPACK_IMPORTED_MODULE_0__.createCommentVNode)("",!0),l.$slots["clear-icon"]&&e.inputValue&&l.clearable&&!l.disabled&&!l.readonly?((0,vue__WEBPACK_IMPORTED_MODULE_0__.openBlock)(),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementBlock)("span",Ll,[(0,vue__WEBPACK_IMPORTED_MODULE_0__.renderSlot)(l.$slots,"clear-icon",{clear:s})])):(0,vue__WEBPACK_IMPORTED_MODULE_0__.createCommentVNode)("",!0),l.clearable&&!l.$slots["clear-icon"]&&e.inputValue&&!l.disabled&&!l.readonly?((0,vue__WEBPACK_IMPORTED_MODULE_0__.openBlock)(),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createBlock)((0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(Ga),{key:5,class:"dp__clear_icon dp__input_icons",onClick:(0,vue__WEBPACK_IMPORTED_MODULE_0__.withModifiers)(s,["stop","prevent"])},null,8,["onClick"])):(0,vue__WEBPACK_IMPORTED_MODULE_0__.createCommentVNode)("",!0)])):(0,vue__WEBPACK_IMPORTED_MODULE_0__.createCommentVNode)("",!0)],8,Yl))}}),ie=(0,vue__WEBPACK_IMPORTED_MODULE_0__.reactive)({monthYear:[],calendar:[],time:[],actionRow:[],selectionGrid:[],timePicker:{"0":[],"1":[]},monthPicker:[]}),dn=(0,vue__WEBPACK_IMPORTED_MODULE_0__.ref)(null),Ht=(0,vue__WEBPACK_IMPORTED_MODULE_0__.ref)(!1),cn=(0,vue__WEBPACK_IMPORTED_MODULE_0__.ref)(!1),mn=(0,vue__WEBPACK_IMPORTED_MODULE_0__.ref)(!1),pn=(0,vue__WEBPACK_IMPORTED_MODULE_0__.ref)(!1),$e=(0,vue__WEBPACK_IMPORTED_MODULE_0__.ref)(0),we=(0,vue__WEBPACK_IMPORTED_MODULE_0__.ref)(0),Je=()=>{const e=(0,vue__WEBPACK_IMPORTED_MODULE_0__.computed)(()=>Ht.value?[...ie.selectionGrid,ie.actionRow].filter(g=>g.length):cn.value?[...ie.timePicker[0],...ie.timePicker[1],pn.value?[]:[dn.value],ie.actionRow].filter(g=>g.length):mn.value?[...ie.monthPicker,ie.actionRow]:[ie.monthYear,...ie.calendar,ie.time,ie.actionRow].filter(g=>g.length)),a=g=>{$e.value=g?$e.value+1:$e.value-1;let R=null;e.value[we.value]&&(R=e.value[we.value][$e.value]),R||($e.value=g?$e.value-1:$e.value+1)},n=g=>{we.value===0&&!g||we.value===e.value.length&&g||(we.value=g?we.value+1:we.value-1,e.value[we.value]?e.value[we.value]&&!e.value[we.value][$e.value]&&$e.value!==0&&($e.value=e.value[we.value].length-1):we.value=g?we.value-1:we.value+1)},t=g=>{let R=null;e.value[we.value]&&(R=e.value[we.value][$e.value]),R?R.focus({preventScroll:!Ht.value}):$e.value=g?$e.value-1:$e.value+1},i=()=>{a(!0),t(!0)},p=()=>{a(!1),t(!1)},v=()=>{n(!1),t(!0)},f=()=>{n(!0),t(!0)},h=(g,R)=>{ie[R]=g},T=(g,R)=>{ie[R]=g},N=()=>{$e.value=0,we.value=0};return{buildMatrix:h,buildMultiLevelMatrix:T,setTimePickerBackRef:g=>{dn.value=g},setSelectionGrid:g=>{Ht.value=g,N(),g||(ie.selectionGrid=[])},setTimePicker:(g,R=!1)=>{cn.value=g,pn.value=R,N(),g||(ie.timePicker[0]=[],ie.timePicker[1]=[])},setTimePickerElements:(g,R=0)=>{ie.timePicker[R]=g},arrowRight:i,arrowLeft:p,arrowUp:v,arrowDown:f,clearArrowNav:()=>{ie.monthYear=[],ie.calendar=[],ie.time=[],ie.actionRow=[],ie.selectionGrid=[],ie.timePicker[0]=[],ie.timePicker[1]=[],Ht.value=!1,cn.value=!1,pn.value=!1,mn.value=!1,N(),dn.value=null},setMonthPicker:g=>{mn.value=g,N()}}},Ul=["aria-label"],Kl={class:"dp__calendar_header",role:"row"},Wl={key:0,class:"dp__calendar_header_item",role:"gridcell"},jl=(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementVNode)("div",{class:"dp__calendar_header_separator"},null,-1),Gl=["aria-label"],zl={key:0,role:"gridcell",class:"dp__calendar_item dp__week_num"},Xl={class:"dp__cell_inner"},ql=["aria-selected","aria-disabled","onClick","onKeydown","onMouseover"],Jl=(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementVNode)("div",{class:"dp__arrow_bottom_tp"},null,-1),Zl=(0,vue__WEBPACK_IMPORTED_MODULE_0__.defineComponent)({props:De(X(X({},Jn),zn),{mappedDates:{type:Array,default:()=>[]},getWeekNum:{type:Function,default:()=>""},modeHeight:{type:[Number,String],default:255},specificMode:{type:Boolean,default:!1}}),emits:["selectDate","setHoverDate","handleScroll","mount","handleSwipe"],setup(e,{expose:a,emit:n}){const t=e,i=(0,vue__WEBPACK_IMPORTED_MODULE_0__.ref)(null),p=(0,vue__WEBPACK_IMPORTED_MODULE_0__.ref)({bottom:"",left:"",transform:""}),v=(0,vue__WEBPACK_IMPORTED_MODULE_0__.ref)([]),f=(0,vue__WEBPACK_IMPORTED_MODULE_0__.ref)(null),h=(0,vue__WEBPACK_IMPORTED_MODULE_0__.ref)(!0),T=(0,vue__WEBPACK_IMPORTED_MODULE_0__.inject)(Et),N=(0,vue__WEBPACK_IMPORTED_MODULE_0__.inject)(Xe),g=(0,vue__WEBPACK_IMPORTED_MODULE_0__.inject)(qe),R=(0,vue__WEBPACK_IMPORTED_MODULE_0__.ref)(""),E=(0,vue__WEBPACK_IMPORTED_MODULE_0__.ref)({startX:0,endX:0,startY:0,endY:0}),B=(0,vue__WEBPACK_IMPORTED_MODULE_0__.computed)(()=>Cl(t.locale,+t.weekStart)),{buildMultiLevelMatrix:Y}=Je();(0,vue__WEBPACK_IMPORTED_MODULE_0__.onMounted)(()=>{n("mount",{cmp:"calendar",refs:v}),t.noSwipe||f.value&&(f.value.addEventListener("touchstart",le),f.value.addEventListener("touchend",x),f.value.addEventListener("touchmove",se))});const C=(u,D)=>{if(T!=null&&T.value){const S=Le(ot(new Date,t.month,t.year));R.value=Ae(Le(ot(new Date,u,D)),S)?T.value[t.vertical?"vNext":"next"]:T.value[t.vertical?"vPrevious":"previous"],h.value=!1,(0,vue__WEBPACK_IMPORTED_MODULE_0__.nextTick)(()=>{h.value=!0})}},s=(0,vue__WEBPACK_IMPORTED_MODULE_0__.computed)(()=>({dp__calendar_wrap:!0,[t.calendarClassName]:!!t.calendarClassName})),j=(0,vue__WEBPACK_IMPORTED_MODULE_0__.computed)(()=>u=>{const D=Bl(u);return{dp__marker_dot:D.type==="dot",dp__marker_line:D.type==="line"}}),l=(0,vue__WEBPACK_IMPORTED_MODULE_0__.computed)(()=>u=>de(u,i.value)),$=(0,vue__WEBPACK_IMPORTED_MODULE_0__.computed)(()=>({dp__calendar:!0,dp__calendar_next:t.multiCalendars>0&&t.instance!==0})),U=(0,vue__WEBPACK_IMPORTED_MODULE_0__.computed)(()=>t.specificMode?{height:`${t.modeHeight}px`}:null),Z=(u,D,S)=>{var G,F;if(n("setHoverDate",u),(F=(G=u.marker)==null?void 0:G.tooltip)!=null&&F.length){const ne=he(v.value[D][S]);if(ne){const{width:Q,height:w}=ne.getBoundingClientRect();p.value={bottom:`${w}px`,left:`${Q/2}px`,transform:"translateX(-50%)"},i.value=u.value}}},ae=()=>{i.value=null},le=u=>{E.value.startX=u.changedTouches[0].screenX,E.value.startY=u.changedTouches[0].screenY},x=u=>{E.value.endX=u.changedTouches[0].screenX,E.value.endY=u.changedTouches[0].screenY,d()},se=u=>{u.preventDefault()},d=()=>{const u=t.vertical?"Y":"X";Math.abs(E.value[`start${u}`]-E.value[`end${u}`])>10&&n("handleSwipe",E.value[`start${u}`]>E.value[`end${u}`]?"right":"left")},I=(u,D,S)=>{u&&(Array.isArray(v.value[D])?v.value[D][S]=u:v.value[D]=[u]),g!=null&&g.value&&Y(v.value,"calendar")};return a({triggerTransition:C}),(u,D)=>((0,vue__WEBPACK_IMPORTED_MODULE_0__.openBlock)(),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementBlock)("div",{class:(0,vue__WEBPACK_IMPORTED_MODULE_0__.normalizeClass)((0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)($))},[(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementVNode)("div",{style:(0,vue__WEBPACK_IMPORTED_MODULE_0__.normalizeStyle)((0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(U))},[e.specificMode?(0,vue__WEBPACK_IMPORTED_MODULE_0__.createCommentVNode)("",!0):((0,vue__WEBPACK_IMPORTED_MODULE_0__.openBlock)(),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementBlock)("div",{key:0,ref_key:"calendarWrapRef",ref:f,class:(0,vue__WEBPACK_IMPORTED_MODULE_0__.normalizeClass)((0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(s)),role:"grid","aria-label":(0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(N).calendarWrap,onWheel:D[1]||(D[1]=(0,vue__WEBPACK_IMPORTED_MODULE_0__.withModifiers)(S=>u.$emit("handleScroll",S),["prevent"]))},[(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementVNode)("div",Kl,[u.weekNumbers?((0,vue__WEBPACK_IMPORTED_MODULE_0__.openBlock)(),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementBlock)("div",Wl,(0,vue__WEBPACK_IMPORTED_MODULE_0__.toDisplayString)(u.weekNumName),1)):(0,vue__WEBPACK_IMPORTED_MODULE_0__.createCommentVNode)("",!0),((0,vue__WEBPACK_IMPORTED_MODULE_0__.openBlock)(!0),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementBlock)(vue__WEBPACK_IMPORTED_MODULE_0__.Fragment,null,(0,vue__WEBPACK_IMPORTED_MODULE_0__.renderList)((0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(B),(S,G)=>((0,vue__WEBPACK_IMPORTED_MODULE_0__.openBlock)(),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementBlock)("div",{class:"dp__calendar_header_item",role:"gridcell",key:G},[u.$slots["calendar-header"]?(0,vue__WEBPACK_IMPORTED_MODULE_0__.renderSlot)(u.$slots,"calendar-header",{key:0,day:S,index:G}):(0,vue__WEBPACK_IMPORTED_MODULE_0__.createCommentVNode)("",!0),u.$slots["calendar-header"]?(0,vue__WEBPACK_IMPORTED_MODULE_0__.createCommentVNode)("",!0):((0,vue__WEBPACK_IMPORTED_MODULE_0__.openBlock)(),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementBlock)(vue__WEBPACK_IMPORTED_MODULE_0__.Fragment,{key:1},[(0,vue__WEBPACK_IMPORTED_MODULE_0__.createTextVNode)((0,vue__WEBPACK_IMPORTED_MODULE_0__.toDisplayString)(S),1)],64))]))),128))]),jl,(0,vue__WEBPACK_IMPORTED_MODULE_0__.createVNode)(vue__WEBPACK_IMPORTED_MODULE_0__.Transition,{name:R.value,css:!!(0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(T)},{default:(0,vue__WEBPACK_IMPORTED_MODULE_0__.withCtx)(()=>[h.value?((0,vue__WEBPACK_IMPORTED_MODULE_0__.openBlock)(),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementBlock)("div",{key:0,class:"dp__calendar",role:"grid","aria-label":(0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(N).calendarDays},[((0,vue__WEBPACK_IMPORTED_MODULE_0__.openBlock)(!0),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementBlock)(vue__WEBPACK_IMPORTED_MODULE_0__.Fragment,null,(0,vue__WEBPACK_IMPORTED_MODULE_0__.renderList)(e.mappedDates,(S,G)=>((0,vue__WEBPACK_IMPORTED_MODULE_0__.openBlock)(),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementBlock)("div",{class:"dp__calendar_row",role:"row",key:G},[u.weekNumbers?((0,vue__WEBPACK_IMPORTED_MODULE_0__.openBlock)(),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementBlock)("div",zl,[(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementVNode)("div",Xl,(0,vue__WEBPACK_IMPORTED_MODULE_0__.toDisplayString)(e.getWeekNum(S.days)),1)])):(0,vue__WEBPACK_IMPORTED_MODULE_0__.createCommentVNode)("",!0),((0,vue__WEBPACK_IMPORTED_MODULE_0__.openBlock)(!0),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementBlock)(vue__WEBPACK_IMPORTED_MODULE_0__.Fragment,null,(0,vue__WEBPACK_IMPORTED_MODULE_0__.renderList)(S.days,(F,ne)=>((0,vue__WEBPACK_IMPORTED_MODULE_0__.openBlock)(),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementBlock)("div",{role:"gridcell",class:"dp__calendar_item",ref_for:!0,ref:Q=>I(Q,G,ne),key:ne+G,"aria-selected":F.classData.dp__active_date||F.classData.dp__range_start||F.classData.dp__range_start,"aria-disabled":F.classData.dp__cell_disabled,tabindex:"0",onClick:(0,vue__WEBPACK_IMPORTED_MODULE_0__.withModifiers)(Q=>u.$emit("selectDate",F),["stop","prevent"]),onKeydown:(0,vue__WEBPACK_IMPORTED_MODULE_0__.withKeys)(Q=>u.$emit("selectDate",F),["enter"]),onMouseover:Q=>Z(F,G,ne),onMouseleave:ae},[(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementVNode)("div",{class:(0,vue__WEBPACK_IMPORTED_MODULE_0__.normalizeClass)(["dp__cell_inner",F.classData])},[u.$slots.day?(0,vue__WEBPACK_IMPORTED_MODULE_0__.renderSlot)(u.$slots,"day",{key:0,day:+F.text,date:F.value}):(0,vue__WEBPACK_IMPORTED_MODULE_0__.createCommentVNode)("",!0),u.$slots.day?(0,vue__WEBPACK_IMPORTED_MODULE_0__.createCommentVNode)("",!0):((0,vue__WEBPACK_IMPORTED_MODULE_0__.openBlock)(),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementBlock)(vue__WEBPACK_IMPORTED_MODULE_0__.Fragment,{key:1},[(0,vue__WEBPACK_IMPORTED_MODULE_0__.createTextVNode)((0,vue__WEBPACK_IMPORTED_MODULE_0__.toDisplayString)(F.text),1)],64)),F.marker?((0,vue__WEBPACK_IMPORTED_MODULE_0__.openBlock)(),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementBlock)("div",{key:2,class:(0,vue__WEBPACK_IMPORTED_MODULE_0__.normalizeClass)((0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(j)(F.marker)),style:(0,vue__WEBPACK_IMPORTED_MODULE_0__.normalizeStyle)(F.marker.color?{backgroundColor:F.marker.color}:{})},null,6)):(0,vue__WEBPACK_IMPORTED_MODULE_0__.createCommentVNode)("",!0),(0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(l)(F.value)?((0,vue__WEBPACK_IMPORTED_MODULE_0__.openBlock)(),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementBlock)("div",{key:3,class:"dp__marker_tooltip",style:(0,vue__WEBPACK_IMPORTED_MODULE_0__.normalizeStyle)(p.value)},[(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementVNode)("div",{class:"dp__tooltip_content",onClick:D[0]||(D[0]=(0,vue__WEBPACK_IMPORTED_MODULE_0__.withModifiers)(()=>{},["stop"]))},[((0,vue__WEBPACK_IMPORTED_MODULE_0__.openBlock)(!0),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementBlock)(vue__WEBPACK_IMPORTED_MODULE_0__.Fragment,null,(0,vue__WEBPACK_IMPORTED_MODULE_0__.renderList)(F.marker.tooltip,(Q,w)=>((0,vue__WEBPACK_IMPORTED_MODULE_0__.openBlock)(),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementBlock)("div",{key:w,class:"dp__tooltip_text"},[u.$slots["marker-tooltip"]?(0,vue__WEBPACK_IMPORTED_MODULE_0__.renderSlot)(u.$slots,"marker-tooltip",{key:0,tooltop:Q,day:F.value}):(0,vue__WEBPACK_IMPORTED_MODULE_0__.createCommentVNode)("",!0),u.$slots["marker-tooltip"]?(0,vue__WEBPACK_IMPORTED_MODULE_0__.createCommentVNode)("",!0):((0,vue__WEBPACK_IMPORTED_MODULE_0__.openBlock)(),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementBlock)(vue__WEBPACK_IMPORTED_MODULE_0__.Fragment,{key:1},[(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementVNode)("div",{class:"dp__tooltip_mark",style:(0,vue__WEBPACK_IMPORTED_MODULE_0__.normalizeStyle)(Q.color?{backgroundColor:Q.color}:{})},null,4),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementVNode)("div",null,(0,vue__WEBPACK_IMPORTED_MODULE_0__.toDisplayString)(Q.text),1)],64))]))),128)),Jl])],4)):(0,vue__WEBPACK_IMPORTED_MODULE_0__.createCommentVNode)("",!0)],2)],40,ql))),128))]))),128))],8,Gl)):(0,vue__WEBPACK_IMPORTED_MODULE_0__.createCommentVNode)("",!0)]),_:3},8,["name","css"])],42,Ul))],4)],2))}}),Ql=e=>typeof e=="object",Zn=(e,a)=>a,xl=e=>Array.isArray(e)&&e.length===2,er=e=>Array.isArray(e),tr=e=>typeof e=="object",Dt=e=>Array.isArray(e),Ie=e=>Array.isArray(e),Ut=e=>Array.isArray(e)&&e.length===2,nr=(e,a)=>a?Array.isArray(e):Ut(e),ar=e=>Array.isArray(e),lr=e=>typeof e=="string"||typeof e=="object",Qn=e=>typeof e=="string",rr={class:"dp__selection_preview"},or={class:"dp__action_buttons"},sr=["onKeydown"],ur=(0,vue__WEBPACK_IMPORTED_MODULE_0__.defineComponent)({props:De(X(X(X(X(X({},Gn),on),jn),sn),qn),{inline:{type:Boolean,default:!1},timePicker:{type:Boolean,default:!1},calendarWidth:{type:Number,default:0},menuMount:{type:Boolean,default:!1},enableTimePicker:{type:Boolean,default:!0}}),emits:["closePicker","selectDate"],setup(e,{emit:a}){const n=e,{buildMatrix:t}=Je(),i=(0,vue__WEBPACK_IMPORTED_MODULE_0__.inject)(Hn),p=(0,vue__WEBPACK_IMPORTED_MODULE_0__.inject)(qe),v=(0,vue__WEBPACK_IMPORTED_MODULE_0__.ref)(null),f=(0,vue__WEBPACK_IMPORTED_MODULE_0__.ref)(null);(0,vue__WEBPACK_IMPORTED_MODULE_0__.onMounted)(()=>{p!=null&&p.value&&t([he(v),he(f)],"actionRow")});const h=(0,vue__WEBPACK_IMPORTED_MODULE_0__.computed)(()=>({dp__action:!0,dp__select:!0,dp__action_disabled:!T.value||!N.value})),T=(0,vue__WEBPACK_IMPORTED_MODULE_0__.computed)(()=>n.enableTimePicker?nn(n.internalModelValue,n.maxTime,n.minTime):!0),N=(0,vue__WEBPACK_IMPORTED_MODULE_0__.computed)(()=>n.monthPicker?$l(n.internalModelValue,n.minDate,n.maxDate):!0),g=B=>Yt(B,n.previewFormat,i==null?void 0:i.value),R=(0,vue__WEBPACK_IMPORTED_MODULE_0__.computed)(()=>!n.internalModelValue||!n.menuMount?"":typeof n.previewFormat=="string"?Dt(n.internalModelValue)?n.internalModelValue.length===2&&n.internalModelValue[1]?n.multiCalendars>0?`${g(n.internalModelValue[0])} - ${g(n.internalModelValue[1])}`:[g(n.internalModelValue[0]),g(n.internalModelValue[1])]:n.multiDates?n.internalModelValue.map(B=>`${g(B)}`):`${g(n.internalModelValue[0])} -`:Yt(n.internalModelValue,n.previewFormat,i==null?void 0:i.value):n.timePicker?n.previewFormat(xt(n.internalModelValue)):n.monthPicker?n.previewFormat(It(n.internalModelValue)):n.previewFormat(n.internalModelValue)),E=()=>{T.value&&N.value&&a("selectDate")};return(B,Y)=>((0,vue__WEBPACK_IMPORTED_MODULE_0__.openBlock)(),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementBlock)("div",{class:"dp__action_row",style:(0,vue__WEBPACK_IMPORTED_MODULE_0__.normalizeStyle)(e.calendarWidth?{width:`${e.calendarWidth}px`}:{})},[(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementVNode)("div",rr,[B.$slots["action-preview"]?(0,vue__WEBPACK_IMPORTED_MODULE_0__.renderSlot)(B.$slots,"action-preview",{key:0,value:B.internalModelValue}):(0,vue__WEBPACK_IMPORTED_MODULE_0__.createCommentVNode)("",!0),B.$slots["action-preview"]?(0,vue__WEBPACK_IMPORTED_MODULE_0__.createCommentVNode)("",!0):((0,vue__WEBPACK_IMPORTED_MODULE_0__.openBlock)(),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementBlock)(vue__WEBPACK_IMPORTED_MODULE_0__.Fragment,{key:1},[Array.isArray((0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(R))?(0,vue__WEBPACK_IMPORTED_MODULE_0__.createCommentVNode)("",!0):((0,vue__WEBPACK_IMPORTED_MODULE_0__.openBlock)(),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementBlock)(vue__WEBPACK_IMPORTED_MODULE_0__.Fragment,{key:0},[(0,vue__WEBPACK_IMPORTED_MODULE_0__.createTextVNode)((0,vue__WEBPACK_IMPORTED_MODULE_0__.toDisplayString)((0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(R)),1)],64)),Array.isArray((0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(R))?((0,vue__WEBPACK_IMPORTED_MODULE_0__.openBlock)(!0),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementBlock)(vue__WEBPACK_IMPORTED_MODULE_0__.Fragment,{key:1},(0,vue__WEBPACK_IMPORTED_MODULE_0__.renderList)((0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(R),(C,s)=>((0,vue__WEBPACK_IMPORTED_MODULE_0__.openBlock)(),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementBlock)("div",{key:s},(0,vue__WEBPACK_IMPORTED_MODULE_0__.toDisplayString)(C),1))),128)):(0,vue__WEBPACK_IMPORTED_MODULE_0__.createCommentVNode)("",!0)],64))]),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementVNode)("div",or,[B.$slots["action-select"]?(0,vue__WEBPACK_IMPORTED_MODULE_0__.renderSlot)(B.$slots,"action-select",{key:0,value:B.internalModelValue}):(0,vue__WEBPACK_IMPORTED_MODULE_0__.createCommentVNode)("",!0),B.$slots["action-select"]?(0,vue__WEBPACK_IMPORTED_MODULE_0__.createCommentVNode)("",!0):((0,vue__WEBPACK_IMPORTED_MODULE_0__.openBlock)(),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementBlock)(vue__WEBPACK_IMPORTED_MODULE_0__.Fragment,{key:1},[e.inline?(0,vue__WEBPACK_IMPORTED_MODULE_0__.createCommentVNode)("",!0):((0,vue__WEBPACK_IMPORTED_MODULE_0__.openBlock)(),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementBlock)("span",{key:0,class:"dp__action dp__cancel",ref_key:"cancelButtonRef",ref:v,tabindex:"0",onClick:Y[0]||(Y[0]=C=>B.$emit("closePicker")),onKeydown:Y[1]||(Y[1]=(0,vue__WEBPACK_IMPORTED_MODULE_0__.withKeys)(C=>B.$emit("closePicker"),["enter"]))},(0,vue__WEBPACK_IMPORTED_MODULE_0__.toDisplayString)(B.cancelText),545)),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementVNode)("span",{class:(0,vue__WEBPACK_IMPORTED_MODULE_0__.normalizeClass)((0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(h)),tabindex:"0",onKeydown:(0,vue__WEBPACK_IMPORTED_MODULE_0__.withKeys)(E,["enter"]),onClick:E,ref_key:"selectButtonRef",ref:f},(0,vue__WEBPACK_IMPORTED_MODULE_0__.toDisplayString)(B.selectText),43,sr)],64))])],4))}}),ir={class:"dp__overlay_container",role:"grid"},dr={class:"dp__selection_grid_header"},cr=["aria-selected","aria-disabled","onClick","onKeydown","onMouseover"],mr=["aria-label","onKeydown"],Mt=(0,vue__WEBPACK_IMPORTED_MODULE_0__.defineComponent)({props:{items:{type:Array,default:()=>[]},modelValue:{type:[String,Number],default:null},multiModelValue:{type:Array,default:()=>[]},disabledValues:{type:Array,default:()=>[]},minValue:{type:[Number,String],default:null},maxValue:{type:[Number,String],default:null},year:{type:Number,default:0},skipActive:{type:Boolean,default:!1},headerRefs:{type:Array,default:()=>[]},skipButtonRef:{type:Boolean,default:!1}},emits:["update:modelValue","selected","toggle","reset-flow"],setup(e,{expose:a,emit:n}){const t=e,i=(0,vue__WEBPACK_IMPORTED_MODULE_0__.ref)(!1),p=(0,vue__WEBPACK_IMPORTED_MODULE_0__.ref)(null),v=(0,vue__WEBPACK_IMPORTED_MODULE_0__.ref)(null),f=(0,vue__WEBPACK_IMPORTED_MODULE_0__.ref)([]),h=(0,vue__WEBPACK_IMPORTED_MODULE_0__.inject)(an,!1),T=(0,vue__WEBPACK_IMPORTED_MODULE_0__.inject)(Ln,(0,vue__WEBPACK_IMPORTED_MODULE_0__.ref)(!1)),N=(0,vue__WEBPACK_IMPORTED_MODULE_0__.inject)(Xe),g=(0,vue__WEBPACK_IMPORTED_MODULE_0__.inject)(qe),R=(0,vue__WEBPACK_IMPORTED_MODULE_0__.ref)(),E=(0,vue__WEBPACK_IMPORTED_MODULE_0__.ref)(),{setSelectionGrid:B,buildMultiLevelMatrix:Y,setMonthPicker:C}=Je();(0,vue__WEBPACK_IMPORTED_MODULE_0__.onBeforeUpdate)(()=>{p.value=null}),(0,vue__WEBPACK_IMPORTED_MODULE_0__.onMounted)(()=>{(0,vue__WEBPACK_IMPORTED_MODULE_0__.nextTick)().then(()=>le()),j(),s(!0)}),(0,vue__WEBPACK_IMPORTED_MODULE_0__.onUnmounted)(()=>s(!1));const s=u=>{var D;g!=null&&g.value&&((D=t.headerRefs)!=null&&D.length?C(u):B(u))},j=()=>{const u=he(v);u&&(T.value||u.focus({preventScroll:!0}),i.value=u.clientHeight<u.scrollHeight)},l=(0,vue__WEBPACK_IMPORTED_MODULE_0__.computed)(()=>({dp__overlay:!0})),$=(0,vue__WEBPACK_IMPORTED_MODULE_0__.computed)(()=>({dp__overlay_col:!0})),U=(0,vue__WEBPACK_IMPORTED_MODULE_0__.computed)(()=>t.items.map(u=>u.filter(D=>D).map(D=>{var F,ne,Q;const S=t.disabledValues.some(w=>w===D.value)||ae(D.value),G=(F=t.multiModelValue)!=null&&F.length?(ne=t.multiModelValue)==null?void 0:ne.some(w=>de(w,(0,date_fns__WEBPACK_IMPORTED_MODULE_12__["default"])((0,date_fns__WEBPACK_IMPORTED_MODULE_11__["default"])(new Date,D.value),t.year))):t.skipActive?!1:D.value===t.modelValue;return De(X({},D),{className:{dp__overlay_cell_active:G,dp__overlay_cell:!G,dp__overlay_cell_disabled:S,dp__overlay_cell_active_disabled:S&&G,dp__overlay_cell_pad:!0,dp__cell_in_between:(Q=t.multiModelValue)!=null&&Q.length?se(D.value):!1}})}))),Z=(0,vue__WEBPACK_IMPORTED_MODULE_0__.computed)(()=>({dp__button:!0,dp__overlay_action:!0,dp__over_action_scroll:i.value,dp__button_bottom:h})),ae=u=>{const D=t.maxValue?+u>+t.maxValue:!1,S=t.minValue?+u<+t.minValue:!1;return D||S},le=()=>{const u=he(p);if(u){const D=he(v);D&&(D.scrollTop=u.offsetTop-D.offsetTop-(D.getBoundingClientRect().height/2-u.getBoundingClientRect().height))}},x=u=>{!t.disabledValues.some(D=>D===u)&&(t.minValue?+t.minValue<=u:!0)&&(t.maxValue?+t.maxValue>=u:!0)&&(n("update:modelValue",u),n("selected"))},se=u=>Yn(t.multiModelValue,(0,date_fns__WEBPACK_IMPORTED_MODULE_12__["default"])((0,date_fns__WEBPACK_IMPORTED_MODULE_11__["default"])(new Date,R.value||0),t.year),(0,date_fns__WEBPACK_IMPORTED_MODULE_12__["default"])((0,date_fns__WEBPACK_IMPORTED_MODULE_11__["default"])(new Date,u),t.year)),d=()=>{n("toggle"),n("reset-flow")},I=(u,D,S,G)=>{var F,ne;if(u&&(D.value===+t.modelValue&&!t.disabledValues.includes(D.value)&&(p.value=u),g!=null&&g.value)){Array.isArray(f.value[S])?f.value[S][G]=u:f.value[S]=[u];const Q=(F=t.headerRefs)!=null&&F.length?[t.headerRefs].concat(f.value):f.value.concat([t.skipButtonRef?[]:[E.value]]);Y(Q,(ne=t.headerRefs)!=null&&ne.length?"monthPicker":"selectionGrid")}};return a({focusGrid:j}),(u,D)=>((0,vue__WEBPACK_IMPORTED_MODULE_0__.openBlock)(),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementBlock)("div",{ref_key:"gridWrapRef",ref:v,class:(0,vue__WEBPACK_IMPORTED_MODULE_0__.normalizeClass)((0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(l)),role:"dialog",tabindex:"0"},[(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementVNode)("div",ir,[(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementVNode)("div",dr,[(0,vue__WEBPACK_IMPORTED_MODULE_0__.renderSlot)(u.$slots,"header")]),((0,vue__WEBPACK_IMPORTED_MODULE_0__.openBlock)(!0),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementBlock)(vue__WEBPACK_IMPORTED_MODULE_0__.Fragment,null,(0,vue__WEBPACK_IMPORTED_MODULE_0__.renderList)((0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(U),(S,G)=>((0,vue__WEBPACK_IMPORTED_MODULE_0__.openBlock)(),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementBlock)("div",{class:"dp__overlay_row",key:(0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(Vl)(G),role:"row"},[((0,vue__WEBPACK_IMPORTED_MODULE_0__.openBlock)(!0),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementBlock)(vue__WEBPACK_IMPORTED_MODULE_0__.Fragment,null,(0,vue__WEBPACK_IMPORTED_MODULE_0__.renderList)(S,(F,ne)=>((0,vue__WEBPACK_IMPORTED_MODULE_0__.openBlock)(),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementBlock)("div",{role:"gridcell",class:(0,vue__WEBPACK_IMPORTED_MODULE_0__.normalizeClass)((0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)($)),key:F.value,"aria-selected":F.value===e.modelValue&&!e.disabledValues.includes(F.value),"aria-disabled":F.className.dp__overlay_cell_disabled,ref_for:!0,ref:Q=>I(Q,F,G,ne),tabindex:"0",onClick:Q=>x(F.value),onKeydown:(0,vue__WEBPACK_IMPORTED_MODULE_0__.withKeys)(Q=>x(F.value),["enter"]),onMouseover:Q=>R.value=F.value},[(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementVNode)("div",{class:(0,vue__WEBPACK_IMPORTED_MODULE_0__.normalizeClass)(F.className)},[u.$slots.item?(0,vue__WEBPACK_IMPORTED_MODULE_0__.renderSlot)(u.$slots,"item",{key:0,item:F}):(0,vue__WEBPACK_IMPORTED_MODULE_0__.createCommentVNode)("",!0),u.$slots.item?(0,vue__WEBPACK_IMPORTED_MODULE_0__.createCommentVNode)("",!0):((0,vue__WEBPACK_IMPORTED_MODULE_0__.openBlock)(),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementBlock)(vue__WEBPACK_IMPORTED_MODULE_0__.Fragment,{key:1},[(0,vue__WEBPACK_IMPORTED_MODULE_0__.createTextVNode)((0,vue__WEBPACK_IMPORTED_MODULE_0__.toDisplayString)(F.text),1)],64))],2)],42,cr))),128))]))),128)),u.$slots["button-icon"]?((0,vue__WEBPACK_IMPORTED_MODULE_0__.openBlock)(),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementBlock)("div",{key:0,role:"button","aria-label":(0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(N).toggleOverlay,class:(0,vue__WEBPACK_IMPORTED_MODULE_0__.normalizeClass)((0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(Z)),tabindex:"0",ref_key:"toggleButton",ref:E,onClick:d,onKeydown:(0,vue__WEBPACK_IMPORTED_MODULE_0__.withKeys)(d,["enter"])},[(0,vue__WEBPACK_IMPORTED_MODULE_0__.renderSlot)(u.$slots,"button-icon")],42,mr)):(0,vue__WEBPACK_IMPORTED_MODULE_0__.createCommentVNode)("",!0)])],2))}}),Kt=()=>{const e=(0,vue__WEBPACK_IMPORTED_MODULE_0__.inject)(Et);return{transitionName:(0,vue__WEBPACK_IMPORTED_MODULE_0__.computed)(()=>a=>e!=null&&e.value?a?e.value.open:e.value.close:""),showTransition:!!(e!=null&&e.value)}},pr={key:0,class:"dp__time_input"},vr=(0,vue__WEBPACK_IMPORTED_MODULE_0__.createTextVNode)(" : "),fr=["aria-label","onKeydown","onClick"],yr=["aria-label","onKeydown","onClick"],hr=["aria-label","onKeydown","onClick"],gr={key:0},wr=["aria-label","onKeydown"],kr=(0,vue__WEBPACK_IMPORTED_MODULE_0__.defineComponent)({props:De(X({},Un),{hours:{type:Number,default:0},minutes:{type:Number,default:0},seconds:{type:Number,default:0},filters:{type:Object,default:()=>({})},disabled:{type:Boolean,default:!1},closeTimePickerBtn:{type:Object,default:null},order:{type:Number,default:0}}),emits:["setHours","setMinutes","update:hours","update:minutes","update:seconds","reset-flow","mounted","overlay-closed"],setup(e,{expose:a,emit:n}){const t=e,i=(0,vue__WEBPACK_IMPORTED_MODULE_0__.reactive)({hours:!1,minutes:!1,seconds:!1}),p=(0,vue__WEBPACK_IMPORTED_MODULE_0__.ref)("AM"),v=(0,vue__WEBPACK_IMPORTED_MODULE_0__.ref)(null),f=(0,vue__WEBPACK_IMPORTED_MODULE_0__.inject)(Xe),h=(0,vue__WEBPACK_IMPORTED_MODULE_0__.inject)(qe),T=(0,vue__WEBPACK_IMPORTED_MODULE_0__.ref)([]),{transitionName:N,showTransition:g}=Kt(),{setTimePickerElements:R,setTimePickerBackRef:E}=Je();(0,vue__WEBPACK_IMPORTED_MODULE_0__.onMounted)(()=>{n("mounted")});const B=(0,vue__WEBPACK_IMPORTED_MODULE_0__.computed)(()=>({dp__time_col:!0,dp__time_col_reg:!t.enableSeconds&&t.is24,dp__time_col_reg_with_button:!t.enableSeconds&&!t.is24,dp__time_col_sec:t.enableSeconds&&t.is24,dp__time_col_sec_with_button:t.enableSeconds&&!t.is24})),Y=(0,vue__WEBPACK_IMPORTED_MODULE_0__.computed)(()=>{const d=[{type:"hours"},"separator",{type:"minutes"}];return t.enableSeconds?d.concat(["separator",{type:"seconds"}]):d}),C=(0,vue__WEBPACK_IMPORTED_MODULE_0__.computed)(()=>Y.value.filter(d=>typeof d!="string")),s=(0,vue__WEBPACK_IMPORTED_MODULE_0__.computed)(()=>d=>{if(d==="hours"){const I=Z(t.hours);return{text:I<10?`0${I}`:`${I}`,value:I}}return{text:t[d]<10?`0${t[d]}`:`${t[d]}`,value:t[d]}}),j=d=>{const I=d==="hours"?t.is24?24:12:60,u=+t[`${d}GridIncrement`],D=[];for(let S=0;S<I;S+=u)D.push({value:S,text:S<10?`0${S}`:`${S}`});return Pl(D)},l=d=>t[`no${d[0].toUpperCase()+d.slice(1)}Overlay`],$=d=>{l(d)||(i[d]=!i[d],i[d]||n("overlay-closed"))},U=(d,I=!0)=>{const u=d==="hours"?date_fns__WEBPACK_IMPORTED_MODULE_13__["default"]:d==="minutes"?date_fns__WEBPACK_IMPORTED_MODULE_14__["default"]:date_fns__WEBPACK_IMPORTED_MODULE_15__["default"],D=I?kl:bl;n(`update:${d}`,u(D({[d]:+t[d]},{[d]:+t[`${d}Increment`]})))},Z=d=>t.is24?d:(d>=12?p.value="PM":p.value="AM",Rl(d)),ae=()=>{p.value==="PM"?(p.value="AM",n("update:hours",t.hours-12)):(p.value="PM",n("update:hours",t.hours+12))},le=d=>{i[d]=!0},x=(d,I,u)=>{if(d&&(h==null?void 0:h.value)){Array.isArray(T.value[I])?T.value[I][u]=d:T.value[I]=[d];let D=T.value.reduce((S,G)=>G.map((F,ne)=>[...S[ne]||[],G[ne]]),[]);E(t.closeTimePickerBtn),v.value&&(D[1]=D[1].concat(v.value)),R(D,t.order)}},se=(d,I)=>d==="hours"&&!t.is24?n(`update:${d}`,p.value==="PM"?I+12:I):n(`update:${d}`,I);return a({openChildCmp:le}),(d,I)=>e.disabled?(0,vue__WEBPACK_IMPORTED_MODULE_0__.createCommentVNode)("",!0):((0,vue__WEBPACK_IMPORTED_MODULE_0__.openBlock)(),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementBlock)("div",pr,[((0,vue__WEBPACK_IMPORTED_MODULE_0__.openBlock)(!0),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementBlock)(vue__WEBPACK_IMPORTED_MODULE_0__.Fragment,null,(0,vue__WEBPACK_IMPORTED_MODULE_0__.renderList)((0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(Y),(u,D)=>((0,vue__WEBPACK_IMPORTED_MODULE_0__.openBlock)(),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementBlock)("div",{key:D,class:(0,vue__WEBPACK_IMPORTED_MODULE_0__.normalizeClass)((0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(B))},[u==="separator"?((0,vue__WEBPACK_IMPORTED_MODULE_0__.openBlock)(),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementBlock)(vue__WEBPACK_IMPORTED_MODULE_0__.Fragment,{key:0},[vr],64)):((0,vue__WEBPACK_IMPORTED_MODULE_0__.openBlock)(),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementBlock)(vue__WEBPACK_IMPORTED_MODULE_0__.Fragment,{key:1},[(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementVNode)("div",{class:"dp__inc_dec_button",role:"button","aria-label":(0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(f).incrementValue(u.type),tabindex:"0",onKeydown:(0,vue__WEBPACK_IMPORTED_MODULE_0__.withKeys)(S=>U(u.type),["enter"]),onClick:S=>U(u.type),ref_for:!0,ref:S=>x(S,D,0)},[d.$slots["arrow-up"]?(0,vue__WEBPACK_IMPORTED_MODULE_0__.renderSlot)(d.$slots,"arrow-up",{key:0}):(0,vue__WEBPACK_IMPORTED_MODULE_0__.createCommentVNode)("",!0),d.$slots["arrow-up"]?(0,vue__WEBPACK_IMPORTED_MODULE_0__.createCommentVNode)("",!0):((0,vue__WEBPACK_IMPORTED_MODULE_0__.openBlock)(),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createBlock)((0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(On),{key:1}))],40,fr),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementVNode)("div",{role:"button","aria-label":(0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(f).openTpOverlay(u.type),class:(0,vue__WEBPACK_IMPORTED_MODULE_0__.normalizeClass)(l(u.type)?"":"dp__time_display"),tabindex:"0",onKeydown:(0,vue__WEBPACK_IMPORTED_MODULE_0__.withKeys)(S=>$(u.type),["enter"]),onClick:S=>$(u.type),ref_for:!0,ref:S=>x(S,D,1)},[d.$slots[u.type]?(0,vue__WEBPACK_IMPORTED_MODULE_0__.renderSlot)(d.$slots,u.type,{key:0,text:(0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(s)(u.type).text,value:(0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(s)(u.type).value}):(0,vue__WEBPACK_IMPORTED_MODULE_0__.createCommentVNode)("",!0),d.$slots[u.type]?(0,vue__WEBPACK_IMPORTED_MODULE_0__.createCommentVNode)("",!0):((0,vue__WEBPACK_IMPORTED_MODULE_0__.openBlock)(),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementBlock)(vue__WEBPACK_IMPORTED_MODULE_0__.Fragment,{key:1},[(0,vue__WEBPACK_IMPORTED_MODULE_0__.createTextVNode)((0,vue__WEBPACK_IMPORTED_MODULE_0__.toDisplayString)((0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(s)(u.type).text),1)],64))],42,yr),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementVNode)("div",{class:"dp__inc_dec_button",role:"button","aria-label":(0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(f).decrementValue(u.type),tabindex:"0",onKeydown:(0,vue__WEBPACK_IMPORTED_MODULE_0__.withKeys)(S=>U(u.type,!1),["enter"]),onClick:S=>U(u.type,!1),ref_for:!0,ref:S=>x(S,D,2)},[d.$slots["arrow-down"]?(0,vue__WEBPACK_IMPORTED_MODULE_0__.renderSlot)(d.$slots,"arrow-down",{key:0}):(0,vue__WEBPACK_IMPORTED_MODULE_0__.createCommentVNode)("",!0),d.$slots["arrow-down"]?(0,vue__WEBPACK_IMPORTED_MODULE_0__.createCommentVNode)("",!0):((0,vue__WEBPACK_IMPORTED_MODULE_0__.openBlock)(),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createBlock)((0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(_n),{key:1}))],40,hr)],64))],2))),128)),d.is24?(0,vue__WEBPACK_IMPORTED_MODULE_0__.createCommentVNode)("",!0):((0,vue__WEBPACK_IMPORTED_MODULE_0__.openBlock)(),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementBlock)("div",gr,[d.$slots["am-pm-button"]?(0,vue__WEBPACK_IMPORTED_MODULE_0__.renderSlot)(d.$slots,"am-pm-button",{key:0,toggle:ae,value:p.value}):(0,vue__WEBPACK_IMPORTED_MODULE_0__.createCommentVNode)("",!0),d.$slots["am-pm-button"]?(0,vue__WEBPACK_IMPORTED_MODULE_0__.createCommentVNode)("",!0):((0,vue__WEBPACK_IMPORTED_MODULE_0__.openBlock)(),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementBlock)("button",{key:1,ref_key:"amPmButton",ref:v,type:"button",class:"dp__pm_am_button",role:"button","aria-label":(0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(f).amPmButton,tabindex:"0",onClick:ae,onKeydown:(0,vue__WEBPACK_IMPORTED_MODULE_0__.withKeys)((0,vue__WEBPACK_IMPORTED_MODULE_0__.withModifiers)(ae,["prevent"]),["enter"])},(0,vue__WEBPACK_IMPORTED_MODULE_0__.toDisplayString)(p.value),41,wr))])),((0,vue__WEBPACK_IMPORTED_MODULE_0__.openBlock)(!0),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementBlock)(vue__WEBPACK_IMPORTED_MODULE_0__.Fragment,null,(0,vue__WEBPACK_IMPORTED_MODULE_0__.renderList)((0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(C),(u,D)=>((0,vue__WEBPACK_IMPORTED_MODULE_0__.openBlock)(),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createBlock)(vue__WEBPACK_IMPORTED_MODULE_0__.Transition,{key:D,name:(0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(N)((0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(i)[u.type]),css:(0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(g)},{default:(0,vue__WEBPACK_IMPORTED_MODULE_0__.withCtx)(()=>[(0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(i)[u.type]?((0,vue__WEBPACK_IMPORTED_MODULE_0__.openBlock)(),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createBlock)(Mt,{key:0,items:j(u.type),"disabled-values":e.filters.times[u.type],"onUpdate:modelValue":S=>se(u.type,S),onSelected:S=>$(u.type),onToggle:S=>$(u.type),onResetFlow:I[0]||(I[0]=S=>d.$emit("reset-flow"))},(0,vue__WEBPACK_IMPORTED_MODULE_0__.createSlots)({"button-icon":(0,vue__WEBPACK_IMPORTED_MODULE_0__.withCtx)(()=>[d.$slots["clock-icon"]?(0,vue__WEBPACK_IMPORTED_MODULE_0__.renderSlot)(d.$slots,"clock-icon",{key:0}):(0,vue__WEBPACK_IMPORTED_MODULE_0__.createCommentVNode)("",!0),d.$slots["clock-icon"]?(0,vue__WEBPACK_IMPORTED_MODULE_0__.createCommentVNode)("",!0):((0,vue__WEBPACK_IMPORTED_MODULE_0__.openBlock)(),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createBlock)((0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(Rn),{key:1}))]),_:2},[d.$slots[`${u.type}-overlay`]?{name:"item",fn:(0,vue__WEBPACK_IMPORTED_MODULE_0__.withCtx)(({item:S})=>[(0,vue__WEBPACK_IMPORTED_MODULE_0__.renderSlot)(d.$slots,`${u.type}-overlay`,{text:S.text,value:S.value})])}:void 0]),1032,["items","disabled-values","onUpdate:modelValue","onSelected","onToggle"])):(0,vue__WEBPACK_IMPORTED_MODULE_0__.createCommentVNode)("",!0)]),_:2},1032,["name","css"]))),128))]))}}),St=[{name:"clock-icon",use:["time","calendar"]},{name:"arrow-left",use:["month-year","calendar"]},{name:"arrow-right",use:["month-year","calendar"]},{name:"arrow-up",use:["time","calendar"]},{name:"arrow-down",use:["time","calendar"]},{name:"calendar-icon",use:["month-year","time","calendar"]},{name:"day",use:["calendar"]},{name:"month-overlay",use:["calendar","month-year"]},{name:"year-overlay",use:["calendar","month-year"]},{name:"hours-overlay",use:["calendar","time"]},{name:"minutes-overlay",use:["calendar","time"]},{name:"seconds-overlay",use:["calendar","time"]},{name:"hours",use:["calendar","time"]},{name:"minutes",use:["calendar","time"]},{name:"month",use:["calendar","month-year"]},{name:"year",use:["calendar","month-year"]},{name:"action-select",use:["action"]},{name:"action-preview",use:["action"]},{name:"calendar-header",use:["calendar"]},{name:"marker-tooltip",use:["calendar"]},{name:"now-button",use:[]},{name:"time-picker-overlay",use:["calendar","time"]},{name:"am-pm-button",use:["calendar","time"]}],br=[{name:"trigger"},{name:"input-icon"},{name:"clear-icon"},{name:"dp-input"}],$r={all:()=>St,monthYear:()=>St.filter(e=>e.use.includes("month-year")),input:()=>br,timePicker:()=>St.filter(e=>e.use.includes("time")),action:()=>St.filter(e=>e.use.includes("action")),calendar:()=>St.filter(e=>e.use.includes("calendar"))},st=(e,a)=>{const n=[];return $r[a]().forEach(t=>{e[t.name]&&n.push(t.name)}),n},Dr=["aria-label"],Mr={class:"dp__overlay_container"},Sr={key:1,class:"dp__overlay_row"},Pr=["aria-label"],Cr=(0,vue__WEBPACK_IMPORTED_MODULE_0__.defineComponent)({props:De(X({},Kn),{range:{type:Boolean,default:!1},filters:{type:Object,default:()=>({})},hours:{type:[Number,Array],default:0},minutes:{type:[Number,Array],default:0},seconds:{type:[Number,Array],default:0},customProps:{type:Object,default:null}}),emits:["update:hours","update:minutes","update:seconds","mount","reset-flow","overlay-closed"],setup(e,{expose:a,emit:n}){const t=e,i=(0,vue__WEBPACK_IMPORTED_MODULE_0__.useSlots)(),p=(0,vue__WEBPACK_IMPORTED_MODULE_0__.ref)(null),v=(0,vue__WEBPACK_IMPORTED_MODULE_0__.ref)(null),f=(0,vue__WEBPACK_IMPORTED_MODULE_0__.inject)(an,!1),h=(0,vue__WEBPACK_IMPORTED_MODULE_0__.ref)([]),T=(0,vue__WEBPACK_IMPORTED_MODULE_0__.ref)(null),N=(0,vue__WEBPACK_IMPORTED_MODULE_0__.inject)(Xe),g=(0,vue__WEBPACK_IMPORTED_MODULE_0__.inject)(qe),{transitionName:R,showTransition:E}=Kt(),{buildMatrix:B,setTimePicker:Y}=Je();(0,vue__WEBPACK_IMPORTED_MODULE_0__.onMounted)(()=>{n("mount"),!t.timePicker&&(g==null?void 0:g.value)?B([he(p.value)],"time"):Y(!0,t.timePicker)});const C=(0,vue__WEBPACK_IMPORTED_MODULE_0__.ref)(!1),s=d=>({hours:Array.isArray(t.hours)?t.hours[d]:t.hours,minutes:Array.isArray(t.minutes)?t.minutes[d]:t.minutes,seconds:Array.isArray(t.seconds)?t.seconds[d]:t.seconds}),j=(0,vue__WEBPACK_IMPORTED_MODULE_0__.computed)(()=>{const d=[];if(t.range)for(let I=0;I<2;I++)d.push(s(I));else d.push(s(0));return d}),l=(d,I=!1,u="")=>{I||n("reset-flow"),C.value=d,g!=null&&g.value&&(Y(d),d||n("overlay-closed")),(0,vue__WEBPACK_IMPORTED_MODULE_0__.nextTick)(()=>{u!==""&&h.value[0]&&h.value[0].openChildCmp(u)})},$=(0,vue__WEBPACK_IMPORTED_MODULE_0__.computed)(()=>({dp__button:!0,dp__button_bottom:f})),U=st(i,"timePicker"),Z=(d,I,u)=>t.range?I===0?[d,j.value[1][u]]:[j.value[0][u],d]:d,ae=d=>{n("update:hours",d)},le=d=>{n("update:minutes",d)},x=d=>{n("update:seconds",d)},se=()=>{T.value&&(g==null?void 0:g.value)&&T.value.focus({preventScroll:!0})};return a({toggleTimePicker:l}),(d,I)=>((0,vue__WEBPACK_IMPORTED_MODULE_0__.openBlock)(),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementBlock)("div",null,[d.timePicker?(0,vue__WEBPACK_IMPORTED_MODULE_0__.createCommentVNode)("",!0):((0,vue__WEBPACK_IMPORTED_MODULE_0__.openBlock)(),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementBlock)("div",{key:0,class:(0,vue__WEBPACK_IMPORTED_MODULE_0__.normalizeClass)((0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)($)),role:"button","aria-label":(0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(N).openTimePicker,tabindex:"0",ref_key:"openTimePickerBtn",ref:p,onKeydown:I[0]||(I[0]=(0,vue__WEBPACK_IMPORTED_MODULE_0__.withKeys)(u=>l(!0),["enter"])),onClick:I[1]||(I[1]=u=>l(!0))},[d.$slots["clock-icon"]?(0,vue__WEBPACK_IMPORTED_MODULE_0__.renderSlot)(d.$slots,"clock-icon",{key:0}):(0,vue__WEBPACK_IMPORTED_MODULE_0__.createCommentVNode)("",!0),d.$slots["clock-icon"]?(0,vue__WEBPACK_IMPORTED_MODULE_0__.createCommentVNode)("",!0):((0,vue__WEBPACK_IMPORTED_MODULE_0__.openBlock)(),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createBlock)((0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(Rn),{key:1}))],42,Dr)),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createVNode)(vue__WEBPACK_IMPORTED_MODULE_0__.Transition,{name:(0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(R)(C.value),css:(0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(E)},{default:(0,vue__WEBPACK_IMPORTED_MODULE_0__.withCtx)(()=>[C.value||d.timePicker?((0,vue__WEBPACK_IMPORTED_MODULE_0__.openBlock)(),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementBlock)("div",{key:0,class:"dp__overlay",ref_key:"overlayRef",ref:T,tabindex:"0"},[(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementVNode)("div",Mr,[d.$slots["time-picker-overlay"]?(0,vue__WEBPACK_IMPORTED_MODULE_0__.renderSlot)(d.$slots,"time-picker-overlay",{key:0,range:e.range,hours:e.hours,minutes:e.minutes,seconds:e.seconds,setHours:ae,setMinutes:le,setSeconds:x}):(0,vue__WEBPACK_IMPORTED_MODULE_0__.createCommentVNode)("",!0),d.$slots["time-picker-overlay"]?(0,vue__WEBPACK_IMPORTED_MODULE_0__.createCommentVNode)("",!0):((0,vue__WEBPACK_IMPORTED_MODULE_0__.openBlock)(),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementBlock)("div",Sr,[((0,vue__WEBPACK_IMPORTED_MODULE_0__.openBlock)(!0),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementBlock)(vue__WEBPACK_IMPORTED_MODULE_0__.Fragment,null,(0,vue__WEBPACK_IMPORTED_MODULE_0__.renderList)((0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(j),(u,D)=>((0,vue__WEBPACK_IMPORTED_MODULE_0__.openBlock)(),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createBlock)(kr,(0,vue__WEBPACK_IMPORTED_MODULE_0__.mergeProps)({key:D,disabled:D===0?d.fixedStart:d.fixedEnd,hours:u.hours,minutes:u.minutes,seconds:u.seconds,filters:e.filters,ref_for:!0,ref_key:"timeInputRefs",ref:h},{is24:d.is24,hoursGridIncrement:d.hoursGridIncrement,minutesGridIncrement:d.minutesGridIncrement,secondsGridIncrement:d.secondsGridIncrement,hoursIncrement:d.hoursIncrement,minutesIncrement:d.minutesIncrement,secondsIncrement:d.secondsIncrement,filters:e.filters,noHoursOverlay:d.noHoursOverlay,noMinutesOverlay:d.noMinutesOverlay,noSecondsOverlay:d.noSecondsOverlay,enableSeconds:d.enableSeconds,closeTimePickerBtn:v.value,order:D},{"onUpdate:hours":S=>ae(Z(S,D,"hours")),"onUpdate:minutes":S=>le(Z(S,D,"minutes")),"onUpdate:seconds":S=>x(Z(S,D,"seconds")),onMounted:se,onOverlayClosed:se}),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createSlots)({_:2},[(0,vue__WEBPACK_IMPORTED_MODULE_0__.renderList)((0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(U),(S,G)=>({name:S,fn:(0,vue__WEBPACK_IMPORTED_MODULE_0__.withCtx)(F=>[(0,vue__WEBPACK_IMPORTED_MODULE_0__.renderSlot)(d.$slots,S,(0,vue__WEBPACK_IMPORTED_MODULE_0__.normalizeProps)((0,vue__WEBPACK_IMPORTED_MODULE_0__.guardReactiveProps)(F)))])}))]),1040,["disabled","hours","minutes","seconds","filters","onUpdate:hours","onUpdate:minutes","onUpdate:seconds"]))),128))])),d.timePicker?(0,vue__WEBPACK_IMPORTED_MODULE_0__.createCommentVNode)("",!0):((0,vue__WEBPACK_IMPORTED_MODULE_0__.openBlock)(),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementBlock)("div",{key:2,ref_key:"closeTimePickerBtn",ref:v,class:(0,vue__WEBPACK_IMPORTED_MODULE_0__.normalizeClass)((0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)($)),role:"button","aria-label":(0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(N).closeTimePicker,tabindex:"0",onKeydown:I[2]||(I[2]=(0,vue__WEBPACK_IMPORTED_MODULE_0__.withKeys)(u=>l(!1),["enter"])),onClick:I[3]||(I[3]=u=>l(!1))},[d.$slots["calendar-icon"]?(0,vue__WEBPACK_IMPORTED_MODULE_0__.renderSlot)(d.$slots,"calendar-icon",{key:0}):(0,vue__WEBPACK_IMPORTED_MODULE_0__.createCommentVNode)("",!0),d.$slots["calendar-icon"]?(0,vue__WEBPACK_IMPORTED_MODULE_0__.createCommentVNode)("",!0):((0,vue__WEBPACK_IMPORTED_MODULE_0__.openBlock)(),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createBlock)((0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(Nt),{key:1}))],42,Pr))])],512)):(0,vue__WEBPACK_IMPORTED_MODULE_0__.createCommentVNode)("",!0)]),_:3},8,["name","css"])]))}}),Ar=["aria-label"],vn=(0,vue__WEBPACK_IMPORTED_MODULE_0__.defineComponent)({props:{ariaLabel:{type:String,default:""}},emits:["activate","setRef"],setup(e,{emit:a}){const n=(0,vue__WEBPACK_IMPORTED_MODULE_0__.ref)(null);return (0,vue__WEBPACK_IMPORTED_MODULE_0__.onMounted)(()=>a("setRef",n)),(t,i)=>((0,vue__WEBPACK_IMPORTED_MODULE_0__.openBlock)(),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementBlock)("div",{class:"dp__month_year_col_nav",onClick:i[0]||(i[0]=p=>t.$emit("activate")),onKeydown:i[1]||(i[1]=(0,vue__WEBPACK_IMPORTED_MODULE_0__.withKeys)(p=>t.$emit("activate"),["enter"])),tabindex:"0",ref_key:"elRef",ref:n},[(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementVNode)("div",{class:"dp__inner_nav",role:"button","aria-label":e.ariaLabel},[(0,vue__WEBPACK_IMPORTED_MODULE_0__.renderSlot)(t.$slots,"default")],8,Ar)],544))}}),Tr=["aria-label"],xn=(0,vue__WEBPACK_IMPORTED_MODULE_0__.defineComponent)({props:{ariaLabel:{type:String,default:""},showSelectionGrid:{type:Boolean,default:!1},modelValue:{type:Number,default:null},items:{type:Array,default:()=>[]},disabledValues:{type:Array,default:()=>[]},minValue:{type:Number,default:null},maxValue:{type:Number,default:null},slotName:{type:String,default:""},headerRefs:{type:Array,default:()=>[]}},emits:["update:model-value","toggle","setRef"],setup(e,{emit:a}){const{transitionName:n,showTransition:t}=Kt(),i=(0,vue__WEBPACK_IMPORTED_MODULE_0__.ref)(null);return (0,vue__WEBPACK_IMPORTED_MODULE_0__.onMounted)(()=>a("setRef",i)),(p,v)=>((0,vue__WEBPACK_IMPORTED_MODULE_0__.openBlock)(),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementBlock)(vue__WEBPACK_IMPORTED_MODULE_0__.Fragment,null,[(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementVNode)("div",{class:"dp__month_year_select",onClick:v[0]||(v[0]=f=>p.$emit("toggle")),onKeydown:v[1]||(v[1]=(0,vue__WEBPACK_IMPORTED_MODULE_0__.withKeys)(f=>p.$emit("toggle"),["enter"])),role:"button","aria-label":e.ariaLabel,tabindex:"0",ref_key:"elRef",ref:i},[(0,vue__WEBPACK_IMPORTED_MODULE_0__.renderSlot)(p.$slots,"default")],40,Tr),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createVNode)(vue__WEBPACK_IMPORTED_MODULE_0__.Transition,{name:(0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(n)(e.showSelectionGrid),css:(0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(t)},{default:(0,vue__WEBPACK_IMPORTED_MODULE_0__.withCtx)(()=>[e.showSelectionGrid?((0,vue__WEBPACK_IMPORTED_MODULE_0__.openBlock)(),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createBlock)(Mt,(0,vue__WEBPACK_IMPORTED_MODULE_0__.mergeProps)({key:0},{modelValue:e.modelValue,items:e.items,disabledValues:e.disabledValues,minValue:e.minValue,maxValue:e.maxValue},{"header-refs":[],"onUpdate:modelValue":v[2]||(v[2]=f=>p.$emit("update:model-value",f)),onToggle:v[3]||(v[3]=f=>p.$emit("toggle"))}),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createSlots)({"button-icon":(0,vue__WEBPACK_IMPORTED_MODULE_0__.withCtx)(()=>[p.$slots["calendar-icon"]?(0,vue__WEBPACK_IMPORTED_MODULE_0__.renderSlot)(p.$slots,"calendar-icon",{key:0}):(0,vue__WEBPACK_IMPORTED_MODULE_0__.createCommentVNode)("",!0),p.$slots["calendar-icon"]?(0,vue__WEBPACK_IMPORTED_MODULE_0__.createCommentVNode)("",!0):((0,vue__WEBPACK_IMPORTED_MODULE_0__.openBlock)(),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createBlock)((0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(Nt),{key:1}))]),_:2},[p.$slots[e.slotName]?{name:"item",fn:(0,vue__WEBPACK_IMPORTED_MODULE_0__.withCtx)(({item:f})=>[(0,vue__WEBPACK_IMPORTED_MODULE_0__.renderSlot)(p.$slots,e.slotName,{item:f})])}:void 0]),1040)):(0,vue__WEBPACK_IMPORTED_MODULE_0__.createCommentVNode)("",!0)]),_:3},8,["name","css"])],64))}}),Wt=(e,a,n)=>[(0,date_fns__WEBPACK_IMPORTED_MODULE_21__["default"])(new Date(e),{date:1}),(0,date_fns__WEBPACK_IMPORTED_MODULE_21__["default"])(new Date,{month:a,year:n,date:1})],ea=(e,a,n)=>be(...Wt(e,a,n))||de(...Wt(e,a,n)),ta=(e,a,n)=>Ae(...Wt(e,a,n))||de(...Wt(e,a,n)),na=(e,a,n,t,i,p)=>{let v=!1;return p?e&&a?(a&&i&&ta(a,n,t)&&(v=!0),e&&!i&&ea(e,n,t)&&(v=!0)):(e&&ea(e,n,t)||a&&ta(a,n,t))&&(v=!0):v=!0,v},Rr=(e,a)=>{const n=(v,f)=>{let h=v;return e.filters.months.includes((0,date_fns__WEBPACK_IMPORTED_MODULE_9__["default"])(h))?(h=f?(0,date_fns__WEBPACK_IMPORTED_MODULE_8__["default"])(v,1):(0,date_fns__WEBPACK_IMPORTED_MODULE_27__["default"])(v,1),n(h,f)):h},t=(v,f)=>{let h=v;return e.filters.years.includes((0,date_fns__WEBPACK_IMPORTED_MODULE_10__["default"])(h))?(h=f?(0,date_fns__WEBPACK_IMPORTED_MODULE_28__["default"])(v,1):(0,date_fns__WEBPACK_IMPORTED_MODULE_29__["default"])(v,1),t(h,f)):h},i=v=>{const f=(0,date_fns__WEBPACK_IMPORTED_MODULE_21__["default"])(new Date,{month:e.month,year:e.year});let h=v?(0,date_fns__WEBPACK_IMPORTED_MODULE_8__["default"])(f,1):(0,date_fns__WEBPACK_IMPORTED_MODULE_27__["default"])(f,1),T=(0,date_fns__WEBPACK_IMPORTED_MODULE_9__["default"])(h),N=(0,date_fns__WEBPACK_IMPORTED_MODULE_10__["default"])(h);e.filters.months.includes(T)&&(h=n(h,v),T=(0,date_fns__WEBPACK_IMPORTED_MODULE_9__["default"])(h),N=(0,date_fns__WEBPACK_IMPORTED_MODULE_10__["default"])(h)),e.filters.years.includes(N)&&(h=t(h,v),N=(0,date_fns__WEBPACK_IMPORTED_MODULE_10__["default"])(h)),na(e.minDate,e.maxDate,T,N,v,e.preventMinMaxNavigation)&&p(T,N)},p=(v,f)=>{a("update:month",v),a("update:year",f)};return{handleMonthYearChange:i}},Or={class:"dp__month_year_row"},_r={class:"dp__month_picker_header"},Vr=["aria-label"],Br=["aria-label","onKeydown"],Nr=["aria-label"],Ir=(0,vue__WEBPACK_IMPORTED_MODULE_0__.defineComponent)({props:De(X(X({},Jn),on),{preventMinMaxNavigation:{type:Boolean,default:!1},reverseYears:{type:Boolean,default:!1},years:{type:Array,default:()=>[]},months:{type:Array,default:()=>[]},filters:{type:Object,default:()=>({})},multiCalendarsSolo:{type:Boolean,default:!1},yearPicker:{type:Boolean,default:!1}}),emits:["update:month","update:year","monthYearSelect","mount","reset-flow","overlay-closed"],setup(e,{expose:a,emit:n}){const t=e,{transitionName:i,showTransition:p}=Kt(),{buildMatrix:v}=Je(),f=(0,vue__WEBPACK_IMPORTED_MODULE_0__.ref)(!1),h=(0,vue__WEBPACK_IMPORTED_MODULE_0__.ref)(!1),T=(0,vue__WEBPACK_IMPORTED_MODULE_0__.ref)([null,null,null,null]),N=(0,vue__WEBPACK_IMPORTED_MODULE_0__.ref)(null),g=(0,vue__WEBPACK_IMPORTED_MODULE_0__.ref)(null),R=(0,vue__WEBPACK_IMPORTED_MODULE_0__.ref)(null),E=(0,vue__WEBPACK_IMPORTED_MODULE_0__.inject)(Xe),B=(0,vue__WEBPACK_IMPORTED_MODULE_0__.inject)(qe),{handleMonthYearChange:Y}=Rr(t,n);(0,vue__WEBPACK_IMPORTED_MODULE_0__.onMounted)(()=>{n("mount")});const C=w=>({get:()=>t[w],set:_=>{n(`update:${w}`,_),n("monthYearSelect",w==="year"),w==="month"?S(!0):G(!0)}}),s=(0,vue__WEBPACK_IMPORTED_MODULE_0__.computed)(C("month")),j=(0,vue__WEBPACK_IMPORTED_MODULE_0__.computed)(C("year")),l=(0,vue__WEBPACK_IMPORTED_MODULE_0__.computed)(()=>w=>{const _=w==="month";return{showSelectionGrid:(_?f:h).value,items:(_?d:I).value,disabledValues:t.filters[_?"months":"years"],minValue:(_?Z:$).value,maxValue:(_?ae:U).value,headerRefs:_&&t.monthPicker?[N.value,g.value,R.value]:[]}}),$=(0,vue__WEBPACK_IMPORTED_MODULE_0__.computed)(()=>t.minDate?(0,date_fns__WEBPACK_IMPORTED_MODULE_10__["default"])(new Date(t.minDate)):null),U=(0,vue__WEBPACK_IMPORTED_MODULE_0__.computed)(()=>t.maxDate?(0,date_fns__WEBPACK_IMPORTED_MODULE_10__["default"])(new Date(t.maxDate)):null),Z=(0,vue__WEBPACK_IMPORTED_MODULE_0__.computed)(()=>{if(t.minDate&&$.value){if($.value>t.year)return 12;if($.value===t.year)return (0,date_fns__WEBPACK_IMPORTED_MODULE_9__["default"])(new Date(t.minDate))}return null}),ae=(0,vue__WEBPACK_IMPORTED_MODULE_0__.computed)(()=>{if(t.maxDate&&U.value){if(U.value<t.year)return-1;if(U.value===t.year)return (0,date_fns__WEBPACK_IMPORTED_MODULE_9__["default"])(new Date(t.maxDate))}return null}),le=(0,vue__WEBPACK_IMPORTED_MODULE_0__.computed)(()=>t.range&&t.internalModelValue&&t.monthPicker?t.internalModelValue:[]),x=(w,_=!1)=>{const V=[];for(let ke=0;ke<w.length;ke+=3){const Ye=[w[ke],w[ke+1],w[ke+2]];V.push(_?Ye.reverse():Ye)}return _?V.reverse():V},se=(0,vue__WEBPACK_IMPORTED_MODULE_0__.computed)(()=>{const w=t.months.find(_=>_.value===t.month);return w||{text:"",value:0}}),d=(0,vue__WEBPACK_IMPORTED_MODULE_0__.computed)(()=>x(t.months)),I=(0,vue__WEBPACK_IMPORTED_MODULE_0__.computed)(()=>x(t.years,t.reverseYears)),u=(0,vue__WEBPACK_IMPORTED_MODULE_0__.computed)(()=>t.multiCalendars?t.multiCalendarsSolo?!0:t.instance===0:!0),D=(0,vue__WEBPACK_IMPORTED_MODULE_0__.computed)(()=>t.multiCalendars?t.multiCalendarsSolo?!0:t.instance===t.multiCalendars-1:!0),S=(w=!1)=>{F(w),f.value=!f.value,f.value||n("overlay-closed")},G=(w=!1)=>{F(w),h.value=!h.value,h.value||n("overlay-closed")},F=w=>{w||n("reset-flow")},ne=(w=!1)=>{n("update:year",w?t.year+1:t.year-1)},Q=(w,_)=>{B!=null&&B.value&&(T.value[_]=he(w),v(T.value,"monthYear"))};return a({toggleMonthPicker:S,toggleYearPicker:G}),(w,_)=>((0,vue__WEBPACK_IMPORTED_MODULE_0__.openBlock)(),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementBlock)("div",Or,[!w.monthPicker&&!e.yearPicker?((0,vue__WEBPACK_IMPORTED_MODULE_0__.openBlock)(),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementBlock)(vue__WEBPACK_IMPORTED_MODULE_0__.Fragment,{key:0},[(0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(u)&&!w.vertical?((0,vue__WEBPACK_IMPORTED_MODULE_0__.openBlock)(),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createBlock)(vn,{key:0,"aria-label":(0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(E).prevMonth,onActivate:_[0]||(_[0]=V=>(0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(Y)(!1)),onSetRef:_[1]||(_[1]=V=>Q(V,0))},{default:(0,vue__WEBPACK_IMPORTED_MODULE_0__.withCtx)(()=>[w.$slots["arrow-left"]?(0,vue__WEBPACK_IMPORTED_MODULE_0__.renderSlot)(w.$slots,"arrow-left",{key:0}):(0,vue__WEBPACK_IMPORTED_MODULE_0__.createCommentVNode)("",!0),w.$slots["arrow-left"]?(0,vue__WEBPACK_IMPORTED_MODULE_0__.createCommentVNode)("",!0):((0,vue__WEBPACK_IMPORTED_MODULE_0__.openBlock)(),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createBlock)((0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(An),{key:1}))]),_:3},8,["aria-label"])):(0,vue__WEBPACK_IMPORTED_MODULE_0__.createCommentVNode)("",!0),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createVNode)(xn,(0,vue__WEBPACK_IMPORTED_MODULE_0__.mergeProps)({"aria-label":(0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(E).openMonthsOverlay,"slot-name":"month-overlay",modelValue:(0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(s),"onUpdate:modelValue":_[2]||(_[2]=V=>(0,vue__WEBPACK_IMPORTED_MODULE_0__.isRef)(s)?s.value=V:null)},(0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(l)("month"),{onToggle:S,onSetRef:_[3]||(_[3]=V=>Q(V,1))}),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createSlots)({default:(0,vue__WEBPACK_IMPORTED_MODULE_0__.withCtx)(()=>[w.$slots.month?(0,vue__WEBPACK_IMPORTED_MODULE_0__.renderSlot)(w.$slots,"month",(0,vue__WEBPACK_IMPORTED_MODULE_0__.normalizeProps)((0,vue__WEBPACK_IMPORTED_MODULE_0__.mergeProps)({key:0},(0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(se)))):(0,vue__WEBPACK_IMPORTED_MODULE_0__.createCommentVNode)("",!0),w.$slots.month?(0,vue__WEBPACK_IMPORTED_MODULE_0__.createCommentVNode)("",!0):((0,vue__WEBPACK_IMPORTED_MODULE_0__.openBlock)(),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementBlock)(vue__WEBPACK_IMPORTED_MODULE_0__.Fragment,{key:1},[(0,vue__WEBPACK_IMPORTED_MODULE_0__.createTextVNode)((0,vue__WEBPACK_IMPORTED_MODULE_0__.toDisplayString)((0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(se).text),1)],64))]),_:2},[w.$slots["calendar-icon"]?{name:"calendar-icon",fn:(0,vue__WEBPACK_IMPORTED_MODULE_0__.withCtx)(()=>[(0,vue__WEBPACK_IMPORTED_MODULE_0__.renderSlot)(w.$slots,"calendar-icon")])}:void 0,w.$slots["month-overlay"]?{name:"month-overlay",fn:(0,vue__WEBPACK_IMPORTED_MODULE_0__.withCtx)(({item:V})=>[(0,vue__WEBPACK_IMPORTED_MODULE_0__.renderSlot)(w.$slots,"month-overlay",{text:V.text,value:V.value})])}:void 0]),1040,["aria-label","modelValue"]),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createVNode)(xn,(0,vue__WEBPACK_IMPORTED_MODULE_0__.mergeProps)({"aria-label":(0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(E).openYearsOverlay,"slot-name":"year-overlay",modelValue:(0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(j),"onUpdate:modelValue":_[4]||(_[4]=V=>(0,vue__WEBPACK_IMPORTED_MODULE_0__.isRef)(j)?j.value=V:null)},(0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(l)("year"),{onToggle:G,onSetRef:_[5]||(_[5]=V=>Q(V,2))}),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createSlots)({default:(0,vue__WEBPACK_IMPORTED_MODULE_0__.withCtx)(()=>[w.$slots.year?(0,vue__WEBPACK_IMPORTED_MODULE_0__.renderSlot)(w.$slots,"year",{key:0,year:w.year}):(0,vue__WEBPACK_IMPORTED_MODULE_0__.createCommentVNode)("",!0),w.$slots.year?(0,vue__WEBPACK_IMPORTED_MODULE_0__.createCommentVNode)("",!0):((0,vue__WEBPACK_IMPORTED_MODULE_0__.openBlock)(),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementBlock)(vue__WEBPACK_IMPORTED_MODULE_0__.Fragment,{key:1},[(0,vue__WEBPACK_IMPORTED_MODULE_0__.createTextVNode)((0,vue__WEBPACK_IMPORTED_MODULE_0__.toDisplayString)(w.year),1)],64))]),_:2},[w.$slots["calendar-icon"]?{name:"calendar-icon",fn:(0,vue__WEBPACK_IMPORTED_MODULE_0__.withCtx)(()=>[(0,vue__WEBPACK_IMPORTED_MODULE_0__.renderSlot)(w.$slots,"calendar-icon")])}:void 0,w.$slots["year-overlay"]?{name:"year-overlay",fn:(0,vue__WEBPACK_IMPORTED_MODULE_0__.withCtx)(({item:V})=>[(0,vue__WEBPACK_IMPORTED_MODULE_0__.renderSlot)(w.$slots,"year-overlay",{text:V.text,value:V.value})])}:void 0]),1040,["aria-label","modelValue"]),(0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(u)&&w.vertical?((0,vue__WEBPACK_IMPORTED_MODULE_0__.openBlock)(),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createBlock)(vn,{key:1,"aria-label":(0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(E).prevMonth,onActivate:_[6]||(_[6]=V=>(0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(Y)(!1))},{default:(0,vue__WEBPACK_IMPORTED_MODULE_0__.withCtx)(()=>[w.$slots["arrow-up"]?(0,vue__WEBPACK_IMPORTED_MODULE_0__.renderSlot)(w.$slots,"arrow-up",{key:0}):(0,vue__WEBPACK_IMPORTED_MODULE_0__.createCommentVNode)("",!0),w.$slots["arrow-up"]?(0,vue__WEBPACK_IMPORTED_MODULE_0__.createCommentVNode)("",!0):((0,vue__WEBPACK_IMPORTED_MODULE_0__.openBlock)(),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createBlock)((0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(On),{key:1}))]),_:3},8,["aria-label"])):(0,vue__WEBPACK_IMPORTED_MODULE_0__.createCommentVNode)("",!0),(0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(D)?((0,vue__WEBPACK_IMPORTED_MODULE_0__.openBlock)(),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createBlock)(vn,{key:2,"arial-label":(0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(E).nextMonth,onActivate:_[7]||(_[7]=V=>(0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(Y)(!0)),ref:"rightIcon",onSetRef:_[8]||(_[8]=V=>Q(V,3))},{default:(0,vue__WEBPACK_IMPORTED_MODULE_0__.withCtx)(()=>[w.$slots[w.vertical?"arrow-down":"arrow-right"]?(0,vue__WEBPACK_IMPORTED_MODULE_0__.renderSlot)(w.$slots,w.vertical?"arrow-down":"arrow-right",{key:0}):(0,vue__WEBPACK_IMPORTED_MODULE_0__.createCommentVNode)("",!0),w.$slots[w.vertical?"arrow-down":"arrow-right"]?(0,vue__WEBPACK_IMPORTED_MODULE_0__.createCommentVNode)("",!0):((0,vue__WEBPACK_IMPORTED_MODULE_0__.openBlock)(),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createBlock)((0,vue__WEBPACK_IMPORTED_MODULE_0__.resolveDynamicComponent)(w.vertical?(0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(_n):(0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(Tn)),{key:1}))]),_:3},8,["arial-label"])):(0,vue__WEBPACK_IMPORTED_MODULE_0__.createCommentVNode)("",!0)],64)):(0,vue__WEBPACK_IMPORTED_MODULE_0__.createCommentVNode)("",!0),w.monthPicker?((0,vue__WEBPACK_IMPORTED_MODULE_0__.openBlock)(),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createBlock)(Mt,(0,vue__WEBPACK_IMPORTED_MODULE_0__.mergeProps)({key:1},(0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(l)("month"),{"skip-active":t.range,year:w.year,"multi-model-value":(0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(le),modelValue:(0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(s),"onUpdate:modelValue":_[15]||(_[15]=V=>(0,vue__WEBPACK_IMPORTED_MODULE_0__.isRef)(s)?s.value=V:null),onToggle:S,onSelected:_[16]||(_[16]=V=>w.$emit("overlay-closed"))}),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createSlots)({header:(0,vue__WEBPACK_IMPORTED_MODULE_0__.withCtx)(()=>[(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementVNode)("div",_r,[(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementVNode)("div",{class:"dp__month_year_col_nav",tabindex:"0",ref_key:"mpPrevIconRef",ref:N,onClick:_[9]||(_[9]=V=>ne(!1)),onKeydown:_[10]||(_[10]=(0,vue__WEBPACK_IMPORTED_MODULE_0__.withKeys)(V=>ne(!1),["enter"]))},[(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementVNode)("div",{class:"dp__inner_nav",role:"button","aria-label":(0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(E).prevMonth},[w.$slots["arrow-left"]?(0,vue__WEBPACK_IMPORTED_MODULE_0__.renderSlot)(w.$slots,"arrow-left",{key:0}):(0,vue__WEBPACK_IMPORTED_MODULE_0__.createCommentVNode)("",!0),w.$slots["arrow-left"]?(0,vue__WEBPACK_IMPORTED_MODULE_0__.createCommentVNode)("",!0):((0,vue__WEBPACK_IMPORTED_MODULE_0__.openBlock)(),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createBlock)((0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(An),{key:1}))],8,Vr)],544),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementVNode)("div",{class:"dp__pointer",role:"button",ref_key:"mpYearButtonRef",ref:g,"aria-label":(0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(E).openYearsOverlay,tabindex:"0",onClick:G,onKeydown:(0,vue__WEBPACK_IMPORTED_MODULE_0__.withKeys)(G,["enter"])},[w.$slots.year?(0,vue__WEBPACK_IMPORTED_MODULE_0__.renderSlot)(w.$slots,"year",{key:0,year:w.year}):(0,vue__WEBPACK_IMPORTED_MODULE_0__.createCommentVNode)("",!0),w.$slots.year?(0,vue__WEBPACK_IMPORTED_MODULE_0__.createCommentVNode)("",!0):((0,vue__WEBPACK_IMPORTED_MODULE_0__.openBlock)(),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementBlock)(vue__WEBPACK_IMPORTED_MODULE_0__.Fragment,{key:1},[(0,vue__WEBPACK_IMPORTED_MODULE_0__.createTextVNode)((0,vue__WEBPACK_IMPORTED_MODULE_0__.toDisplayString)(w.year),1)],64))],40,Br),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementVNode)("div",{class:"dp__month_year_col_nav",tabindex:"0",ref_key:"mpNextIconRef",ref:R,onClick:_[11]||(_[11]=V=>ne(!0)),onKeydown:_[12]||(_[12]=(0,vue__WEBPACK_IMPORTED_MODULE_0__.withKeys)(V=>ne(!0),["enter"]))},[(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementVNode)("div",{class:"dp__inner_nav",role:"button","aria-label":(0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(E).nextMonth},[w.$slots["arrow-right"]?(0,vue__WEBPACK_IMPORTED_MODULE_0__.renderSlot)(w.$slots,"arrow-right",{key:0}):(0,vue__WEBPACK_IMPORTED_MODULE_0__.createCommentVNode)("",!0),w.$slots["arrow-right"]?(0,vue__WEBPACK_IMPORTED_MODULE_0__.createCommentVNode)("",!0):((0,vue__WEBPACK_IMPORTED_MODULE_0__.openBlock)(),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createBlock)((0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(Tn),{key:1}))],8,Nr)],544)]),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createVNode)(vue__WEBPACK_IMPORTED_MODULE_0__.Transition,{name:(0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(i)(h.value),css:(0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(p)},{default:(0,vue__WEBPACK_IMPORTED_MODULE_0__.withCtx)(()=>[h.value?((0,vue__WEBPACK_IMPORTED_MODULE_0__.openBlock)(),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createBlock)(Mt,(0,vue__WEBPACK_IMPORTED_MODULE_0__.mergeProps)({key:0},(0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(l)("year"),{modelValue:(0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(j),"onUpdate:modelValue":_[13]||(_[13]=V=>(0,vue__WEBPACK_IMPORTED_MODULE_0__.isRef)(j)?j.value=V:null),onToggle:G,onSelected:_[14]||(_[14]=V=>w.$emit("overlay-closed"))}),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createSlots)({"button-icon":(0,vue__WEBPACK_IMPORTED_MODULE_0__.withCtx)(()=>[w.$slots["calendar-icon"]?(0,vue__WEBPACK_IMPORTED_MODULE_0__.renderSlot)(w.$slots,"calendar-icon",{key:0}):(0,vue__WEBPACK_IMPORTED_MODULE_0__.createCommentVNode)("",!0),w.$slots["calendar-icon"]?(0,vue__WEBPACK_IMPORTED_MODULE_0__.createCommentVNode)("",!0):((0,vue__WEBPACK_IMPORTED_MODULE_0__.openBlock)(),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createBlock)((0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(Nt),{key:1}))]),_:2},[w.$slots["year-overlay"]?{name:"item",fn:(0,vue__WEBPACK_IMPORTED_MODULE_0__.withCtx)(({item:V})=>[(0,vue__WEBPACK_IMPORTED_MODULE_0__.renderSlot)(w.$slots,"year-overlay",{text:V.text,value:V.value})])}:void 0]),1040,["modelValue"])):(0,vue__WEBPACK_IMPORTED_MODULE_0__.createCommentVNode)("",!0)]),_:3},8,["name","css"])]),_:2},[w.$slots["month-overlay"]?{name:"item",fn:(0,vue__WEBPACK_IMPORTED_MODULE_0__.withCtx)(({item:V})=>[(0,vue__WEBPACK_IMPORTED_MODULE_0__.renderSlot)(w.$slots,"month-overlay",{text:V.text,value:V.value})])}:void 0]),1040,["skip-active","year","multi-model-value","modelValue"])):(0,vue__WEBPACK_IMPORTED_MODULE_0__.createCommentVNode)("",!0),e.yearPicker?((0,vue__WEBPACK_IMPORTED_MODULE_0__.openBlock)(),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createBlock)(Mt,(0,vue__WEBPACK_IMPORTED_MODULE_0__.mergeProps)({key:2},(0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(l)("year"),{modelValue:(0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(j),"onUpdate:modelValue":_[17]||(_[17]=V=>(0,vue__WEBPACK_IMPORTED_MODULE_0__.isRef)(j)?j.value=V:null),"skip-button-ref":"",onToggle:G,onSelected:_[18]||(_[18]=V=>w.$emit("overlay-closed"))}),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createSlots)({_:2},[w.$slots["year-overlay"]?{name:"item",fn:(0,vue__WEBPACK_IMPORTED_MODULE_0__.withCtx)(({item:V})=>[(0,vue__WEBPACK_IMPORTED_MODULE_0__.renderSlot)(w.$slots,"year-overlay",{text:V.text,value:V.value})])}:void 0]),1040,["modelValue"])):(0,vue__WEBPACK_IMPORTED_MODULE_0__.createCommentVNode)("",!0)]))}}),Yr=(e,a,n,t)=>{const i=(0,vue__WEBPACK_IMPORTED_MODULE_0__.ref)(new Date),p=(0,vue__WEBPACK_IMPORTED_MODULE_0__.ref)(),v=(0,vue__WEBPACK_IMPORTED_MODULE_0__.ref)([{month:(0,date_fns__WEBPACK_IMPORTED_MODULE_9__["default"])(new Date),year:(0,date_fns__WEBPACK_IMPORTED_MODULE_10__["default"])(new Date)}]),f=(0,vue__WEBPACK_IMPORTED_MODULE_0__.ref)(e.range?[(0,date_fns__WEBPACK_IMPORTED_MODULE_13__["default"])(new Date),(0,date_fns__WEBPACK_IMPORTED_MODULE_13__["default"])(new Date)]:(0,date_fns__WEBPACK_IMPORTED_MODULE_13__["default"])(new Date)),h=(0,vue__WEBPACK_IMPORTED_MODULE_0__.ref)(e.range?[(0,date_fns__WEBPACK_IMPORTED_MODULE_14__["default"])(new Date),(0,date_fns__WEBPACK_IMPORTED_MODULE_14__["default"])(new Date)]:(0,date_fns__WEBPACK_IMPORTED_MODULE_14__["default"])(new Date)),T=(0,vue__WEBPACK_IMPORTED_MODULE_0__.ref)(e.range?[0,0]:0);(0,vue__WEBPACK_IMPORTED_MODULE_0__.watch)(v,()=>{setTimeout(()=>{e.openOnTop&&a("dpOpen")},0)},{deep:!0}),(0,vue__WEBPACK_IMPORTED_MODULE_0__.onMounted)(()=>{x(),s.value||(e.startDate&&(v.value[0].month=(0,date_fns__WEBPACK_IMPORTED_MODULE_9__["default"])(new Date(e.startDate)),v.value[0].year=(0,date_fns__WEBPACK_IMPORTED_MODULE_10__["default"])(new Date(e.startDate)),e.multiCalendars&&V(0)),e.startTime&&C())});const N=(0,vue__WEBPACK_IMPORTED_MODULE_0__.computed)(()=>r=>v.value[r]?v.value[r].month:0),g=(0,vue__WEBPACK_IMPORTED_MODULE_0__.computed)(()=>r=>v.value[r]?v.value[r].year:0),R=(r,k,P)=>{v.value[r].month=k,v.value[r].year=P},E=(r,k)=>v.value[r].month=k,B=(r,k)=>v.value[r].year=k,Y=(r=!0)=>e.enableSeconds?Array.isArray(T.value)?r?T.value[0]:T.value[1]:T.value:0,C=()=>{e.startTime&&(ar(e.startTime)?(f.value=[+e.startTime[0].hours,+e.startTime[1].hours],h.value=[+e.startTime[0].minutes,+e.startTime[1].minutes],e.enableSeconds&&(T.value=[+e.startTime[0].seconds,+e.startTime[1].seconds])):(f.value=+e.startTime.hours,h.value=+e.startTime.minutes,e.enableSeconds&&(T.value=+e.startTime.seconds)))},s=(0,vue__WEBPACK_IMPORTED_MODULE_0__.computed)({get:()=>e.internalModelValue,set:r=>{!e.readonly&&!e.disabled&&a("update:internalModelValue",r)}});(0,vue__WEBPACK_IMPORTED_MODULE_0__.watch)(s,()=>x());const j=r=>{const{validate:k}=Fn(e.minDate,e.maxDate,e.disabledDates,e.allowedDates,e.filters,e.disabledWeekDays,e.yearRange);return!k(r)},l=r=>!s.value||e.hideOffsetDates&&!r.current||e.range?!1:e.multiDates&&Array.isArray(s.value)?s.value.some(k=>de(k,r.value)):de(r.value,s.value?s.value:i.value),$=r=>Yn(s.value,p.value,r.value),U=r=>{if((!e.multiCalendars||!e.multiStatic)&&(E(0,(0,date_fns__WEBPACK_IMPORTED_MODULE_9__["default"])(r)),B(0,(0,date_fns__WEBPACK_IMPORTED_MODULE_10__["default"])(r))),e.multiCalendars)for(let k=1;k<=e.multiCalendars;k++){const P=(0,date_fns__WEBPACK_IMPORTED_MODULE_21__["default"])(new Date,{month:N.value(k-1),year:g.value(k-1)}),q=(0,date_fns__WEBPACK_IMPORTED_MODULE_20__["default"])(P,{months:1});v.value[k]={month:(0,date_fns__WEBPACK_IMPORTED_MODULE_9__["default"])(q),year:(0,date_fns__WEBPACK_IMPORTED_MODULE_10__["default"])(q)}}},Z=()=>{if(Array.isArray(s.value)&&s.value.length===2){const r=new Date(s.value[1]?s.value[1]:(0,date_fns__WEBPACK_IMPORTED_MODULE_8__["default"])(s.value[0],1)),[k,P]=[(0,date_fns__WEBPACK_IMPORTED_MODULE_9__["default"])(s.value[0]),(0,date_fns__WEBPACK_IMPORTED_MODULE_10__["default"])(s.value[0])],[q,Ee]=[(0,date_fns__WEBPACK_IMPORTED_MODULE_9__["default"])(s.value[1]),(0,date_fns__WEBPACK_IMPORTED_MODULE_10__["default"])(s.value[1])];(k!==q||k===q&&P!==Ee)&&e.multiCalendarsSolo&&(E(1,(0,date_fns__WEBPACK_IMPORTED_MODULE_9__["default"])(r)),B(1,(0,date_fns__WEBPACK_IMPORTED_MODULE_10__["default"])(r)))}},ae=r=>{U(r),f.value=(0,date_fns__WEBPACK_IMPORTED_MODULE_13__["default"])(r),h.value=(0,date_fns__WEBPACK_IMPORTED_MODULE_14__["default"])(r),T.value=(0,date_fns__WEBPACK_IMPORTED_MODULE_15__["default"])(r)},le=()=>Array.isArray(s.value)&&s.value.length?s.value[s.value.length-1]:null,x=()=>{if(s.value)if(Dt(s.value)){if(s.value.length===2&&!e.multiDates)U(s.value[0]),f.value=[(0,date_fns__WEBPACK_IMPORTED_MODULE_13__["default"])(s.value[0]),s.value[1]?(0,date_fns__WEBPACK_IMPORTED_MODULE_13__["default"])(s.value[1]):(0,date_fns__WEBPACK_IMPORTED_MODULE_13__["default"])(new Date)],h.value=[(0,date_fns__WEBPACK_IMPORTED_MODULE_14__["default"])(s.value[0]),s.value[1]?(0,date_fns__WEBPACK_IMPORTED_MODULE_14__["default"])(s.value[1]):(0,date_fns__WEBPACK_IMPORTED_MODULE_14__["default"])(new Date)],T.value=[(0,date_fns__WEBPACK_IMPORTED_MODULE_15__["default"])(s.value[0]),s.value[1]?(0,date_fns__WEBPACK_IMPORTED_MODULE_15__["default"])(s.value[1]):(0,date_fns__WEBPACK_IMPORTED_MODULE_15__["default"])(new Date)];else if(Dt(s.value)&&e.multiDates){const r=s.value[s.value.length-1];r&&ae(r)}e.multiCalendars&&e.multiCalendarsSolo&&Z()}else ae(s.value);else e.timePicker?(C(),e.range?Ie(f.value)&&Ie(h.value)&&(s.value=[Pe(new Date,f.value[0],h.value[0],Y()),Pe(new Date,f.value[1],h.value[1],Y(!1))]):s.value=Pe(new Date,f.value,h.value,Y())):e.monthPicker&&!e.range?s.value=ot(new Date,N.value(0),g.value(0)):e.multiCalendars?U(new Date):e.yearPicker&&(s.value=new Date)},se=r=>{const k=(0,date_fns__WEBPACK_IMPORTED_MODULE_9__["default"])(new Date(r)),P=(0,date_fns__WEBPACK_IMPORTED_MODULE_10__["default"])(new Date(r));if(E(0,k),B(0,P),e.multiCalendars>0)for(let q=1;q<e.multiCalendars;q++){const Ee=wl((0,date_fns__WEBPACK_IMPORTED_MODULE_21__["default"])(new Date(r),{year:N.value(q-1),month:g.value(q-1)}));E(q,Ee.month),B(q,Ee.year)}},d=r=>{if(s.value&&Array.isArray(s.value))if(s.value.some(k=>de(r,k))){const k=s.value.filter(P=>!de(P,r));s.value=k.length?k:null}else(e.multiDatesLimit&&+e.multiDatesLimit>s.value.length||!e.multiDatesLimit)&&s.value.push(r);else s.value=[r]},I=r=>{if(Array.isArray(s.value)&&s.value[0]){const k=(0,date_fns__WEBPACK_IMPORTED_MODULE_30__["default"])(r,s.value[0]),P=Math.abs(k<0?k+1:k-1);if(e.minRange&&e.maxRange)return P>=+e.minRange&&P<=+e.maxRange;if(e.minRange)return P>=+e.minRange;if(e.maxRange)return P<=+e.maxRange}return!0},u=r=>Array.isArray(s.value)&&s.value.length===2?e.fixedStart&&(Ae(r,s.value[0])||de(r,s.value[0]))?[s.value[0],r]:e.fixedEnd&&(be(r,s.value[1])||de(r,s.value[1]))?[r,s.value[1]]:s.value:[],D=()=>{e.autoApply&&a("autoApply")},S=r=>!(0,date_fns__WEBPACK_IMPORTED_MODULE_31__["default"])({start:r[0],end:r[1]}).some(k=>j(k)),G=(r,k=!1)=>{if(!j(r.value)&&!(!r.current&&e.hideOffsetDates)){if(e.weekPicker)return s.value=Ft(new Date(r.value),+e.weekStart),D();if(!e.range&&!Ie(f.value)&&!Ie(h.value)){const P=Pe(new Date(r.value),f.value,h.value,Y());e.multiDates?d(P):s.value=P,n(),D()}else if(Ie(f.value)&&Ie(h.value)&&!e.multiDates){let P=s.value?s.value.slice():[];if(P.length===2&&!(e.fixedStart||e.fixedEnd)&&(P=[]),e.autoRange){const q=[new Date(r.value),(0,date_fns__WEBPACK_IMPORTED_MODULE_26__["default"])(new Date(r.value),+e.autoRange)];S(q)&&(k&&se(r.value),P=q)}else e.fixedStart||e.fixedEnd?P=u(new Date(r.value)):P[0]?I(new Date(r.value))&&(be(new Date(r.value),new Date(P[0]))?P.unshift(new Date(r.value)):P[1]=new Date(r.value)):P[0]=new Date(r.value);P.length&&(P[0]&&!P[1]?P[0]=Pe(P[0],f.value[0],h.value[0],Y()):(P[0]=Pe(P[0],f.value[0],h.value[0],Y()),P[1]=Pe(P[1],f.value[1],h.value[1],Y(!1)),n()),s.value=P,P[0]&&P[1]&&e.autoApply&&a("autoApply"))}}},F=r=>{const k=r.find(P=>P.current);return k?(0,date_fns__WEBPACK_IMPORTED_MODULE_32__["default"])(k.value):""},ne=r=>{!r.current&&e.hideOffsetDates||(p.value=r.value)},Q=r=>{if(e.autoRange||e.weekPicker){if(p.value){if(e.hideOffsetDates&&!r.current)return!1;const k=(0,date_fns__WEBPACK_IMPORTED_MODULE_26__["default"])(p.value,+e.autoRange),P=Ft(new Date(p.value),+e.weekStart);return e.weekPicker?de(P[1],new Date(r.value)):de(k,new Date(r.value))}return!1}return!1},w=r=>{if(e.autoRange||e.weekPicker){if(p.value){const k=(0,date_fns__WEBPACK_IMPORTED_MODULE_26__["default"])(p.value,+e.autoRange);if(e.hideOffsetDates&&!r.current)return!1;const P=Ft(new Date(p.value),+e.weekStart);return e.weekPicker?Ae(r.value,P[0])&&be(r.value,P[1]):Ae(r.value,p.value)&&be(r.value,k)}return!1}return!1},_=r=>{if(e.autoRange||e.weekPicker){if(p.value){if(e.hideOffsetDates&&!r.current)return!1;const k=Ft(new Date(p.value),+e.weekStart);return e.weekPicker?de(k[0],r.value):de(p.value,r.value)}return!1}return!1},V=r=>{for(let k=r-1;k>=0;k--){const P=(0,date_fns__WEBPACK_IMPORTED_MODULE_27__["default"])((0,date_fns__WEBPACK_IMPORTED_MODULE_21__["default"])(new Date,{month:N.value(k+1),year:g.value(k+1)}),1);R(k,(0,date_fns__WEBPACK_IMPORTED_MODULE_9__["default"])(P),(0,date_fns__WEBPACK_IMPORTED_MODULE_10__["default"])(P))}for(let k=r+1;k<=e.multiCalendars-1;k++){const P=(0,date_fns__WEBPACK_IMPORTED_MODULE_8__["default"])((0,date_fns__WEBPACK_IMPORTED_MODULE_21__["default"])(new Date,{month:N.value(k-1),year:g.value(k-1)}),1);R(k,(0,date_fns__WEBPACK_IMPORTED_MODULE_9__["default"])(P),(0,date_fns__WEBPACK_IMPORTED_MODULE_10__["default"])(P))}},ke=r=>ot(new Date,N.value(r),g.value(r)),Ye=(r,k,P=!0)=>{if(P?E(r,k):B(r,k),e.multiCalendars&&!e.multiCalendarsSolo&&V(r),e.monthPicker)if(e.range){if(P){let q=s.value?s.value.slice():[];q.length===2&&q[1]!==null&&(q=[]),q.length?be(ke(r),q[0])?q.unshift(ke(r)):q[1]=ke(r):q=[ke(r)],s.value=q}}else s.value=ke(r);n(),a("updateMonthYear",{instance:r,value:k,isMonth:P}),Pt(e.multiCalendarsSolo?r:void 0)},Ze=r=>Pe(r,f.value,h.value,Y()),He=r=>{Dt(r)&&Dt(s.value)&&Ie(f.value)&&Ie(h.value)?(r[0]&&s.value[0]&&(s.value[0]=Pe(r[0],f.value[0],h.value[0],Y())),r[1]&&s.value[1]&&(s.value[1]=Pe(r[1],f.value[1],h.value[1],Y(!1)))):e.multiDates&&Array.isArray(s.value)?s.value[s.value.length-1]=Ze(r):!e.range&&!Ut(r)&&(s.value=Ze(r)),a("timeUpdate")},Oe=(r,k=!0,P=!1)=>{const q=k?r:f.value,Ee=!k&&!P?r:h.value,ht=P?r:T.value;if(e.range&&Ut(s.value)&&Ie(q)&&Ie(Ee)&&Ie(ht)){const nt=We=>Pe(s.value[We],q[We],Ee[We],ht[We]),Ct=We=>(0,date_fns__WEBPACK_IMPORTED_MODULE_7__["default"])(s.value[We],0);if(de(s.value[0],s.value[1])&&((0,date_fns__WEBPACK_IMPORTED_MODULE_17__["default"])(nt(0),Ct(1))||(0,date_fns__WEBPACK_IMPORTED_MODULE_18__["default"])(nt(1),Ct(0))))return}if(f.value=q,h.value=Ee,T.value=ht,s.value)if(e.multiDates){const nt=le();nt&&He(nt)}else He(s.value);else e.timePicker&&He(e.range?[new Date,new Date]:new Date);n()},Qe=()=>{p.value=null},pt=r=>Zn(s.value,e.range)&&s.value[0]&&p.value?r?Ae(p.value,s.value[0]):be(p.value,s.value[0]):!0,Fe=(r,k=!0)=>(e.range||e.weekPicker)&&Ut(s.value)?e.hideOffsetDates&&!r.current?!1:de(new Date(r.value),s.value[k?0:1]):e.range?de(new Date(r.value),s.value&&Array.isArray(s.value)?k?s.value[0]||null:s.value[1]:null)&&(k?!be(p.value||null,Array.isArray(s.value)?s.value[0]:null):!0)||de(r.value,Array.isArray(s.value)?s.value[0]:null)&&pt(k):!1,Ce=(r,k)=>Array.isArray(e.internalModelValue)&&e.internalModelValue.length||e.weekPicker?!1:!r&&!l(k)&&!(!k.current&&e.hideOffsetDates)&&(e.range?!Fe(k)&&!Fe(k,!1):!0),vt=(r,k,P)=>Array.isArray(e.internalModelValue)&&e.internalModelValue[0]&&e.internalModelValue.length===1?r?!1:P?Ae(e.internalModelValue[0],k.value):be(e.internalModelValue[0],k.value):!1,xe=(r=!1)=>{r&&e.yearPicker&&(s.value=(0,date_fns__WEBPACK_IMPORTED_MODULE_12__["default"])(new Date,v.value[0].year),e.autoApply&&a("autoApply")),e.autoApply&&e.monthPicker&&(0,vue__WEBPACK_IMPORTED_MODULE_0__.nextTick)().then(()=>{e.range?a("autoApply",r||!s.value||s.value.length===1):a("autoApply",r)})},et=(r,k)=>{const P=(0,date_fns__WEBPACK_IMPORTED_MODULE_21__["default"])(new Date,{month:N.value(k),year:g.value(k)}),q=r<0?(0,date_fns__WEBPACK_IMPORTED_MODULE_8__["default"])(P,1):(0,date_fns__WEBPACK_IMPORTED_MODULE_27__["default"])(P,1);na(e.minDate,e.maxDate,(0,date_fns__WEBPACK_IMPORTED_MODULE_9__["default"])(q),(0,date_fns__WEBPACK_IMPORTED_MODULE_10__["default"])(q),r<0,e.preventMinMaxNavigation)&&(R(k,(0,date_fns__WEBPACK_IMPORTED_MODULE_9__["default"])(q),(0,date_fns__WEBPACK_IMPORTED_MODULE_10__["default"])(q)),e.multiCalendars&&!e.multiCalendarsSolo&&V(k),Pt())},ft=(r,k)=>{e.monthChangeOnScroll&&et(e.monthChangeOnScroll!=="inverse"?-r.deltaY:r.deltaY,k)},m=(r,k,P=!1)=>{e.monthChangeOnArrows&&e.vertical===P&&re(r,k)},re=(r,k)=>{et(r==="right"?-1:1,k)},fe=r=>e.markers.find(k=>de(Re(new Date(r.value)),Re(new Date(k.date)))),yt=()=>{e.range?Zn(s.value,e.range)&&(s.value&&s.value[0]?s.value=be(new Date,s.value[0])?[new Date,s.value[0]]:[s.value[0],new Date]:s.value=[new Date]):a("update:internalModelValue",new Date),e.autoApply&&a("selectDate")},tt=r=>{r.length&&r.length<=2&&e.range&&(s.value=r.map(k=>new Date(k)),e.autoApply&&a("selectDate"))},Pt=r=>{r||r===0?t.value[r].triggerTransition(N.value(r),g.value(r)):t.value.forEach((k,P)=>k.triggerTransition(N.value(P),g.value(P)))};return{today:i,hours:f,minutes:h,seconds:T,month:N,year:g,monthYearSelect:xe,isDisabled:j,updateTime:Oe,setHoverDate:ne,getWeekNum:F,selectDate:G,rangeActive:$,isActiveDate:l,updateMonthYear:Ye,isHoverRangeEnd:Q,isAutoRangeInBetween:w,isAutoRangeStart:_,clearHoverDate:Qe,rangeActiveStartEnd:Fe,handleScroll:ft,getMarker:fe,handleArrow:m,handleSwipe:re,selectCurrentDate:yt,isHoverDate:Ce,isHoverDateStartEnd:vt,presetDateRange:tt}},Fr=["id","aria-label","onKeydown"],Er={key:0,class:"dp__preset_ranges"},Lr=["onClick"],Hr={key:1,class:"dp__now_wrap"},Ur=(0,vue__WEBPACK_IMPORTED_MODULE_0__.defineComponent)({props:De(X(X(X({},Xn),rn),ln),{internalModelValue:{type:[Date,Array],default:null},multiCalendars:{type:Number,default:0},openOnTop:{type:Boolean,default:!1}}),emits:["update:internalModelValue","closePicker","selectDate","dpOpen","autoApply","timeUpdate","flow-step","updateMonthYear"],setup(e,{emit:a}){const n=e,t=(0,vue__WEBPACK_IMPORTED_MODULE_0__.useSlots)(),i=(0,vue__WEBPACK_IMPORTED_MODULE_0__.ref)(null),p=(0,vue__WEBPACK_IMPORTED_MODULE_0__.reactive)({timePicker:!!(!n.enableTimePicker||n.timePicker||n.monthPicker),monthYearInput:!!n.timePicker,calendar:!1}),v=(0,vue__WEBPACK_IMPORTED_MODULE_0__.ref)([]),f=(0,vue__WEBPACK_IMPORTED_MODULE_0__.ref)([]),h=(0,vue__WEBPACK_IMPORTED_MODULE_0__.ref)(null),T=(0,vue__WEBPACK_IMPORTED_MODULE_0__.ref)(null),N=(0,vue__WEBPACK_IMPORTED_MODULE_0__.ref)(0),g=(0,vue__WEBPACK_IMPORTED_MODULE_0__.ref)(!1),R=(0,vue__WEBPACK_IMPORTED_MODULE_0__.ref)(0),E=(0,vue__WEBPACK_IMPORTED_MODULE_0__.inject)(Et),B=(0,vue__WEBPACK_IMPORTED_MODULE_0__.inject)(Xe),Y=(0,vue__WEBPACK_IMPORTED_MODULE_0__.inject)(qe),{setMenuFocused:C,setShiftKey:s}=un();(0,vue__WEBPACK_IMPORTED_MODULE_0__.onMounted)(()=>{var W;g.value=!0,(W=n.presetRanges)!=null&&W.length||P();const c=he(T);if(c&&!n.textInput&&!n.inline&&(C(!0),Z()),c){const H=J=>{J.stopImmediatePropagation(),J.stopPropagation()};c.addEventListener("pointerdown",H),c.addEventListener("mousedown",H)}document.addEventListener("resize",P)}),(0,vue__WEBPACK_IMPORTED_MODULE_0__.onUnmounted)(()=>{document.removeEventListener("resize",P)});const{arrowRight:j,arrowLeft:l,arrowDown:$,arrowUp:U}=Je(),Z=()=>{const c=he(T);c&&c.focus({preventScroll:!0})},ae=()=>{var c;((c=n.flow)==null?void 0:c.length)&&R.value!==-1&&(R.value+=1,a("flow-step",R.value),hn())},le=()=>{R.value=-1},{updateTime:x,updateMonthYear:se,today:d,month:I,year:u,hours:D,minutes:S,seconds:G,isDisabled:F,isActiveDate:ne,selectDate:Q,getWeekNum:w,setHoverDate:_,isHoverRangeEnd:V,isAutoRangeInBetween:ke,isAutoRangeStart:Ye,rangeActive:Ze,clearHoverDate:He,rangeActiveStartEnd:Oe,monthYearSelect:Qe,handleScroll:pt,handleArrow:Fe,handleSwipe:Ce,getMarker:vt,selectCurrentDate:xe,isHoverDateStartEnd:et,isHoverDate:ft,presetDateRange:m}=Yr(n,a,ae,f),re=st(t,"calendar"),fe=st(t,"action"),yt=st(t,"timePicker"),tt=st(t,"monthYear"),Pt=(0,vue__WEBPACK_IMPORTED_MODULE_0__.computed)(()=>n.openOnTop?"dp__arrow_bottom":"dp__arrow_top"),r=(0,vue__WEBPACK_IMPORTED_MODULE_0__.computed)(()=>Al(n.yearRange)),k=(0,vue__WEBPACK_IMPORTED_MODULE_0__.computed)(()=>Tl(n.locale,n.monthNameFormat)),P=()=>{const c=he(i);c&&(N.value=c.getBoundingClientRect().width)},q=(0,vue__WEBPACK_IMPORTED_MODULE_0__.computed)(()=>c=>Sl(I.value(c),u.value(c),+n.weekStart,n.hideOffsetDates)),Ee=(0,vue__WEBPACK_IMPORTED_MODULE_0__.computed)(()=>n.multiCalendars>0&&n.range?[...Array(n.multiCalendars).keys()]:[0]),ht=(0,vue__WEBPACK_IMPORTED_MODULE_0__.computed)(()=>c=>c===1),nt=(0,vue__WEBPACK_IMPORTED_MODULE_0__.computed)(()=>n.monthPicker||n.timePicker||n.yearPicker),Ct=(0,vue__WEBPACK_IMPORTED_MODULE_0__.computed)(()=>({dp__flex_display:n.multiCalendars>0})),We=(0,vue__WEBPACK_IMPORTED_MODULE_0__.computed)(()=>({dp__instance_calendar:n.multiCalendars>0})),aa=(0,vue__WEBPACK_IMPORTED_MODULE_0__.computed)(()=>({dp__menu_disabled:n.disabled,dp__menu_readonly:n.readonly})),la=(0,vue__WEBPACK_IMPORTED_MODULE_0__.computed)(()=>c=>sa(q,c)),ra=(0,vue__WEBPACK_IMPORTED_MODULE_0__.computed)(()=>({locale:n.locale,weekNumName:n.weekNumName,weekStart:n.weekStart,weekNumbers:n.weekNumbers,customProps:n.customProps,calendarClassName:n.calendarClassName,specificMode:nt.value,getWeekNum:w,multiCalendars:n.multiCalendars,modeHeight:n.modeHeight,internalModelValue:n.internalModelValue,noSwipe:n.noSwipe,vertical:n.vertical})),oa=(0,vue__WEBPACK_IMPORTED_MODULE_0__.computed)(()=>({dp__menu:!0,dp__menu_index:!n.inline,dp__relative:n.inline,[n.menuClassName]:!!n.menuClassName})),sa=(c,W)=>c.value(W).map(H=>De(X({},H),{days:H.days.map(J=>{const z=F(J.value),gt=ft(z,J),ut=(n.range||n.weekPicker)&&(n.multiCalendars>0?J.current:!0)&&!z&&!(!J.current&&n.hideOffsetDates)&&!ne(J)?Ze(J):!1;return J.marker=vt(J),J.classData={dp__cell_offset:!J.current,dp__pointer:!z&&!(!J.current&&n.hideOffsetDates),dp__active_date:n.range?!1:ne(J),dp__date_hover:gt,dp__date_hover_start:et(gt,J,!0),dp__date_hover_end:et(gt,J,!1),dp__range_between:ut&&!n.weekPicker,dp__range_between_week:ut&&n.weekPicker,dp__today:!n.noToday&&de(J.value,d.value)&&J.current,dp__cell_disabled:z,dp__cell_auto_range:ke(J),dp__cell_auto_range_start:Ye(J),dp__cell_auto_range_end:V(J),dp__range_start:n.multiCalendars>0?J.current&&Oe(J):Oe(J),dp__range_end:n.multiCalendars>0?J.current&&Oe(J,!1):Oe(J,!1),[n.calendarCellClassName]:!!n.calendarCellClassName},J})})),ua=c=>{c.stopPropagation(),c.preventDefault(),c.stopImmediatePropagation()},ia=()=>{n.escClose&&a("closePicker")},da=c=>{c.stopImmediatePropagation(),c.preventDefault(),n.spaceConfirm&&a("selectDate")},Gt=c=>{var W;(W=n.flow)!=null&&W.length&&(p[c]=!0,Object.keys(p).filter(H=>!p[H]).length||hn())},hn=()=>{n.flow[R.value]==="month"&&v.value[0]&&v.value[0].toggleMonthPicker(!0),n.flow[R.value]==="year"&&v.value&&v.value[0].toggleYearPicker(!0),n.flow[R.value]==="calendar"&&h.value&&h.value.toggleTimePicker(!1,!0),n.flow[R.value]==="time"&&h.value&&h.value.toggleTimePicker(!0,!0);const c=n.flow[R.value];(c==="hours"||c==="minutes"||c==="seconds")&&h.value&&h.value.toggleTimePicker(!0,!0,c)},At=c=>{if(Y!=null&&Y.value){if(c==="up")return U();if(c==="down")return $();if(c==="left")return l();if(c==="right")return j()}else c==="left"||c==="up"?Fe("left",0,c==="up"):Fe("right",0,c==="down")},ca=c=>{s(c.shiftKey)};return(c,W)=>((0,vue__WEBPACK_IMPORTED_MODULE_0__.openBlock)(),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createBlock)(vue__WEBPACK_IMPORTED_MODULE_0__.Transition,{appear:"",name:(0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(E).menuAppear,mode:"out-in",css:!!(0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(E)},{default:(0,vue__WEBPACK_IMPORTED_MODULE_0__.withCtx)(()=>[(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementVNode)("div",{id:c.uid?`dp-menu-${c.uid}`:void 0,tabindex:"0",ref_key:"dpMenuRef",ref:T,role:"dialog","aria-label":(0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(B).menu,class:(0,vue__WEBPACK_IMPORTED_MODULE_0__.normalizeClass)((0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(oa)),onMouseleave:W[11]||(W[11]=(...H)=>(0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(He)&&(0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(He)(...H)),onClick:ua,onKeydown:[(0,vue__WEBPACK_IMPORTED_MODULE_0__.withKeys)(ia,["esc"]),(0,vue__WEBPACK_IMPORTED_MODULE_0__.withKeys)(da,["space"]),W[12]||(W[12]=(0,vue__WEBPACK_IMPORTED_MODULE_0__.withKeys)((0,vue__WEBPACK_IMPORTED_MODULE_0__.withModifiers)(H=>At("left"),["prevent"]),["left"])),W[13]||(W[13]=(0,vue__WEBPACK_IMPORTED_MODULE_0__.withKeys)((0,vue__WEBPACK_IMPORTED_MODULE_0__.withModifiers)(H=>At("up"),["prevent"]),["up"])),W[14]||(W[14]=(0,vue__WEBPACK_IMPORTED_MODULE_0__.withKeys)((0,vue__WEBPACK_IMPORTED_MODULE_0__.withModifiers)(H=>At("down"),["prevent"]),["down"])),W[15]||(W[15]=(0,vue__WEBPACK_IMPORTED_MODULE_0__.withKeys)((0,vue__WEBPACK_IMPORTED_MODULE_0__.withModifiers)(H=>At("right"),["prevent"]),["right"])),ca]},[(c.disabled||c.readonly)&&c.inline?((0,vue__WEBPACK_IMPORTED_MODULE_0__.openBlock)(),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementBlock)("div",{key:0,class:(0,vue__WEBPACK_IMPORTED_MODULE_0__.normalizeClass)((0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(aa))},null,2)):(0,vue__WEBPACK_IMPORTED_MODULE_0__.createCommentVNode)("",!0),c.inline?(0,vue__WEBPACK_IMPORTED_MODULE_0__.createCommentVNode)("",!0):((0,vue__WEBPACK_IMPORTED_MODULE_0__.openBlock)(),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementBlock)("div",{key:1,class:(0,vue__WEBPACK_IMPORTED_MODULE_0__.normalizeClass)((0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(Pt))},null,2)),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementVNode)("div",{class:(0,vue__WEBPACK_IMPORTED_MODULE_0__.normalizeClass)(c.presetRanges.length?"dp__menu_content_wrapper":null)},[c.presetRanges.length?((0,vue__WEBPACK_IMPORTED_MODULE_0__.openBlock)(),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementBlock)("div",Er,[((0,vue__WEBPACK_IMPORTED_MODULE_0__.openBlock)(!0),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementBlock)(vue__WEBPACK_IMPORTED_MODULE_0__.Fragment,null,(0,vue__WEBPACK_IMPORTED_MODULE_0__.renderList)(c.presetRanges,(H,J)=>((0,vue__WEBPACK_IMPORTED_MODULE_0__.openBlock)(),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementBlock)("div",{key:J,class:"dp__preset_range",onClick:z=>(0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(m)(H.range)},(0,vue__WEBPACK_IMPORTED_MODULE_0__.toDisplayString)(H.label),9,Lr))),128))])):(0,vue__WEBPACK_IMPORTED_MODULE_0__.createCommentVNode)("",!0),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementVNode)("div",{class:"dp__instance_calendar",ref_key:"calendarWrapperRef",ref:i,role:"document"},[(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementVNode)("div",{class:(0,vue__WEBPACK_IMPORTED_MODULE_0__.normalizeClass)((0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(Ct))},[((0,vue__WEBPACK_IMPORTED_MODULE_0__.openBlock)(!0),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementBlock)(vue__WEBPACK_IMPORTED_MODULE_0__.Fragment,null,(0,vue__WEBPACK_IMPORTED_MODULE_0__.renderList)((0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(Ee),(H,J)=>((0,vue__WEBPACK_IMPORTED_MODULE_0__.openBlock)(),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementBlock)("div",{key:H,class:(0,vue__WEBPACK_IMPORTED_MODULE_0__.normalizeClass)((0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(We))},[!c.disableMonthYearSelect&&!c.timePicker?((0,vue__WEBPACK_IMPORTED_MODULE_0__.openBlock)(),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createBlock)((0,vue__WEBPACK_IMPORTED_MODULE_0__.resolveDynamicComponent)(c.monthYearComponent?c.monthYearComponent:Ir),(0,vue__WEBPACK_IMPORTED_MODULE_0__.mergeProps)({key:0,ref_for:!0,ref:z=>{z&&(v.value[J]=z)}},{months:(0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(k),years:(0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(r),filters:c.filters,monthPicker:c.monthPicker,month:(0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(I)(H),year:(0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(u)(H),customProps:c.customProps,multiCalendars:e.multiCalendars,multiCalendarsSolo:c.multiCalendarsSolo,instance:H,minDate:c.minDate,maxDate:c.maxDate,preventMinMaxNavigation:c.preventMinMaxNavigation,internalModelValue:e.internalModelValue,range:c.range,reverseYears:c.reverseYears,vertical:c.vertical,yearPicker:c.yearPicker},{onMount:W[0]||(W[0]=z=>Gt("monthYearInput")),onResetFlow:le,"onUpdate:month":z=>(0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(se)(H,z,!0),"onUpdate:year":z=>(0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(se)(H,z,!1),onMonthYearSelect:(0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(Qe),onOverlayClosed:Z}),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createSlots)({_:2},[(0,vue__WEBPACK_IMPORTED_MODULE_0__.renderList)((0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(tt),(z,gt)=>({name:z,fn:(0,vue__WEBPACK_IMPORTED_MODULE_0__.withCtx)(ut=>[(0,vue__WEBPACK_IMPORTED_MODULE_0__.renderSlot)(c.$slots,z,(0,vue__WEBPACK_IMPORTED_MODULE_0__.normalizeProps)((0,vue__WEBPACK_IMPORTED_MODULE_0__.guardReactiveProps)(ut)))])}))]),1040,["onUpdate:month","onUpdate:year","onMonthYearSelect"])):(0,vue__WEBPACK_IMPORTED_MODULE_0__.createCommentVNode)("",!0),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createVNode)(Zl,(0,vue__WEBPACK_IMPORTED_MODULE_0__.mergeProps)({ref_for:!0,ref:z=>{z&&(f.value[J]=z)}},(0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(ra),{"flow-step":R.value,"onUpdate:flow-step":W[1]||(W[1]=z=>R.value=z),instance:H,"mapped-dates":(0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(la)(H),month:(0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(I)(H),year:(0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(u)(H),onSelectDate:z=>(0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(Q)(z,!(0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(ht)(H)),onSetHoverDate:W[2]||(W[2]=z=>(0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(_)(z)),onHandleScroll:z=>(0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(pt)(z,H),onHandleSwipe:z=>(0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(Ce)(z,H),onMount:W[3]||(W[3]=z=>Gt("calendar")),onResetFlow:le}),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createSlots)({_:2},[(0,vue__WEBPACK_IMPORTED_MODULE_0__.renderList)((0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(re),(z,gt)=>({name:z,fn:(0,vue__WEBPACK_IMPORTED_MODULE_0__.withCtx)(ut=>[(0,vue__WEBPACK_IMPORTED_MODULE_0__.renderSlot)(c.$slots,z,(0,vue__WEBPACK_IMPORTED_MODULE_0__.normalizeProps)((0,vue__WEBPACK_IMPORTED_MODULE_0__.guardReactiveProps)(X({},ut))))])}))]),1040,["flow-step","instance","mapped-dates","month","year","onSelectDate","onHandleScroll","onHandleSwipe"])],2))),128))],2),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementVNode)("div",null,[c.enableTimePicker&&!c.monthPicker&&!c.weekPicker?((0,vue__WEBPACK_IMPORTED_MODULE_0__.openBlock)(),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createBlock)((0,vue__WEBPACK_IMPORTED_MODULE_0__.resolveDynamicComponent)(c.timePickerComponent?c.timePickerComponent:Cr),(0,vue__WEBPACK_IMPORTED_MODULE_0__.mergeProps)({key:0,ref_key:"timePickerRef",ref:h},{is24:c.is24,hoursIncrement:c.hoursIncrement,minutesIncrement:c.minutesIncrement,hoursGridIncrement:c.hoursGridIncrement,secondsIncrement:c.secondsIncrement,minutesGridIncrement:c.minutesGridIncrement,secondsGridIncrement:c.secondsGridIncrement,noHoursOverlay:c.noHoursOverlay,noMinutesOverlay:c.noMinutesOverlay,noSecondsOverlay:c.noSecondsOverlay,range:c.range,filters:c.filters,timePicker:c.timePicker,hours:(0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(D),minutes:(0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(S),seconds:(0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(G),customProps:c.customProps,enableSeconds:c.enableSeconds,fixedStart:c.fixedStart,fixedEnd:c.fixedEnd},{onMount:W[4]||(W[4]=H=>Gt("timePicker")),"onUpdate:hours":W[5]||(W[5]=H=>(0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(x)(H)),"onUpdate:minutes":W[6]||(W[6]=H=>(0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(x)(H,!1)),"onUpdate:seconds":W[7]||(W[7]=H=>(0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(x)(H,!1,!0)),onResetFlow:le,onOverlayClosed:Z}),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createSlots)({_:2},[(0,vue__WEBPACK_IMPORTED_MODULE_0__.renderList)((0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(yt),(H,J)=>({name:H,fn:(0,vue__WEBPACK_IMPORTED_MODULE_0__.withCtx)(z=>[(0,vue__WEBPACK_IMPORTED_MODULE_0__.renderSlot)(c.$slots,H,(0,vue__WEBPACK_IMPORTED_MODULE_0__.normalizeProps)((0,vue__WEBPACK_IMPORTED_MODULE_0__.guardReactiveProps)(z)))])}))]),1040)):(0,vue__WEBPACK_IMPORTED_MODULE_0__.createCommentVNode)("",!0)])],512),c.showNowButton?((0,vue__WEBPACK_IMPORTED_MODULE_0__.openBlock)(),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementBlock)("div",Hr,[c.$slots["now-button"]?(0,vue__WEBPACK_IMPORTED_MODULE_0__.renderSlot)(c.$slots,"now-button",{key:0,selectCurrentDate:(0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(xe)}):(0,vue__WEBPACK_IMPORTED_MODULE_0__.createCommentVNode)("",!0),c.$slots["now-button"]?(0,vue__WEBPACK_IMPORTED_MODULE_0__.createCommentVNode)("",!0):((0,vue__WEBPACK_IMPORTED_MODULE_0__.openBlock)(),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementBlock)("button",{key:1,type:"button",role:"button",class:"dp__now_button",onClick:W[8]||(W[8]=(...H)=>(0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(xe)&&(0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(xe)(...H))},(0,vue__WEBPACK_IMPORTED_MODULE_0__.toDisplayString)(c.nowButtonLabel),1))])):(0,vue__WEBPACK_IMPORTED_MODULE_0__.createCommentVNode)("",!0)],2),!c.autoApply||c.keepActionRow?((0,vue__WEBPACK_IMPORTED_MODULE_0__.openBlock)(),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createBlock)((0,vue__WEBPACK_IMPORTED_MODULE_0__.resolveDynamicComponent)(c.actionRowComponent?c.actionRowComponent:ur),(0,vue__WEBPACK_IMPORTED_MODULE_0__.mergeProps)({key:2},{calendarWidth:N.value,selectText:c.selectText,cancelText:c.cancelText,internalModelValue:e.internalModelValue,range:c.range,previewFormat:c.previewFormat,inline:c.inline,monthPicker:c.monthPicker,timePicker:c.timePicker,customProps:c.customProps,multiCalendars:e.multiCalendars,menuMount:g.value,maxTime:c.maxTime,minTime:c.minTime,enableTimePicker:c.enableTimePicker,minDate:c.minDate,maxDate:c.maxDate,multiDates:c.multiDates},{onClosePicker:W[9]||(W[9]=H=>c.$emit("closePicker")),onSelectDate:W[10]||(W[10]=H=>c.$emit("selectDate"))}),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createSlots)({_:2},[(0,vue__WEBPACK_IMPORTED_MODULE_0__.renderList)((0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(fe),(H,J)=>({name:H,fn:(0,vue__WEBPACK_IMPORTED_MODULE_0__.withCtx)(z=>[(0,vue__WEBPACK_IMPORTED_MODULE_0__.renderSlot)(c.$slots,H,(0,vue__WEBPACK_IMPORTED_MODULE_0__.normalizeProps)((0,vue__WEBPACK_IMPORTED_MODULE_0__.guardReactiveProps)(X({},z))))])}))]),1040)):(0,vue__WEBPACK_IMPORTED_MODULE_0__.createCommentVNode)("",!0)],42,Fr)]),_:3},8,["name","css"]))}});var jt=(e=>(e.center="center",e.left="left",e.right="right",e))(jt||{});const Kr=(e,a,n,t,i,p,v)=>{const f=(0,vue__WEBPACK_IMPORTED_MODULE_0__.ref)({top:"0",left:"0",transform:"none"}),h=(0,vue__WEBPACK_IMPORTED_MODULE_0__.ref)(!1),T=10,N=390,g=l=>{const $=l.getBoundingClientRect();return{left:$.left+window.scrollX,top:$.top+window.scrollY}},R=l=>{const $=l.getBoundingClientRect();let U=0,Z=0;for(;l&&!isNaN(l.offsetLeft)&&!isNaN(l.offsetTop);)U+=l.offsetLeft-l.scrollLeft,Z=$.top+l.scrollTop,l=l.offsetParent;return{top:Z,left:U}},E=(l,$)=>{f.value.left=`${l+$}px`,f.value.transform="translateX(-100%)"},B=l=>{f.value.left=`${l}px`,f.value.transform="translateX(0)"},Y=(l,$)=>{e===jt.left&&B(l),e===jt.right&&E(l,$),e===jt.center&&(f.value.left=`${l+$/2}px`,f.value.transform="translateX(-50%)")},C=()=>{const l=he(i);if(l){const $=window.innerHeight,{top:U}=a?R(l):g(l),{left:Z,width:ae,top:le,height:x}=l.getBoundingClientRect(),se=$-le-x;f.value.top=le>se?`${U-N}px`:`${U}px`,Y(Z,ae)}},s=(l=!0)=>{if(!p){const $=he(i);if(a&&typeof a!="boolean")f.value=a($);else if($){const{left:U,width:Z,height:ae}=$.getBoundingClientRect(),{top:le}=a?R($):g($);f.value.top=`${ae+le+T}px`,Y(U,Z),l&&n&&j()}}},j=()=>{const l=he(i);if(l&&n&&!p){const{height:$,top:U,left:Z,width:ae}=l.getBoundingClientRect(),{top:le}=a?R(l):g(l),x=window.innerHeight-U-$,se=he(t);if(se){const{height:d,left:I,right:u}=se.getBoundingClientRect(),D=d+$;D>U&&D>x?U<x&&(s(!1),h.value=!1):D>x?(f.value.top=`${le-d-T}px`,h.value=!0):(s(!1),h.value=!1),I<0?B(Z):u>document.documentElement.clientWidth&&E(Z,ae)}}v("recalculatePosition")};return{openOnTop:h,menuPosition:f,setMenuPosition:s,setInitialPosition:C,recalculatePosition:j}},Wr=(e,a,n,t,i,p,v,f,h,T,N,g,R,E,B)=>{const Y=(0,vue__WEBPACK_IMPORTED_MODULE_0__.ref)(""),C=(0,vue__WEBPACK_IMPORTED_MODULE_0__.ref)();(0,vue__WEBPACK_IMPORTED_MODULE_0__.watch)(C,()=>{B("internalModelChange",C.value)});const s=l=>{let $=null;l?a?xl(l)&&"hours"in l[0]&&"minutes"in l[0]?$=[Pe(null,+l[0].hours,+l[0].minutes,+l[0].seconds),Pe(null,+l[1].hours,+l[1].minutes,+l[1].seconds)]:Ql(l)&&($=Pe(null,+l.hours,+l.minutes,+l.seconds)):n?er(l)&&"month"in l[0]&&"year"in l[0]?($=[ot(null,+l[0].month,+l[0].year)],l[1]?$[1]=ot(null,+l[1].month,+l[1].year):!l[1]&&i&&($[1]=null)):tr(l)&&"month"in l&&"year"in l&&($=ot(null,+l.month,+l.year)):R?$=(0,date_fns__WEBPACK_IMPORTED_MODULE_12__["default"])(new Date,l):T&&Array.isArray(l)?$=l.map(U=>new Date(U)):g&&Array.isArray(l)?$=[new Date(l[0]),new Date(l[1])]:t?nr(l,i)&&($=[new Date(l[0]),l[1]?new Date(l[1]):null]):lr(l)&&($=new Date(l)):$=null,Zt($)?(C.value=$,j()):(C.value=null,Y.value="")},j=()=>{if(!C.value)Y.value="";else if(!e||typeof e=="string"){const l=Bn(e,p,f,n,a,g,R,v);Array.isArray(C.value)&&T?Y.value=C.value.map($=>Yt($,l,h==null?void 0:h.value)).join("; "):Y.value=Yt(C.value,l,h==null?void 0:h.value,E==null?void 0:E.rangeSeparator)}else a?Y.value=e(xt(C.value)):n?Y.value=e(Nn(C.value)):Y.value=e(C.value)};return{parseExternalModelValue:s,formatInputValue:j,internalModelValue:C,inputValue:Y,emitModelValue:()=>{if(n)B("update:modelValue",Nn(C.value));else if(a)B("update:modelValue",xt(C.value));else if(g)B("update:modelValue",C.value);else if(R)B("update:modelValue",(0,date_fns__WEBPACK_IMPORTED_MODULE_10__["default"])(C.value));else{C.value&&t&&i&&C.value.length===1&&C.value.push(null);const l=N?Array.isArray(C.value)?C.value.map($=>$&&Re($)):Re(C.value):C.value;B("update:modelValue",l)}j()},checkBeforeEmit:()=>C.value?t?i?C.value.length>=1:C.value.length===2:!!C.value:!1}},jr=typeof window<"u"?window:void 0,fn=()=>{},Gr=e=>(0,vue__WEBPACK_IMPORTED_MODULE_0__.getCurrentScope)()?((0,vue__WEBPACK_IMPORTED_MODULE_0__.onScopeDispose)(e),!0):!1,zr=(e,a,n,t)=>{if(!e)return fn;let i=fn;const p=(0,vue__WEBPACK_IMPORTED_MODULE_0__.watch)(()=>(0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(e),f=>{i(),f&&(f.addEventListener(a,n,t),i=()=>{f.removeEventListener(a,n,t),i=fn})},{immediate:!0,flush:"post"}),v=()=>{p(),i()};return Gr(v),v},Xr=(e,a,n,t={})=>{const{window:i=jr,event:p="pointerdown"}=t;return i?zr(i,p,v=>{const f=he(e),h=he(a);!f||!h||f===v.target||v.composedPath().includes(f)||v.composedPath().includes(h)||n(v)},{passive:!0}):void 0},qr=(0,vue__WEBPACK_IMPORTED_MODULE_0__.defineComponent)({props:X({},Il),emits:["update:modelValue","textSubmit","closed","cleared","open","focus","blur","internalModelChange","recalculatePosition","flow-step","focus-prev","updateMonthYear"],setup(e,{expose:a,emit:n}){const t=e,i=(0,vue__WEBPACK_IMPORTED_MODULE_0__.useSlots)(),p=(0,vue__WEBPACK_IMPORTED_MODULE_0__.ref)(!1),v=(0,vue__WEBPACK_IMPORTED_MODULE_0__.toRef)(t,"modelValue"),f=(0,vue__WEBPACK_IMPORTED_MODULE_0__.ref)(null),h=(0,vue__WEBPACK_IMPORTED_MODULE_0__.ref)(null),T=(0,vue__WEBPACK_IMPORTED_MODULE_0__.ref)(null),N=(0,vue__WEBPACK_IMPORTED_MODULE_0__.ref)(null);(0,vue__WEBPACK_IMPORTED_MODULE_0__.provide)(an,t.autoApply);const g=(0,vue__WEBPACK_IMPORTED_MODULE_0__.computed)(()=>t.formatLocale);(0,vue__WEBPACK_IMPORTED_MODULE_0__.provide)(Hn,g),(0,vue__WEBPACK_IMPORTED_MODULE_0__.provide)(Ln,(0,vue__WEBPACK_IMPORTED_MODULE_0__.toRef)(t,"textInput")),(0,vue__WEBPACK_IMPORTED_MODULE_0__.provide)(qe,(0,vue__WEBPACK_IMPORTED_MODULE_0__.toRef)(t,"arrowNavigation")),(0,vue__WEBPACK_IMPORTED_MODULE_0__.onMounted)(()=>{U(t.modelValue),t.inline||(window.addEventListener("scroll",V),window.addEventListener("resize",ke)),t.inline&&(p.value=!0)}),(0,vue__WEBPACK_IMPORTED_MODULE_0__.onUnmounted)(()=>{t.inline||(window.removeEventListener("scroll",V),window.removeEventListener("resize",ke))});const R=st(i,"all"),E=st(i,"input");(0,vue__WEBPACK_IMPORTED_MODULE_0__.watch)(v,()=>{U(v.value)},{deep:!0});const{openOnTop:B,menuPosition:Y,setMenuPosition:C,recalculatePosition:s,setInitialPosition:j}=Kr(t.position,t.altPosition,t.autoPosition,f,h,t.inline,n),{internalModelValue:l,inputValue:$,parseExternalModelValue:U,emitModelValue:Z,checkBeforeEmit:ae,formatInputValue:le}=Wr(t.format,t.timePicker,t.monthPicker,t.range,t.partialRange,t.is24,t.enableTimePicker,t.enableSeconds,g,t.multiDates,t.utc,t.weekPicker,t.yearPicker,t.textInputOptions,n),{clearArrowNav:x}=Je(),{setMenuFocused:se,setShiftKey:d}=un(),I=(0,vue__WEBPACK_IMPORTED_MODULE_0__.computed)(()=>({dp__main:!0,dp__theme_dark:t.dark,dp__theme_light:!t.dark,dp__flex_display:t.inline,dp__flex_display_with_input:t.inlineWithInput})),u=(0,vue__WEBPACK_IMPORTED_MODULE_0__.computed)(()=>Qn(t.format)?t.format:Bn(null,t.is24,t.enableSeconds,t.monthPicker,t.timePicker,t.weekPicker,t.yearPicker,t.enableTimePicker)),D=(0,vue__WEBPACK_IMPORTED_MODULE_0__.computed)(()=>t.previewFormat?t.previewFormat:Qn(u.value)?u.value:t.format),S=(0,vue__WEBPACK_IMPORTED_MODULE_0__.computed)(()=>typeof t.transitions=="boolean"?t.transitions?En({}):!1:En(t.transitions));(0,vue__WEBPACK_IMPORTED_MODULE_0__.provide)(Et,S);const G=(0,vue__WEBPACK_IMPORTED_MODULE_0__.computed)(()=>t.dark?"dp__theme_dark":"dp__theme_light"),F=(0,vue__WEBPACK_IMPORTED_MODULE_0__.computed)(()=>Object.assign(Ol(),t.textInputOptions)),ne=(0,vue__WEBPACK_IMPORTED_MODULE_0__.computed)(()=>Nl(t.ariaLabels));(0,vue__WEBPACK_IMPORTED_MODULE_0__.provide)(Xe,ne);const Q=(0,vue__WEBPACK_IMPORTED_MODULE_0__.computed)(()=>_l(t.filters)),w=(0,vue__WEBPACK_IMPORTED_MODULE_0__.computed)(()=>{const m=re=>{const fe={hours:(0,date_fns__WEBPACK_IMPORTED_MODULE_13__["default"])(new Date),minutes:(0,date_fns__WEBPACK_IMPORTED_MODULE_14__["default"])(new Date),seconds:(0,date_fns__WEBPACK_IMPORTED_MODULE_15__["default"])(new Date)};return Object.assign(fe,re)};return t.range?t.startTime&&Array.isArray(t.startTime)?[m(t.startTime[0]),m(t.startTime[1])]:null:t.startTime&&!Array.isArray(t.startTime)?m(t.startTime):null}),_=(0,vue__WEBPACK_IMPORTED_MODULE_0__.computed)(()=>t.multiCalendars===null?0:typeof t.multiCalendars=="boolean"?t.multiCalendars?2:0:+t.multiCalendars>=2?+t.multiCalendars:2),V=()=>{p.value&&(t.closeOnScroll?Ce():t.autoPosition?C():window.removeEventListener("scroll",V))},ke=()=>{p.value&&C()},Ye=()=>{!t.disabled&&!t.readonly&&(j(),p.value=!0,(0,vue__WEBPACK_IMPORTED_MODULE_0__.nextTick)().then(()=>{C(),p.value&&(n("open"),n("focus"))}),p.value||Fe(),U(t.modelValue))},Ze=()=>{$.value="",Fe(),n("update:modelValue",null),n("cleared"),Ce()},He=()=>{const{validate:m}=Fn(t.minDate,t.maxDate,t.disabledDates,t.allowedDates,Q.value,t.disabledWeekDays,t.yearRange),re=l.value;return!Array.isArray(re)&&m(re)?!0:Array.isArray(re)?re.length===2&&m(re[0])&&m(re[1])?!0:!!m(re[0]):!1},Oe=()=>{ae()&&He()&&(Z(),Ce())},Qe=m=>{Z(),t.closeOnAutoApply&&!m&&Ce()},pt=(m=!1)=>{t.autoApply&&(!t.enableTimePicker||t.monthPicker||t.yearPicker?!0:nn(l.value,t.maxTime,t.minTime))&&He()&&(t.range&&Array.isArray(l.value)?(t.partialRange||l.value.length===2)&&Qe(m):Qe(m))},Fe=()=>{l.value=null},Ce=()=>{t.inline||(p.value&&(p.value=!1,se(!1),d(!1),x(),n("closed"),n("blur"),j(),$.value&&U(v.value)),Fe(),h.value&&h.value.unFocus(),et())},vt=(m,re)=>{if(!m){l.value=null;return}l.value=m,re&&(Oe(),n("textSubmit"))},xe=()=>{t.autoApply&&nn(l.value,t.maxTime,t.minTime)&&Z()},et=()=>{T.value&&T.value.focus({preventScroll:!0})},ft=()=>p.value?Ce():Ye();return Xr(f,h,Ce),a({closeMenu:Ce,selectDate:Oe,clearValue:Ze,openMenu:Ye,onScroll:V,formatInputValue:le}),(m,re)=>((0,vue__WEBPACK_IMPORTED_MODULE_0__.openBlock)(),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementBlock)("div",{class:(0,vue__WEBPACK_IMPORTED_MODULE_0__.normalizeClass)((0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(I))},[(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementVNode)("span",{tabindex:"-1",ref_key:"focusRefBefore",ref:N},null,512),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createVNode)(Hl,(0,vue__WEBPACK_IMPORTED_MODULE_0__.mergeProps)({ref_key:"inputRef",ref:h},{placeholder:m.placeholder,hideInputIcon:m.hideInputIcon,readonly:m.readonly,disabled:m.disabled,inputClassName:m.inputClassName,clearable:m.clearable,state:m.state,inline:m.inline,inlineWithInput:m.inlineWithInput,textInput:m.textInput,textInputOptions:(0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(F),range:m.range,isMenuOpen:p.value,pattern:(0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(u),autoApply:m.autoApply,uid:m.uid,openMenuOnFocus:m.openMenuOnFocus,required:m.required,name:m.name,autocomplete:m.autocomplete},{"input-value":(0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)($),"onUpdate:input-value":re[0]||(re[0]=fe=>(0,vue__WEBPACK_IMPORTED_MODULE_0__.isRef)($)?$.value=fe:null),onClear:Ze,onOpen:Ye,onSetInputDate:vt,onSetEmptyDate:(0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(Z),onSelectDate:Oe,onToggle:ft,onClose:Ce,onFocusPrev:re[1]||(re[1]=fe=>m.$emit("focus-prev"))}),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createSlots)({_:2},[(0,vue__WEBPACK_IMPORTED_MODULE_0__.renderList)((0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(E),(fe,yt)=>({name:fe,fn:(0,vue__WEBPACK_IMPORTED_MODULE_0__.withCtx)(tt=>[(0,vue__WEBPACK_IMPORTED_MODULE_0__.renderSlot)(m.$slots,fe,(0,vue__WEBPACK_IMPORTED_MODULE_0__.normalizeProps)((0,vue__WEBPACK_IMPORTED_MODULE_0__.guardReactiveProps)(tt)))])}))]),1040,["input-value","onSetEmptyDate"]),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementVNode)("span",{tabindex:"-1",ref_key:"focusRef",ref:T},null,512),p.value?((0,vue__WEBPACK_IMPORTED_MODULE_0__.openBlock)(),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createBlock)(vue__WEBPACK_IMPORTED_MODULE_0__.Teleport,{key:0,to:m.teleport,disabled:m.inline},[p.value?((0,vue__WEBPACK_IMPORTED_MODULE_0__.openBlock)(),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createBlock)(Ur,(0,vue__WEBPACK_IMPORTED_MODULE_0__.mergeProps)({key:0,ref_key:"dpMenuRef",ref:f,class:(0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(G),style:(0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(Y)},{weekNumbers:m.weekNumbers,weekStart:m.weekStart,disableMonthYearSelect:m.disableMonthYearSelect,menuClassName:m.menuClassName,calendarClassName:m.calendarClassName,yearRange:m.yearRange,range:m.range,multiCalendars:(0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(_),multiCalendarsSolo:m.multiCalendarsSolo,multiStatic:m.multiStatic,calendarCellClassName:m.calendarCellClassName,enableTimePicker:m.enableTimePicker,is24:m.is24,hoursIncrement:m.hoursIncrement,minutesIncrement:m.minutesIncrement,hoursGridIncrement:m.hoursGridIncrement,minutesGridIncrement:m.minutesGridIncrement,minDate:m.minDate,maxDate:m.maxDate,autoApply:m.autoApply,selectText:m.selectText,cancelText:m.cancelText,previewFormat:(0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(D),locale:m.locale,weekNumName:m.weekNumName,disabledDates:m.disabledDates,filters:(0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(Q),minTime:m.minTime,maxTime:m.maxTime,inline:m.inline,openOnTop:(0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(B),monthPicker:m.monthPicker,timePicker:m.timePicker,monthNameFormat:m.monthNameFormat,startDate:m.startDate,startTime:(0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(w),monthYearComponent:m.monthYearComponent,timePickerComponent:m.timePickerComponent,actionRowComponent:m.actionRowComponent,customProps:m.customProps,hideOffsetDates:m.hideOffsetDates,autoRange:m.autoRange,noToday:m.noToday,noHoursOverlay:m.noHoursOverlay,noMinutesOverlay:m.noMinutesOverlay,disabledWeekDays:m.disabledWeekDays,allowedDates:m.allowedDates,showNowButton:m.showNowButton,nowButtonLabel:m.nowButtonLabel,monthChangeOnScroll:m.monthChangeOnScroll,markers:m.markers,uid:m.uid,modeHeight:m.modeHeight,enableSeconds:m.enableSeconds,secondsIncrement:m.secondsIncrement,secondsGridIncrement:m.secondsGridIncrement,noSecondsOverlay:m.noSecondsOverlay,escClose:m.escClose,spaceConfirm:m.spaceConfirm,monthChangeOnArrows:m.monthChangeOnArrows,textInput:m.textInput,disabled:m.disabled,readonly:m.readonly,multiDates:m.multiDates,presetRanges:m.presetRanges,flow:m.flow,preventMinMaxNavigation:m.preventMinMaxNavigation,minRange:m.minRange,maxRange:m.maxRange,fixedStart:m.fixedStart,fixedEnd:m.fixedEnd,multiDatesLimit:m.multiDatesLimit,reverseYears:m.reverseYears,keepActionRow:m.keepActionRow,weekPicker:m.weekPicker,noSwipe:m.noSwipe,vertical:m.vertical,arrowNavigation:m.arrowNavigation,yearPicker:m.yearPicker},{internalModelValue:(0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(l),"onUpdate:internalModelValue":re[2]||(re[2]=fe=>(0,vue__WEBPACK_IMPORTED_MODULE_0__.isRef)(l)?l.value=fe:null),onClosePicker:Ce,onSelectDate:Oe,onDpOpen:(0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(s),onAutoApply:pt,onTimeUpdate:xe,onFlowStep:re[3]||(re[3]=fe=>m.$emit("flow-step",fe)),onUpdateMonthYear:re[4]||(re[4]=fe=>m.$emit("updateMonthYear",fe))}),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createSlots)({_:2},[(0,vue__WEBPACK_IMPORTED_MODULE_0__.renderList)((0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(R),(fe,yt)=>({name:fe,fn:(0,vue__WEBPACK_IMPORTED_MODULE_0__.withCtx)(tt=>[(0,vue__WEBPACK_IMPORTED_MODULE_0__.renderSlot)(m.$slots,fe,(0,vue__WEBPACK_IMPORTED_MODULE_0__.normalizeProps)((0,vue__WEBPACK_IMPORTED_MODULE_0__.guardReactiveProps)(X({},tt))))])}))]),1040,["class","style","internalModelValue","onDpOpen"])):(0,vue__WEBPACK_IMPORTED_MODULE_0__.createCommentVNode)("",!0)],8,["to","disabled"])):(0,vue__WEBPACK_IMPORTED_MODULE_0__.createCommentVNode)("",!0)],2))}});var yn=(()=>{const e=qr;return e.install=a=>{a.component("Vue3DatePicker",e)},e})(),Jr=Object.freeze(Object.defineProperty({__proto__:null,default:yn},Symbol.toStringTag,{value:"Module"}));Object.entries(Jr).forEach(([e,a])=>{e!=="default"&&(yn[e]=a)});
+/* harmony import */ var date_fns__WEBPACK_IMPORTED_MODULE_23__ = __webpack_require__(/*! date-fns */ "./node_modules/date-fns/esm/parseISO/index.js");
+/* harmony import */ var date_fns__WEBPACK_IMPORTED_MODULE_24__ = __webpack_require__(/*! date-fns */ "./node_modules/date-fns/esm/startOfWeek/index.js");
+/* harmony import */ var date_fns__WEBPACK_IMPORTED_MODULE_25__ = __webpack_require__(/*! date-fns */ "./node_modules/date-fns/esm/endOfWeek/index.js");
+/* harmony import */ var date_fns__WEBPACK_IMPORTED_MODULE_26__ = __webpack_require__(/*! date-fns */ "./node_modules/date-fns/esm/getDay/index.js");
+/* harmony import */ var date_fns__WEBPACK_IMPORTED_MODULE_27__ = __webpack_require__(/*! date-fns */ "./node_modules/date-fns/esm/addDays/index.js");
+/* harmony import */ var date_fns__WEBPACK_IMPORTED_MODULE_28__ = __webpack_require__(/*! date-fns */ "./node_modules/date-fns/esm/subMonths/index.js");
+/* harmony import */ var date_fns__WEBPACK_IMPORTED_MODULE_29__ = __webpack_require__(/*! date-fns */ "./node_modules/date-fns/esm/addYears/index.js");
+/* harmony import */ var date_fns__WEBPACK_IMPORTED_MODULE_30__ = __webpack_require__(/*! date-fns */ "./node_modules/date-fns/esm/subYears/index.js");
+/* harmony import */ var date_fns__WEBPACK_IMPORTED_MODULE_31__ = __webpack_require__(/*! date-fns */ "./node_modules/date-fns/esm/differenceInCalendarDays/index.js");
+/* harmony import */ var date_fns__WEBPACK_IMPORTED_MODULE_32__ = __webpack_require__(/*! date-fns */ "./node_modules/date-fns/esm/eachDayOfInterval/index.js");
+/* harmony import */ var date_fns__WEBPACK_IMPORTED_MODULE_33__ = __webpack_require__(/*! date-fns */ "./node_modules/date-fns/esm/getISOWeek/index.js");
+var ya=Object.defineProperty,ha=Object.defineProperties;var ga=Object.getOwnPropertyDescriptors;var kn=Object.getOwnPropertySymbols;var wa=Object.prototype.hasOwnProperty,ka=Object.prototype.propertyIsEnumerable;var bn=(e,a,n)=>a in e?ya(e,a,{enumerable:!0,configurable:!0,writable:!0,value:n}):e[a]=n,J=(e,a)=>{for(var n in a||(a={}))wa.call(a,n)&&bn(e,n,a[n]);if(kn)for(var n of kn(a))ka.call(a,n)&&bn(e,n,a[n]);return e},De=(e,a)=>ha(e,ga(a));var rt=(e,a)=>{const n=e.__vccOpts||e;for(const[t,i]of a)n[t]=i;return n};const Fa={},Ea={version:"1.1",xmlns:"http://www.w3.org/2000/svg",width:"32",height:"32",viewBox:"0 0 32 32",class:"dp__icon"},La=(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementVNode)("path",{d:"M29.333 8c0-2.208-1.792-4-4-4h-18.667c-2.208 0-4 1.792-4 4v18.667c0 2.208 1.792 4 4 4h18.667c2.208 0 4-1.792 4-4v-18.667zM26.667 8v18.667c0 0.736-0.597 1.333-1.333 1.333 0 0-18.667 0-18.667 0-0.736 0-1.333-0.597-1.333-1.333 0 0 0-18.667 0-18.667 0-0.736 0.597-1.333 1.333-1.333 0 0 18.667 0 18.667 0 0.736 0 1.333 0.597 1.333 1.333z"},null,-1),Ka=(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementVNode)("path",{d:"M20 2.667v5.333c0 0.736 0.597 1.333 1.333 1.333s1.333-0.597 1.333-1.333v-5.333c0-0.736-0.597-1.333-1.333-1.333s-1.333 0.597-1.333 1.333z"},null,-1),Ha=(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementVNode)("path",{d:"M9.333 2.667v5.333c0 0.736 0.597 1.333 1.333 1.333s1.333-0.597 1.333-1.333v-5.333c0-0.736-0.597-1.333-1.333-1.333s-1.333 0.597-1.333 1.333z"},null,-1),Wa=(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementVNode)("path",{d:"M4 14.667h24c0.736 0 1.333-0.597 1.333-1.333s-0.597-1.333-1.333-1.333h-24c-0.736 0-1.333 0.597-1.333 1.333s0.597 1.333 1.333 1.333z"},null,-1),Ua=[La,Ka,Ha,Wa];function ja(e,a){return (0,vue__WEBPACK_IMPORTED_MODULE_0__.openBlock)(),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementBlock)("svg",Ea,Ua)}var Yt=rt(Fa,[["render",ja]]);const Ga={},za={version:"1.1",xmlns:"http://www.w3.org/2000/svg",width:"32",height:"32",viewBox:"0 0 32 32",class:"dp__icon"},Xa=(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementVNode)("path",{d:"M23.057 7.057l-16 16c-0.52 0.52-0.52 1.365 0 1.885s1.365 0.52 1.885 0l16-16c0.52-0.52 0.52-1.365 0-1.885s-1.365-0.52-1.885 0z"},null,-1),qa=(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementVNode)("path",{d:"M7.057 8.943l16 16c0.52 0.52 1.365 0.52 1.885 0s0.52-1.365 0-1.885l-16-16c-0.52-0.52-1.365-0.52-1.885 0s-0.52 1.365 0 1.885z"},null,-1),Ja=[Xa,qa];function Za(e,a){return (0,vue__WEBPACK_IMPORTED_MODULE_0__.openBlock)(),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementBlock)("svg",za,Ja)}var Qa=rt(Ga,[["render",Za]]);const xa={},el={version:"1.1",xmlns:"http://www.w3.org/2000/svg",width:"32",height:"32",viewBox:"0 0 32 32",class:"dp__icon"},tl=(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementVNode)("path",{d:"M20.943 23.057l-7.057-7.057c0 0 7.057-7.057 7.057-7.057 0.52-0.52 0.52-1.365 0-1.885s-1.365-0.52-1.885 0l-8 8c-0.521 0.521-0.521 1.365 0 1.885l8 8c0.52 0.52 1.365 0.52 1.885 0s0.52-1.365 0-1.885z"},null,-1),nl=[tl];function al(e,a){return (0,vue__WEBPACK_IMPORTED_MODULE_0__.openBlock)(),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementBlock)("svg",el,nl)}var _n=rt(xa,[["render",al]]);const ll={},rl={version:"1.1",xmlns:"http://www.w3.org/2000/svg",width:"32",height:"32",viewBox:"0 0 32 32",class:"dp__icon"},ol=(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementVNode)("path",{d:"M12.943 24.943l8-8c0.521-0.521 0.521-1.365 0-1.885l-8-8c-0.52-0.52-1.365-0.52-1.885 0s-0.52 1.365 0 1.885l7.057 7.057c0 0-7.057 7.057-7.057 7.057-0.52 0.52-0.52 1.365 0 1.885s1.365 0.52 1.885 0z"},null,-1),sl=[ol];function ul(e,a){return (0,vue__WEBPACK_IMPORTED_MODULE_0__.openBlock)(),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementBlock)("svg",rl,sl)}var Rn=rt(ll,[["render",ul]]);const il={},dl={version:"1.1",xmlns:"http://www.w3.org/2000/svg",width:"32",height:"32",viewBox:"0 0 32 32",class:"dp__icon"},cl=(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementVNode)("path",{d:"M16 1.333c-8.095 0-14.667 6.572-14.667 14.667s6.572 14.667 14.667 14.667c8.095 0 14.667-6.572 14.667-14.667s-6.572-14.667-14.667-14.667zM16 4c6.623 0 12 5.377 12 12s-5.377 12-12 12c-6.623 0-12-5.377-12-12s5.377-12 12-12z"},null,-1),ml=(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementVNode)("path",{d:"M14.667 8v8c0 0.505 0.285 0.967 0.737 1.193l5.333 2.667c0.658 0.329 1.46 0.062 1.789-0.596s0.062-1.46-0.596-1.789l-4.596-2.298c0 0 0-7.176 0-7.176 0-0.736-0.597-1.333-1.333-1.333s-1.333 0.597-1.333 1.333z"},null,-1),pl=[cl,ml];function vl(e,a){return (0,vue__WEBPACK_IMPORTED_MODULE_0__.openBlock)(),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementBlock)("svg",dl,pl)}var On=rt(il,[["render",vl]]);const fl={},yl={version:"1.1",xmlns:"http://www.w3.org/2000/svg",width:"32",height:"32",viewBox:"0 0 32 32",class:"dp__icon"},hl=(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementVNode)("path",{d:"M24.943 19.057l-8-8c-0.521-0.521-1.365-0.521-1.885 0l-8 8c-0.52 0.52-0.52 1.365 0 1.885s1.365 0.52 1.885 0l7.057-7.057c0 0 7.057 7.057 7.057 7.057 0.52 0.52 1.365 0.52 1.885 0s0.52-1.365 0-1.885z"},null,-1),gl=[hl];function wl(e,a){return (0,vue__WEBPACK_IMPORTED_MODULE_0__.openBlock)(),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementBlock)("svg",yl,gl)}var Vn=rt(fl,[["render",wl]]);const kl={},bl={version:"1.1",xmlns:"http://www.w3.org/2000/svg",width:"32",height:"32",viewBox:"0 0 32 32",class:"dp__icon"},$l=(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementVNode)("path",{d:"M7.057 12.943l8 8c0.521 0.521 1.365 0.521 1.885 0l8-8c0.52-0.52 0.52-1.365 0-1.885s-1.365-0.52-1.885 0l-7.057 7.057c0 0-7.057-7.057-7.057-7.057-0.52-0.52-1.365-0.52-1.885 0s-0.52 1.365 0 1.885z"},null,-1),Dl=[$l];function Ml(e,a){return (0,vue__WEBPACK_IMPORTED_MODULE_0__.openBlock)(),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementBlock)("svg",bl,Dl)}var Bn=rt(kl,[["render",Ml]]);const Qt=(e,a)=>{const n=(0,date_fns__WEBPACK_IMPORTED_MODULE_1__["default"])(e,a.slice(0,e.length),new Date);return (0,date_fns__WEBPACK_IMPORTED_MODULE_2__["default"])(n)&&(0,date_fns__WEBPACK_IMPORTED_MODULE_3__["default"])(n)?n:null},Le=e=>{let a=new Date(JSON.parse(JSON.stringify(e)));return a=(0,date_fns__WEBPACK_IMPORTED_MODULE_4__["default"])(a,0),a=(0,date_fns__WEBPACK_IMPORTED_MODULE_5__["default"])(a,0),a=(0,date_fns__WEBPACK_IMPORTED_MODULE_6__["default"])(a,0),a=(0,date_fns__WEBPACK_IMPORTED_MODULE_7__["default"])(a,0),a},xt=e=>Array.isArray(e)?(0,date_fns__WEBPACK_IMPORTED_MODULE_2__["default"])(e[0])&&(e[1]?(0,date_fns__WEBPACK_IMPORTED_MODULE_2__["default"])(e[1]):!0):e?(0,date_fns__WEBPACK_IMPORTED_MODULE_2__["default"])(e):!1,Ae=(e,a,n,t)=>{let i=e?new Date(e):new Date;return(a||a===0)&&(i=(0,date_fns__WEBPACK_IMPORTED_MODULE_4__["default"])(i,+a)),(n||n===0)&&(i=(0,date_fns__WEBPACK_IMPORTED_MODULE_5__["default"])(i,+n)),(t||t===0)&&(i=(0,date_fns__WEBPACK_IMPORTED_MODULE_6__["default"])(i,+t)),(0,date_fns__WEBPACK_IMPORTED_MODULE_7__["default"])(i,0)},Sl=e=>{const a=(0,date_fns__WEBPACK_IMPORTED_MODULE_8__["default"])(e,1);return{month:(0,date_fns__WEBPACK_IMPORTED_MODULE_9__["default"])(a),year:(0,date_fns__WEBPACK_IMPORTED_MODULE_10__["default"])(a)}},ot=(e,a,n)=>{let t=e?new Date(e):new Date;return(a||a===0)&&(t=(0,date_fns__WEBPACK_IMPORTED_MODULE_11__["default"])(t,a)),n&&(t=(0,date_fns__WEBPACK_IMPORTED_MODULE_12__["default"])(t,n)),t},Nn=(e,a)=>e?`HH:mm${a?":ss":""}`:`hh:mm${a?":ss":""} aa`,In=(e,a,n,t,i,m,v,p)=>e||(t?"MM/yyyy":i?Nn(a,n):m?"MM/dd/yyyy":v?"yyyy":p?`MM/dd/yyyy, ${Nn(a,n)}`:"MM/dd/yyyy"),en=e=>{const a=e||new Date;return{hours:(0,date_fns__WEBPACK_IMPORTED_MODULE_13__["default"])(a),minutes:(0,date_fns__WEBPACK_IMPORTED_MODULE_14__["default"])(a),seconds:(0,date_fns__WEBPACK_IMPORTED_MODULE_15__["default"])(a)}},Ft=e=>({month:(0,date_fns__WEBPACK_IMPORTED_MODULE_9__["default"])(e),year:(0,date_fns__WEBPACK_IMPORTED_MODULE_10__["default"])(e)}),Yn=e=>Array.isArray(e)?[Ft(e[0]),e[1]?Ft(e[1]):null]:Ft(e),tn=e=>Array.isArray(e)?[en(e[0]),en(e[1])]:en(e),nn=(e,a,n)=>n?(0,date_fns__WEBPACK_IMPORTED_MODULE_16__["default"])(e,a,{locale:n}):(0,date_fns__WEBPACK_IMPORTED_MODULE_16__["default"])(e,a),pt=(e,a,n,t,i)=>Array.isArray(e)?`${nn(e[0],a,n)} ${i&&!e[1]?"":t||"-"} ${e[1]?nn(e[1],a,n):""}`:nn(e,a,n),Te=(e,a)=>!e||!a?!1:(0,date_fns__WEBPACK_IMPORTED_MODULE_17__["default"])(Le(e),Le(a)),be=(e,a)=>!e||!a?!1:(0,date_fns__WEBPACK_IMPORTED_MODULE_18__["default"])(Le(e),Le(a)),ie=(e,a)=>!e||!a?!1:(0,date_fns__WEBPACK_IMPORTED_MODULE_19__["default"])(Le(e),Le(a)),Al=(e,a)=>(0,date_fns__WEBPACK_IMPORTED_MODULE_20__["default"])((0,date_fns__WEBPACK_IMPORTED_MODULE_21__["default"])(new Date,e),a),Pl=(e,a)=>(0,date_fns__WEBPACK_IMPORTED_MODULE_22__["default"])((0,date_fns__WEBPACK_IMPORTED_MODULE_21__["default"])(new Date,e),a),an=e=>(0,date_fns__WEBPACK_IMPORTED_MODULE_21__["default"])(new Date,{hours:(0,date_fns__WEBPACK_IMPORTED_MODULE_13__["default"])(e),minutes:(0,date_fns__WEBPACK_IMPORTED_MODULE_14__["default"])(e),seconds:(0,date_fns__WEBPACK_IMPORTED_MODULE_15__["default"])(e)}),Fn=e=>(0,date_fns__WEBPACK_IMPORTED_MODULE_21__["default"])(new Date,{hours:+e.hours||0,minutes:+e.minutes||0,seconds:+e.seconds||0}),ln=(e,a,n)=>{let t=!0;if(!e)return!0;const i=Array.isArray(e)?[e[0]?an(e[0]):null,e[1]?an(e[1]):null]:an(e);if(a){const m=Fn(a);Array.isArray(i)?t=(i[0]?i[0].getTime()<=m.getTime():!0)&&(i[1]?i[1].getTime()<=m.getTime():!0):t=i.getTime()<=m.getTime()}if(n){const m=Fn(n);Array.isArray(i)?t=(i[0]?i[0].getTime()>=m.getTime():!0)&&(i[1]?i[1].getTime()>=m.getTime():!0)&&t:t=i.getTime()>=m.getTime()&&t}return t},Cl=(e,a,n)=>{let t=!0;return a&&n&&(t=Te(new Date(e),new Date(a))&&be(new Date(e),new Date(n))),a&&(t=Te(new Date(e),new Date(a))),n&&(t=be(new Date(e),new Date(n))),t},_e=e=>e instanceof Date?e:(0,date_fns__WEBPACK_IMPORTED_MODULE_23__["default"])(e),En=(e,a,n)=>e&&e[0]&&e[1]?Te(n,e[0])&&be(n,e[1]):e&&e[0]&&a?Te(n,e[0])&&be(n,a)||be(n,e[0])&&Te(n,a):!1,Et=(e,a)=>{const n=(0,date_fns__WEBPACK_IMPORTED_MODULE_24__["default"])(e,{weekStartsOn:a}),t=(0,date_fns__WEBPACK_IMPORTED_MODULE_25__["default"])(e,{weekStartsOn:a});return[n,t]},Tl=(e,a,n,t,i,m,v,p)=>{const y=n?Te(_e(e),_e(n)):!1,_=a?be(_e(e),_e(a)):!1,E=typeof t=="function"?t(e):t.some(z=>ie(_e(z),_e(e))),w=(m.months.length?m.months.map(z=>+z):[]).includes((0,date_fns__WEBPACK_IMPORTED_MODULE_9__["default"])(e)),V=v.length?v.some(z=>+z===(0,date_fns__WEBPACK_IMPORTED_MODULE_26__["default"])(e)):!1,Y=i.length?!i.some(z=>ie(_e(z),_e(e))):!1,F=(0,date_fns__WEBPACK_IMPORTED_MODULE_10__["default"])(e),H=F<+p[0]||F>+p[1];return!(y||_||E||w||H||V||Y)},Ln=(e,a,n,t,i,m,v)=>({validate:p=>Tl(p,e,a,n,t,i,m,v)}),_l=(e,a,n)=>{const t=new Date(JSON.parse(JSON.stringify(e))),i=[];for(let m=0;m<7;m++){const v=(0,date_fns__WEBPACK_IMPORTED_MODULE_27__["default"])(t,m),p=(0,date_fns__WEBPACK_IMPORTED_MODULE_9__["default"])(v)!==a;i.push({text:n&&p?"":v.getDate(),value:v,current:!p})}return i},Rl=(e,a,n,t)=>{const i=[],m=new Date(a,e),v=new Date(a,e+1,0),p=(0,date_fns__WEBPACK_IMPORTED_MODULE_24__["default"])(m,{weekStartsOn:n}),y=_=>{const E=_l(_,e,t);if(i.push({days:E}),!i[i.length-1].days.some(w=>ie(Le(w.value),Le(v)))){const w=(0,date_fns__WEBPACK_IMPORTED_MODULE_27__["default"])(_,7);y(w)}};return y(p),i},Ol=(e,a=3)=>{const n=[];for(let t=0;t<e.length;t+=a)n.push([e[t],e[t+1],e[t+2]]);return n},Vl=(e,a)=>{const n=[1,2,3,4,5,6,7].map(m=>new Intl.DateTimeFormat(e,{weekday:"short",timeZone:"UTC"}).format(new Date(`2017-01-0${m}T00:00:00+00:00`)).slice(0,2)),t=n.slice(0,a),i=n.slice(a+1,n.length);return[n[a]].concat(...i).concat(...t)},Bl=e=>{const a=[];for(let n=+e[0];n<=+e[1];n++)a.push({value:+n,text:`${n}`});return a},Nl=(e,a)=>{const n=new Intl.DateTimeFormat(e,{month:a,timeZone:"UTC"});return[1,2,3,4,5,6,7,8,9,10,11,12].map(t=>{const i=t<10?`0${t}`:t;return new Date(`2017-${i}-01T00:00:00+00:00`)}).map((t,i)=>({text:n.format(t),value:i}))},Il=e=>[12,1,2,3,4,5,6,7,8,9,10,11,12,1,2,3,4,5,6,7,8,9,10,11][e],Yl=()=>({enterSubmit:!0,tabSubmit:!0,openMenu:!0,rangeSeparator:" - "}),Fl=e=>Object.assign({months:[],years:[],times:{hours:[],minutes:[],seconds:[]}},e),El=e=>{function a(n){let t="";const i="ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789",m=i.length;for(let v=0;v<n;v++)t+=i.charAt(Math.floor(Math.random()*m));return t+e}return a(5)},he=e=>{var n;const a=(0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(e);return(n=a==null?void 0:a.$el)!=null?n:a},Ll=e=>Object.assign({type:"dot"},e),Kn=e=>Object.assign({menuAppear:"dp-menu-appear",open:"dp-slide-down",close:"dp-slide-up",next:"calendar-next",previous:"calendar-prev",vNext:"dp-slide-up",vPrevious:"dp-slide-down"},e),Kl=e=>Object.assign({toggleOverlay:"Toggle overlay",menu:"Datepicker menu",input:"Datepicker input",calendarWrap:"Calendar wrapper",calendarDays:"Calendar days",openTimePicker:"Open time picker",closeTimePicker:"Close time Picker",incrementValue:a=>`Increment ${a}`,decrementValue:a=>`Decrement ${a}`,openTpOverlay:a=>`Open ${a} overlay`,amPmButton:"Switch AM/PM mode",openYearsOverlay:"Open years overlay",openMonthsOverlay:"Open months overlay",nextMonth:"Next month",prevMonth:"Previous month"},e),Hn=e=>Array.isArray(e)?!!e[0]&&!!e[1]:!1,Xe=Symbol(),Lt=Symbol(),rn=Symbol(),Wn=Symbol(),Un=Symbol(),qe=Symbol(),on={disabled:{type:Boolean,default:!1},readonly:{type:Boolean,default:!1},autoApply:{type:Boolean,default:!1},inline:{type:Boolean,default:!1},textInput:{type:Boolean,default:!1}},sn={range:{type:Boolean,default:!1},uid:{type:String,default:null}},jn={enableSeconds:{type:Boolean,default:!1},is24:{type:Boolean,default:!0},noHoursOverlay:{type:Boolean,default:!1},noMinutesOverlay:{type:Boolean,default:!1},noSecondsOverlay:{type:Boolean,default:!1},hoursGridIncrement:{type:[String,Number],default:1},minutesGridIncrement:{type:[String,Number],default:5},secondsGridIncrement:{type:[String,Number],default:5},hoursIncrement:{type:[Number,String],default:1},minutesIncrement:{type:[Number,String],default:1},secondsIncrement:{type:[Number,String],default:1}},Gn=De(J({},jn),{fixedStart:{type:Boolean,default:!1},fixedEnd:{type:Boolean,default:!1},timePicker:{type:Boolean,default:!1}}),zn={name:{type:String,default:null},placeholder:{type:String,default:""},hideInputIcon:{type:Boolean,default:!1},clearable:{type:Boolean,default:!0},state:{type:Boolean,default:null},required:{type:Boolean,default:!1},autocomplete:{type:String,default:"off"},inputClassName:{type:String,default:null},inlineWithInput:{type:Boolean,default:!1},textInputOptions:{type:Object,default:()=>null},openMenuOnFocus:{type:Boolean,default:!0}},Xn={minTime:{type:Object,default:null},maxTime:{type:Object,default:null}},un={minDate:{type:[Date,String],default:null},maxDate:{type:[Date,String],default:null}},qn=J({selectText:{type:String,default:"Select"},cancelText:{type:String,default:"Cancel"},previewFormat:{type:[String,Function],default:()=>""},multiDates:{type:Boolean,default:!1}},Xn),dn={monthPicker:{type:Boolean,default:!1},customProps:{type:Object,default:null},yearPicker:{type:Boolean,default:!1},modelAuto:{type:Boolean,default:!1}},Jn={locale:{type:String,default:"en-Us"},weekNumName:{type:String,default:"W"},weekStart:{type:[Number,String],default:1},weekNumbers:{type:Boolean,default:!1},calendarClassName:{type:String,default:null},noSwipe:{type:Boolean,default:!1},monthChangeOnScroll:{type:[Boolean,String],default:!0},dayNames:{type:[Function,Array],default:null}},Zn=De(J(J(J(J(J(J({},Gn),qn),dn),un),Jn),sn),{vertical:{type:Boolean,default:!1},disableMonthYearSelect:{type:Boolean,default:!1},menuClassName:{type:String,default:null},yearRange:{type:Array,default:()=>[1900,2100]},multiCalendarsSolo:{type:Boolean,default:!1},calendarCellClassName:{type:String,default:null},enableTimePicker:{type:Boolean,default:!0},autoApply:{type:Boolean,default:!1},disabledDates:{type:[Array,Function],default:()=>[]},monthNameFormat:{type:String,default:"short"},startDate:{type:[Date,String],default:null},startTime:{type:[Object,Array],default:null},monthYearComponent:{type:Object,default:null},timePickerComponent:{type:Object,default:null},actionRowComponent:{type:Object,default:null},hideOffsetDates:{type:Boolean,default:!1},autoRange:{type:[Number,String],default:null},noToday:{type:Boolean,default:!1},disabledWeekDays:{type:Array,default:()=>[]},allowedDates:{type:Array,default:()=>[]},showNowButton:{type:Boolean,default:!1},nowButtonLabel:{type:String,default:"Now"},markers:{type:Array,default:()=>[]},modeHeight:{type:[Number,String],default:255},escClose:{type:Boolean,default:!0},spaceConfirm:{type:Boolean,default:!0},monthChangeOnArrows:{type:Boolean,default:!0},presetRanges:{type:Array,default:()=>[]},flow:{type:Array,default:()=>[]},preventMinMaxNavigation:{type:Boolean,default:!1},minRange:{type:[Number,String],default:null},maxRange:{type:[Number,String],default:null},multiDatesLimit:{type:[Number,String],default:null},reverseYears:{type:Boolean,default:!1},keepActionRow:{type:Boolean,default:!1},weekPicker:{type:Boolean,default:!1},filters:{type:Object,default:()=>({})},arrowNavigation:{type:Boolean,default:!1},multiStatic:{type:Boolean,default:!0},disableTimeRangeValidation:{type:Boolean,default:!1}}),Hl=De(J(J(J({},zn),on),Zn),{multiCalendars:{type:[Boolean,Number,String],default:null},modelValue:{type:[String,Date,Array,Object,Number],default:null},modelType:{type:String,default:null},position:{type:String,default:"center"},dark:{type:Boolean,default:!1},format:{type:[String,Function],default:()=>null},closeOnScroll:{type:Boolean,default:!1},autoPosition:{type:Boolean,default:!0},closeOnAutoApply:{type:Boolean,default:!0},teleport:{type:[String,Object],default:"body"},altPosition:{type:[Boolean,Function],default:!1},partialRange:{type:Boolean,default:!0},transitions:{type:[Boolean,Object],default:!0},formatLocale:{type:Object,default:null},utc:{type:Boolean,default:!1},ariaLabels:{type:Object,default:()=>({})}}),Qn={range:{type:Boolean,default:!1},multiCalendars:{type:Number,default:0},internalModelValue:{type:[Date,Array],default:null}},xn=De(J(J({},dn),Qn),{vertical:{type:Boolean,default:!1},month:{type:Number,default:0},year:{type:Number,default:0},instance:{type:Number,default:1}}),Kt=(0,vue__WEBPACK_IMPORTED_MODULE_0__.reactive)({menuFocused:!1,shiftKeyInMenu:!1}),cn=()=>({setMenuFocused:e=>{Kt.menuFocused=e},getStore:()=>Kt,setShiftKey:e=>{Kt.shiftKeyInMenu!==e&&(Kt.shiftKeyInMenu=e)}}),Wl=["aria-label","aria-disabled","aria-readonly"],Ul={key:1,class:"dp__input_wrap"},jl=["id","name","placeholder","disabled","readonly","required","value","autocomplete","onKeydown"],Gl={key:4,class:"dp__clear_icon"},zl=(0,vue__WEBPACK_IMPORTED_MODULE_0__.defineComponent)({__name:"DatepickerInput",props:De(J(J(J({},zn),on),sn),{inputValue:{type:String,default:""},inline:{type:Boolean,default:!1},isMenuOpen:{type:Boolean,default:!1},pattern:{type:String,default:""}}),emits:["clear","open","update:inputValue","setInputDate","close","selectDate","setEmptyDate","toggle","focus-prev"],setup(e,{expose:a,emit:n}){const t=e,i=(0,vue__WEBPACK_IMPORTED_MODULE_0__.ref)(),m=(0,vue__WEBPACK_IMPORTED_MODULE_0__.ref)(null),v=(0,vue__WEBPACK_IMPORTED_MODULE_0__.ref)(!1),p=(0,vue__WEBPACK_IMPORTED_MODULE_0__.inject)(Xe),y=(0,vue__WEBPACK_IMPORTED_MODULE_0__.useSlots)(),{getStore:_}=cn(),E=(0,vue__WEBPACK_IMPORTED_MODULE_0__.computed)(()=>({dp__pointer:!t.disabled&&!t.readonly&&!t.textInput,dp__disabled:t.disabled,dp__input_readonly:!t.textInput,dp__input:!0,dp__input_icon_pad:!t.hideInputIcon,dp__input_valid:t.state,dp__input_invalid:t.state===!1,dp__input_focus:v.value||t.isMenuOpen,dp__input_reg:!t.textInput,[t.inputClassName]:!!t.inputClassName})),w=h=>{const{value:N}=h.target,{format:j,rangeSeparator:ne}=t.textInputOptions;if(N!==""){if(t.range){const[Z,X]=N.split(`${ne}`);if(Z&&X){const Q=Qt(Z.trim(),j||t.pattern),M=Qt(X.trim(),j||t.pattern);i.value=Q&&M?[Q,M]:null}}else i.value=Qt(N,j||t.pattern);n("setInputDate",i.value)}else n("setInputDate",null),t.autoApply&&(n("setEmptyDate"),i.value=null);n("update:inputValue",N)},V=()=>{var h,N;((h=t.textInputOptions)==null?void 0:h.enterSubmit)&&xt(i.value)&&t.inputValue!==""?(n("setInputDate",i.value,!0),i.value=null):((N=t.textInputOptions)==null?void 0:N.enterSubmit)&&t.inputValue===""&&(i.value=null,n("clear"))},Y=()=>{var h,N;((h=t.textInputOptions)==null?void 0:h.tabSubmit)&&xt(i.value)&&t.inputValue!==""?(n("setInputDate",i.value,!0),i.value=null):((N=t.textInputOptions)==null?void 0:N.tabSubmit)&&t.inputValue===""&&(i.value=null,n("clear")),n("close")},F=()=>{var h;if(_().shiftKeyInMenu&&t.openMenuOnFocus)return n("close"),n("focus-prev");!t.inline&&(t.textInput?t.textInput&&((h=t.textInputOptions)==null?void 0:h.openMenu):!0)&&(v.value=!0,t.openMenuOnFocus&&!t.isMenuOpen?n("open"):t.isMenuOpen&&!_().menuFocused&&(P(),n("close")))},H=()=>{var h;!t.openMenuOnFocus||y["dp-input"]||y.trigger?t.textInput&&((h=t.textInputOptions)==null?void 0:h.openMenu)&&!t.isMenuOpen?n("open"):t.textInput||n("toggle"):t.textInput||v.value&&n("toggle")},z=()=>{v.value=!1,t.autoApply&&t.textInput&&i.value&&(n("setInputDate",i.value),n("selectDate"),i.value=null)},r=()=>{n("clear")},P=()=>{v.value=!1;const h=he(m);h&&h.blur()},C=h=>{t.textInput||h.preventDefault()};return a({unFocus:P}),(h,N)=>((0,vue__WEBPACK_IMPORTED_MODULE_0__.openBlock)(),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementBlock)("div",{onClick:H,"aria-label":(0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(p).input,role:"textbox","aria-multiline":"false","aria-disabled":h.disabled,"aria-readonly":h.readonly},[h.$slots.trigger&&!h.$slots["dp-input"]&&!e.inline?(0,vue__WEBPACK_IMPORTED_MODULE_0__.renderSlot)(h.$slots,"trigger",{key:0}):(0,vue__WEBPACK_IMPORTED_MODULE_0__.createCommentVNode)("",!0),!h.$slots.trigger&&(!e.inline||h.inlineWithInput)?((0,vue__WEBPACK_IMPORTED_MODULE_0__.openBlock)(),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementBlock)("div",Ul,[h.$slots["dp-input"]&&!h.$slots.trigger&&!e.inline?(0,vue__WEBPACK_IMPORTED_MODULE_0__.renderSlot)(h.$slots,"dp-input",{key:0,value:e.inputValue,onInput:w,onEnter:V,onTab:Y,onClear:r}):(0,vue__WEBPACK_IMPORTED_MODULE_0__.createCommentVNode)("",!0),h.$slots["dp-input"]?(0,vue__WEBPACK_IMPORTED_MODULE_0__.createCommentVNode)("",!0):((0,vue__WEBPACK_IMPORTED_MODULE_0__.openBlock)(),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementBlock)("input",{key:1,ref_key:"inputRef",ref:m,id:h.uid?`dp-input-${h.uid}`:void 0,name:h.name,class:(0,vue__WEBPACK_IMPORTED_MODULE_0__.normalizeClass)((0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(E)),placeholder:h.placeholder,disabled:h.disabled,readonly:h.readonly,required:h.required,value:e.inputValue,autocomplete:h.autocomplete,onInput:w,onKeydown:[(0,vue__WEBPACK_IMPORTED_MODULE_0__.withKeys)(V,["enter"]),(0,vue__WEBPACK_IMPORTED_MODULE_0__.withKeys)(Y,["tab"])],onBlur:z,onFocus:F,onKeypress:C},null,42,jl)),h.$slots["input-icon"]&&!h.hideInputIcon?((0,vue__WEBPACK_IMPORTED_MODULE_0__.openBlock)(),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementBlock)("span",{key:2,class:"dp__input_icon",onClick:N[0]||(N[0]=j=>n("toggle"))},[(0,vue__WEBPACK_IMPORTED_MODULE_0__.renderSlot)(h.$slots,"input-icon")])):(0,vue__WEBPACK_IMPORTED_MODULE_0__.createCommentVNode)("",!0),!h.$slots["input-icon"]&&!h.hideInputIcon&&!h.$slots["dp-input"]?((0,vue__WEBPACK_IMPORTED_MODULE_0__.openBlock)(),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createBlock)((0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(Yt),{key:3,class:"dp__input_icon dp__input_icons",onClick:N[1]||(N[1]=j=>n("toggle"))})):(0,vue__WEBPACK_IMPORTED_MODULE_0__.createCommentVNode)("",!0),h.$slots["clear-icon"]&&e.inputValue&&h.clearable&&!h.disabled&&!h.readonly?((0,vue__WEBPACK_IMPORTED_MODULE_0__.openBlock)(),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementBlock)("span",Gl,[(0,vue__WEBPACK_IMPORTED_MODULE_0__.renderSlot)(h.$slots,"clear-icon",{clear:r})])):(0,vue__WEBPACK_IMPORTED_MODULE_0__.createCommentVNode)("",!0),h.clearable&&!h.$slots["clear-icon"]&&e.inputValue&&!h.disabled&&!h.readonly?((0,vue__WEBPACK_IMPORTED_MODULE_0__.openBlock)(),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createBlock)((0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(Qa),{key:5,class:"dp__clear_icon dp__input_icons",onClick:(0,vue__WEBPACK_IMPORTED_MODULE_0__.withModifiers)(r,["stop","prevent"])},null,8,["onClick"])):(0,vue__WEBPACK_IMPORTED_MODULE_0__.createCommentVNode)("",!0)])):(0,vue__WEBPACK_IMPORTED_MODULE_0__.createCommentVNode)("",!0)],8,Wl))}}),de=(0,vue__WEBPACK_IMPORTED_MODULE_0__.reactive)({monthYear:[],calendar:[],time:[],actionRow:[],selectionGrid:[],timePicker:{"0":[],"1":[]},monthPicker:[]}),mn=(0,vue__WEBPACK_IMPORTED_MODULE_0__.ref)(null),Ht=(0,vue__WEBPACK_IMPORTED_MODULE_0__.ref)(!1),pn=(0,vue__WEBPACK_IMPORTED_MODULE_0__.ref)(!1),vn=(0,vue__WEBPACK_IMPORTED_MODULE_0__.ref)(!1),fn=(0,vue__WEBPACK_IMPORTED_MODULE_0__.ref)(!1),$e=(0,vue__WEBPACK_IMPORTED_MODULE_0__.ref)(0),we=(0,vue__WEBPACK_IMPORTED_MODULE_0__.ref)(0),Je=()=>{const e=(0,vue__WEBPACK_IMPORTED_MODULE_0__.computed)(()=>Ht.value?[...de.selectionGrid,de.actionRow].filter(w=>w.length):pn.value?[...de.timePicker[0],...de.timePicker[1],fn.value?[]:[mn.value],de.actionRow].filter(w=>w.length):vn.value?[...de.monthPicker,de.actionRow]:[de.monthYear,...de.calendar,de.time,de.actionRow].filter(w=>w.length)),a=w=>{$e.value=w?$e.value+1:$e.value-1;let V=null;e.value[we.value]&&(V=e.value[we.value][$e.value]),V||($e.value=w?$e.value-1:$e.value+1)},n=w=>{we.value===0&&!w||we.value===e.value.length&&w||(we.value=w?we.value+1:we.value-1,e.value[we.value]?e.value[we.value]&&!e.value[we.value][$e.value]&&$e.value!==0&&($e.value=e.value[we.value].length-1):we.value=w?we.value-1:we.value+1)},t=w=>{let V=null;e.value[we.value]&&(V=e.value[we.value][$e.value]),V?V.focus({preventScroll:!Ht.value}):$e.value=w?$e.value-1:$e.value+1},i=()=>{a(!0),t(!0)},m=()=>{a(!1),t(!1)},v=()=>{n(!1),t(!0)},p=()=>{n(!0),t(!0)},y=(w,V)=>{de[V]=w},_=(w,V)=>{de[V]=w},E=()=>{$e.value=0,we.value=0};return{buildMatrix:y,buildMultiLevelMatrix:_,setTimePickerBackRef:w=>{mn.value=w},setSelectionGrid:w=>{Ht.value=w,E(),w||(de.selectionGrid=[])},setTimePicker:(w,V=!1)=>{pn.value=w,fn.value=V,E(),w||(de.timePicker[0]=[],de.timePicker[1]=[])},setTimePickerElements:(w,V=0)=>{de.timePicker[V]=w},arrowRight:i,arrowLeft:m,arrowUp:v,arrowDown:p,clearArrowNav:()=>{de.monthYear=[],de.calendar=[],de.time=[],de.actionRow=[],de.selectionGrid=[],de.timePicker[0]=[],de.timePicker[1]=[],Ht.value=!1,pn.value=!1,fn.value=!1,vn.value=!1,E(),mn.value=null},setMonthPicker:w=>{vn.value=w,E()}}},Xl=["aria-label"],ql={class:"dp__calendar_header",role:"row"},Jl={key:0,class:"dp__calendar_header_item",role:"gridcell"},Zl=(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementVNode)("div",{class:"dp__calendar_header_separator"},null,-1),Ql=["aria-label"],xl={key:0,role:"gridcell",class:"dp__calendar_item dp__week_num"},er={class:"dp__cell_inner"},tr=["aria-selected","aria-disabled","onClick","onKeydown","onMouseover"],nr=(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementVNode)("div",{class:"dp__arrow_bottom_tp"},null,-1),ar=(0,vue__WEBPACK_IMPORTED_MODULE_0__.defineComponent)({__name:"Calendar",props:De(J(J({},xn),Jn),{mappedDates:{type:Array,default:()=>[]},getWeekNum:{type:Function,default:()=>""},modeHeight:{type:[Number,String],default:255},specificMode:{type:Boolean,default:!1}}),emits:["selectDate","setHoverDate","handleScroll","mount","handleSwipe"],setup(e,{expose:a,emit:n}){const t=e,i=(0,vue__WEBPACK_IMPORTED_MODULE_0__.ref)(null),m=(0,vue__WEBPACK_IMPORTED_MODULE_0__.ref)({bottom:"",left:"",transform:""}),v=(0,vue__WEBPACK_IMPORTED_MODULE_0__.ref)([]),p=(0,vue__WEBPACK_IMPORTED_MODULE_0__.ref)(null),y=(0,vue__WEBPACK_IMPORTED_MODULE_0__.ref)(!0),_=(0,vue__WEBPACK_IMPORTED_MODULE_0__.inject)(Lt),E=(0,vue__WEBPACK_IMPORTED_MODULE_0__.inject)(Xe),w=(0,vue__WEBPACK_IMPORTED_MODULE_0__.inject)(qe),V=(0,vue__WEBPACK_IMPORTED_MODULE_0__.ref)(""),Y=(0,vue__WEBPACK_IMPORTED_MODULE_0__.ref)({startX:0,endX:0,startY:0,endY:0}),F=(0,vue__WEBPACK_IMPORTED_MODULE_0__.computed)(()=>t.dayNames?Array.isArray(t.dayNames)?t.dayNames:t.dayNames(t.locale,+t.weekStart):Vl(t.locale,+t.weekStart)),{buildMultiLevelMatrix:H}=Je();(0,vue__WEBPACK_IMPORTED_MODULE_0__.onMounted)(()=>{n("mount",{cmp:"calendar",refs:v}),t.noSwipe||p.value&&(p.value.addEventListener("touchstart",Z,{passive:!1}),p.value.addEventListener("touchend",X,{passive:!1}),p.value.addEventListener("touchmove",Q,{passive:!1})),t.monthChangeOnScroll&&p.value&&p.value.addEventListener("wheel",b,{passive:!1})});const z=(u,$)=>{if(_!=null&&_.value){const L=Le(ot(new Date,t.month,t.year));V.value=Te(Le(ot(new Date,u,$)),L)?_.value[t.vertical?"vNext":"next"]:_.value[t.vertical?"vPrevious":"previous"],y.value=!1,(0,vue__WEBPACK_IMPORTED_MODULE_0__.nextTick)(()=>{y.value=!0})}},r=(0,vue__WEBPACK_IMPORTED_MODULE_0__.computed)(()=>({dp__calendar_wrap:!0,[t.calendarClassName]:!!t.calendarClassName})),P=(0,vue__WEBPACK_IMPORTED_MODULE_0__.computed)(()=>u=>{const $=Ll(u);return{dp__marker_dot:$.type==="dot",dp__marker_line:$.type==="line"}}),C=(0,vue__WEBPACK_IMPORTED_MODULE_0__.computed)(()=>u=>ie(u,i.value)),h=(0,vue__WEBPACK_IMPORTED_MODULE_0__.computed)(()=>({dp__calendar:!0,dp__calendar_next:t.multiCalendars>0&&t.instance!==0})),N=(0,vue__WEBPACK_IMPORTED_MODULE_0__.computed)(()=>t.specificMode?{height:`${t.modeHeight}px`}:null),j=(u,$,L)=>{var ae,I;if(n("setHoverDate",u),(I=(ae=u.marker)==null?void 0:ae.tooltip)!=null&&I.length){const se=he(v.value[$][L]);if(se){const{width:f,height:T}=se.getBoundingClientRect();m.value={bottom:`${T}px`,left:`${f/2}px`,transform:"translateX(-50%)"},i.value=u.value}}},ne=()=>{i.value=null},Z=u=>{Y.value.startX=u.changedTouches[0].screenX,Y.value.startY=u.changedTouches[0].screenY},X=u=>{Y.value.endX=u.changedTouches[0].screenX,Y.value.endY=u.changedTouches[0].screenY,M()},Q=u=>{u.preventDefault()},M=()=>{const u=t.vertical?"Y":"X";Math.abs(Y.value[`start${u}`]-Y.value[`end${u}`])>10&&n("handleSwipe",Y.value[`start${u}`]>Y.value[`end${u}`]?"right":"left")},o=(u,$,L)=>{u&&(Array.isArray(v.value[$])?v.value[$][L]=u:v.value[$]=[u]),w!=null&&w.value&&H(v.value,"calendar")},b=u=>{t.monthChangeOnScroll&&(u.preventDefault(),n("handleScroll",u))};return a({triggerTransition:z}),(u,$)=>((0,vue__WEBPACK_IMPORTED_MODULE_0__.openBlock)(),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementBlock)("div",{class:(0,vue__WEBPACK_IMPORTED_MODULE_0__.normalizeClass)((0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(h))},[(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementVNode)("div",{style:(0,vue__WEBPACK_IMPORTED_MODULE_0__.normalizeStyle)((0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(N))},[e.specificMode?(0,vue__WEBPACK_IMPORTED_MODULE_0__.createCommentVNode)("",!0):((0,vue__WEBPACK_IMPORTED_MODULE_0__.openBlock)(),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementBlock)("div",{key:0,ref_key:"calendarWrapRef",ref:p,class:(0,vue__WEBPACK_IMPORTED_MODULE_0__.normalizeClass)((0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(r)),role:"grid","aria-label":(0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(E).calendarWrap},[(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementVNode)("div",ql,[u.weekNumbers?((0,vue__WEBPACK_IMPORTED_MODULE_0__.openBlock)(),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementBlock)("div",Jl,(0,vue__WEBPACK_IMPORTED_MODULE_0__.toDisplayString)(u.weekNumName),1)):(0,vue__WEBPACK_IMPORTED_MODULE_0__.createCommentVNode)("",!0),((0,vue__WEBPACK_IMPORTED_MODULE_0__.openBlock)(!0),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementBlock)(vue__WEBPACK_IMPORTED_MODULE_0__.Fragment,null,(0,vue__WEBPACK_IMPORTED_MODULE_0__.renderList)((0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(F),(L,ae)=>((0,vue__WEBPACK_IMPORTED_MODULE_0__.openBlock)(),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementBlock)("div",{class:"dp__calendar_header_item",role:"gridcell",key:ae},[u.$slots["calendar-header"]?(0,vue__WEBPACK_IMPORTED_MODULE_0__.renderSlot)(u.$slots,"calendar-header",{key:0,day:L,index:ae}):(0,vue__WEBPACK_IMPORTED_MODULE_0__.createCommentVNode)("",!0),u.$slots["calendar-header"]?(0,vue__WEBPACK_IMPORTED_MODULE_0__.createCommentVNode)("",!0):((0,vue__WEBPACK_IMPORTED_MODULE_0__.openBlock)(),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementBlock)(vue__WEBPACK_IMPORTED_MODULE_0__.Fragment,{key:1},[(0,vue__WEBPACK_IMPORTED_MODULE_0__.createTextVNode)((0,vue__WEBPACK_IMPORTED_MODULE_0__.toDisplayString)(L),1)],64))]))),128))]),Zl,(0,vue__WEBPACK_IMPORTED_MODULE_0__.createVNode)(vue__WEBPACK_IMPORTED_MODULE_0__.Transition,{name:V.value,css:!!(0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(_)},{default:(0,vue__WEBPACK_IMPORTED_MODULE_0__.withCtx)(()=>[y.value?((0,vue__WEBPACK_IMPORTED_MODULE_0__.openBlock)(),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementBlock)("div",{key:0,class:"dp__calendar",role:"grid","aria-label":(0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(E).calendarDays},[((0,vue__WEBPACK_IMPORTED_MODULE_0__.openBlock)(!0),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementBlock)(vue__WEBPACK_IMPORTED_MODULE_0__.Fragment,null,(0,vue__WEBPACK_IMPORTED_MODULE_0__.renderList)(e.mappedDates,(L,ae)=>((0,vue__WEBPACK_IMPORTED_MODULE_0__.openBlock)(),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementBlock)("div",{class:"dp__calendar_row",role:"row",key:ae},[u.weekNumbers?((0,vue__WEBPACK_IMPORTED_MODULE_0__.openBlock)(),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementBlock)("div",xl,[(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementVNode)("div",er,(0,vue__WEBPACK_IMPORTED_MODULE_0__.toDisplayString)(e.getWeekNum(L.days)),1)])):(0,vue__WEBPACK_IMPORTED_MODULE_0__.createCommentVNode)("",!0),((0,vue__WEBPACK_IMPORTED_MODULE_0__.openBlock)(!0),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementBlock)(vue__WEBPACK_IMPORTED_MODULE_0__.Fragment,null,(0,vue__WEBPACK_IMPORTED_MODULE_0__.renderList)(L.days,(I,se)=>((0,vue__WEBPACK_IMPORTED_MODULE_0__.openBlock)(),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementBlock)("div",{role:"gridcell",class:"dp__calendar_item",ref_for:!0,ref:f=>o(f,ae,se),key:se+ae,"aria-selected":I.classData.dp__active_date||I.classData.dp__range_start||I.classData.dp__range_start,"aria-disabled":I.classData.dp__cell_disabled,tabindex:"0",onClick:(0,vue__WEBPACK_IMPORTED_MODULE_0__.withModifiers)(f=>u.$emit("selectDate",I),["stop","prevent"]),onKeydown:(0,vue__WEBPACK_IMPORTED_MODULE_0__.withKeys)(f=>u.$emit("selectDate",I),["enter"]),onMouseover:f=>j(I,ae,se),onMouseleave:ne},[(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementVNode)("div",{class:(0,vue__WEBPACK_IMPORTED_MODULE_0__.normalizeClass)(["dp__cell_inner",I.classData])},[u.$slots.day?(0,vue__WEBPACK_IMPORTED_MODULE_0__.renderSlot)(u.$slots,"day",{key:0,day:+I.text,date:I.value}):(0,vue__WEBPACK_IMPORTED_MODULE_0__.createCommentVNode)("",!0),u.$slots.day?(0,vue__WEBPACK_IMPORTED_MODULE_0__.createCommentVNode)("",!0):((0,vue__WEBPACK_IMPORTED_MODULE_0__.openBlock)(),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementBlock)(vue__WEBPACK_IMPORTED_MODULE_0__.Fragment,{key:1},[(0,vue__WEBPACK_IMPORTED_MODULE_0__.createTextVNode)((0,vue__WEBPACK_IMPORTED_MODULE_0__.toDisplayString)(I.text),1)],64)),I.marker?((0,vue__WEBPACK_IMPORTED_MODULE_0__.openBlock)(),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementBlock)("div",{key:2,class:(0,vue__WEBPACK_IMPORTED_MODULE_0__.normalizeClass)((0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(P)(I.marker)),style:(0,vue__WEBPACK_IMPORTED_MODULE_0__.normalizeStyle)(I.marker.color?{backgroundColor:I.marker.color}:{})},null,6)):(0,vue__WEBPACK_IMPORTED_MODULE_0__.createCommentVNode)("",!0),(0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(C)(I.value)?((0,vue__WEBPACK_IMPORTED_MODULE_0__.openBlock)(),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementBlock)("div",{key:3,class:"dp__marker_tooltip",style:(0,vue__WEBPACK_IMPORTED_MODULE_0__.normalizeStyle)(m.value)},[(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementVNode)("div",{class:"dp__tooltip_content",onClick:$[0]||($[0]=(0,vue__WEBPACK_IMPORTED_MODULE_0__.withModifiers)(()=>{},["stop"]))},[((0,vue__WEBPACK_IMPORTED_MODULE_0__.openBlock)(!0),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementBlock)(vue__WEBPACK_IMPORTED_MODULE_0__.Fragment,null,(0,vue__WEBPACK_IMPORTED_MODULE_0__.renderList)(I.marker.tooltip,(f,T)=>((0,vue__WEBPACK_IMPORTED_MODULE_0__.openBlock)(),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementBlock)("div",{key:T,class:"dp__tooltip_text"},[u.$slots["marker-tooltip"]?(0,vue__WEBPACK_IMPORTED_MODULE_0__.renderSlot)(u.$slots,"marker-tooltip",{key:0,tooltop:f,day:I.value}):(0,vue__WEBPACK_IMPORTED_MODULE_0__.createCommentVNode)("",!0),u.$slots["marker-tooltip"]?(0,vue__WEBPACK_IMPORTED_MODULE_0__.createCommentVNode)("",!0):((0,vue__WEBPACK_IMPORTED_MODULE_0__.openBlock)(),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementBlock)(vue__WEBPACK_IMPORTED_MODULE_0__.Fragment,{key:1},[(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementVNode)("div",{class:"dp__tooltip_mark",style:(0,vue__WEBPACK_IMPORTED_MODULE_0__.normalizeStyle)(f.color?{backgroundColor:f.color}:{})},null,4),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementVNode)("div",null,(0,vue__WEBPACK_IMPORTED_MODULE_0__.toDisplayString)(f.text),1)],64))]))),128)),nr])],4)):(0,vue__WEBPACK_IMPORTED_MODULE_0__.createCommentVNode)("",!0)],2)],40,tr))),128))]))),128))],8,Ql)):(0,vue__WEBPACK_IMPORTED_MODULE_0__.createCommentVNode)("",!0)]),_:3},8,["name","css"])],10,Xl))],4)],2))}}),lr=e=>typeof e=="object",ea=(e,a)=>a,rr=e=>Array.isArray(e)&&e.length===2,or=e=>Array.isArray(e),sr=e=>typeof e=="object",St=e=>Array.isArray(e),Ye=e=>Array.isArray(e),Wt=e=>Array.isArray(e)&&e.length===2,ur=(e,a)=>a?Array.isArray(e):Wt(e),ir=e=>Array.isArray(e),dr=e=>typeof e=="string"||typeof e=="object"||typeof e=="number",ta=e=>typeof e=="string",cr={class:"dp__selection_preview"},mr={class:"dp__action_buttons"},pr=["onKeydown"],vr=(0,vue__WEBPACK_IMPORTED_MODULE_0__.defineComponent)({__name:"ActionRow",props:De(J(J(J(J(J({},qn),un),Xn),dn),Qn),{inline:{type:Boolean,default:!1},timePicker:{type:Boolean,default:!1},calendarWidth:{type:Number,default:0},menuMount:{type:Boolean,default:!1},enableTimePicker:{type:Boolean,default:!0}}),emits:["closePicker","selectDate"],setup(e,{emit:a}){const n=e,{buildMatrix:t}=Je(),i=(0,vue__WEBPACK_IMPORTED_MODULE_0__.inject)(Un),m=(0,vue__WEBPACK_IMPORTED_MODULE_0__.inject)(qe),v=(0,vue__WEBPACK_IMPORTED_MODULE_0__.ref)(null),p=(0,vue__WEBPACK_IMPORTED_MODULE_0__.ref)(null);(0,vue__WEBPACK_IMPORTED_MODULE_0__.onMounted)(()=>{m!=null&&m.value&&t([he(v),he(p)],"actionRow")});const y=(0,vue__WEBPACK_IMPORTED_MODULE_0__.computed)(()=>({dp__action:!0,dp__select:!0,dp__action_disabled:!_.value||!E.value})),_=(0,vue__WEBPACK_IMPORTED_MODULE_0__.computed)(()=>n.enableTimePicker?ln(n.internalModelValue,n.maxTime,n.minTime):!0),E=(0,vue__WEBPACK_IMPORTED_MODULE_0__.computed)(()=>n.monthPicker?Cl(n.internalModelValue,n.minDate,n.maxDate):!0),w=F=>pt(F,n.previewFormat,i==null?void 0:i.value),V=(0,vue__WEBPACK_IMPORTED_MODULE_0__.computed)(()=>!n.internalModelValue||!n.menuMount?"":typeof n.previewFormat=="string"?St(n.internalModelValue)?n.internalModelValue.length===2&&n.internalModelValue[1]?n.multiCalendars>0?`${w(n.internalModelValue[0])} - ${w(n.internalModelValue[1])}`:[w(n.internalModelValue[0]),w(n.internalModelValue[1])]:n.multiDates?n.internalModelValue.map(F=>`${w(F)}`):n.modelAuto?`${w(n.internalModelValue[0])}`:`${w(n.internalModelValue[0])} -`:pt(n.internalModelValue,n.previewFormat,i==null?void 0:i.value):n.timePicker?n.previewFormat(tn(n.internalModelValue)):n.monthPicker?n.previewFormat(Ft(n.internalModelValue)):n.previewFormat(n.internalModelValue)),Y=()=>{_.value&&E.value&&a("selectDate")};return(F,H)=>((0,vue__WEBPACK_IMPORTED_MODULE_0__.openBlock)(),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementBlock)("div",{class:"dp__action_row",style:(0,vue__WEBPACK_IMPORTED_MODULE_0__.normalizeStyle)(e.calendarWidth?{width:`${e.calendarWidth}px`}:{})},[(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementVNode)("div",cr,[F.$slots["action-preview"]?(0,vue__WEBPACK_IMPORTED_MODULE_0__.renderSlot)(F.$slots,"action-preview",{key:0,value:F.internalModelValue}):(0,vue__WEBPACK_IMPORTED_MODULE_0__.createCommentVNode)("",!0),F.$slots["action-preview"]?(0,vue__WEBPACK_IMPORTED_MODULE_0__.createCommentVNode)("",!0):((0,vue__WEBPACK_IMPORTED_MODULE_0__.openBlock)(),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementBlock)(vue__WEBPACK_IMPORTED_MODULE_0__.Fragment,{key:1},[Array.isArray((0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(V))?(0,vue__WEBPACK_IMPORTED_MODULE_0__.createCommentVNode)("",!0):((0,vue__WEBPACK_IMPORTED_MODULE_0__.openBlock)(),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementBlock)(vue__WEBPACK_IMPORTED_MODULE_0__.Fragment,{key:0},[(0,vue__WEBPACK_IMPORTED_MODULE_0__.createTextVNode)((0,vue__WEBPACK_IMPORTED_MODULE_0__.toDisplayString)((0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(V)),1)],64)),Array.isArray((0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(V))?((0,vue__WEBPACK_IMPORTED_MODULE_0__.openBlock)(!0),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementBlock)(vue__WEBPACK_IMPORTED_MODULE_0__.Fragment,{key:1},(0,vue__WEBPACK_IMPORTED_MODULE_0__.renderList)((0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(V),(z,r)=>((0,vue__WEBPACK_IMPORTED_MODULE_0__.openBlock)(),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementBlock)("div",{key:r},(0,vue__WEBPACK_IMPORTED_MODULE_0__.toDisplayString)(z),1))),128)):(0,vue__WEBPACK_IMPORTED_MODULE_0__.createCommentVNode)("",!0)],64))]),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementVNode)("div",mr,[F.$slots["action-select"]?(0,vue__WEBPACK_IMPORTED_MODULE_0__.renderSlot)(F.$slots,"action-select",{key:0,value:F.internalModelValue}):(0,vue__WEBPACK_IMPORTED_MODULE_0__.createCommentVNode)("",!0),F.$slots["action-select"]?(0,vue__WEBPACK_IMPORTED_MODULE_0__.createCommentVNode)("",!0):((0,vue__WEBPACK_IMPORTED_MODULE_0__.openBlock)(),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementBlock)(vue__WEBPACK_IMPORTED_MODULE_0__.Fragment,{key:1},[e.inline?(0,vue__WEBPACK_IMPORTED_MODULE_0__.createCommentVNode)("",!0):((0,vue__WEBPACK_IMPORTED_MODULE_0__.openBlock)(),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementBlock)("span",{key:0,class:"dp__action dp__cancel",ref_key:"cancelButtonRef",ref:v,tabindex:"0",onClick:H[0]||(H[0]=z=>F.$emit("closePicker")),onKeydown:H[1]||(H[1]=(0,vue__WEBPACK_IMPORTED_MODULE_0__.withKeys)(z=>F.$emit("closePicker"),["enter"]))},(0,vue__WEBPACK_IMPORTED_MODULE_0__.toDisplayString)(F.cancelText),545)),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementVNode)("span",{class:(0,vue__WEBPACK_IMPORTED_MODULE_0__.normalizeClass)((0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(y)),tabindex:"0",onKeydown:(0,vue__WEBPACK_IMPORTED_MODULE_0__.withKeys)(Y,["enter"]),onClick:Y,ref_key:"selectButtonRef",ref:p},(0,vue__WEBPACK_IMPORTED_MODULE_0__.toDisplayString)(F.selectText),43,pr)],64))])],4))}}),fr={class:"dp__selection_grid_header"},yr=["aria-selected","aria-disabled","onClick","onKeydown","onMouseover"],hr=["aria-label","onKeydown"],At=(0,vue__WEBPACK_IMPORTED_MODULE_0__.defineComponent)({__name:"SelectionGrid",props:{items:{type:Array,default:()=>[]},modelValue:{type:[String,Number],default:null},multiModelValue:{type:Array,default:()=>[]},disabledValues:{type:Array,default:()=>[]},minValue:{type:[Number,String],default:null},maxValue:{type:[Number,String],default:null},year:{type:Number,default:0},skipActive:{type:Boolean,default:!1},headerRefs:{type:Array,default:()=>[]},skipButtonRef:{type:Boolean,default:!1}},emits:["update:modelValue","selected","toggle","reset-flow"],setup(e,{expose:a,emit:n}){const t=e,i=(0,vue__WEBPACK_IMPORTED_MODULE_0__.ref)(!1),m=(0,vue__WEBPACK_IMPORTED_MODULE_0__.ref)(null),v=(0,vue__WEBPACK_IMPORTED_MODULE_0__.ref)(null),p=(0,vue__WEBPACK_IMPORTED_MODULE_0__.ref)([]),y=(0,vue__WEBPACK_IMPORTED_MODULE_0__.inject)(rn,!1),_=(0,vue__WEBPACK_IMPORTED_MODULE_0__.inject)(Wn,(0,vue__WEBPACK_IMPORTED_MODULE_0__.ref)(!1)),E=(0,vue__WEBPACK_IMPORTED_MODULE_0__.inject)(Xe),w=(0,vue__WEBPACK_IMPORTED_MODULE_0__.inject)(qe),V=(0,vue__WEBPACK_IMPORTED_MODULE_0__.ref)(),Y=(0,vue__WEBPACK_IMPORTED_MODULE_0__.ref)(),{setSelectionGrid:F,buildMultiLevelMatrix:H,setMonthPicker:z}=Je();(0,vue__WEBPACK_IMPORTED_MODULE_0__.onBeforeUpdate)(()=>{m.value=null}),(0,vue__WEBPACK_IMPORTED_MODULE_0__.onMounted)(()=>{(0,vue__WEBPACK_IMPORTED_MODULE_0__.nextTick)().then(()=>X()),P(),r(!0)}),(0,vue__WEBPACK_IMPORTED_MODULE_0__.onUnmounted)(()=>r(!1));const r=u=>{var $;w!=null&&w.value&&(($=t.headerRefs)!=null&&$.length?z(u):F(u))},P=()=>{const u=he(v);u&&(_.value||u.focus({preventScroll:!0}),i.value=u.clientHeight<u.scrollHeight)},C=(0,vue__WEBPACK_IMPORTED_MODULE_0__.computed)(()=>({dp__overlay:!0})),h=(0,vue__WEBPACK_IMPORTED_MODULE_0__.computed)(()=>({dp__overlay_col:!0})),N=(0,vue__WEBPACK_IMPORTED_MODULE_0__.computed)(()=>t.items.map(u=>u.filter($=>$).map($=>{var I,se,f;const L=t.disabledValues.some(T=>T===$.value)||Z($.value),ae=(I=t.multiModelValue)!=null&&I.length?(se=t.multiModelValue)==null?void 0:se.some(T=>ie(T,(0,date_fns__WEBPACK_IMPORTED_MODULE_12__["default"])((0,date_fns__WEBPACK_IMPORTED_MODULE_11__["default"])(new Date,$.value),t.year))):t.skipActive?!1:$.value===t.modelValue;return De(J({},$),{className:{dp__overlay_cell_active:ae,dp__overlay_cell:!ae,dp__overlay_cell_disabled:L,dp__overlay_cell_active_disabled:L&&ae,dp__overlay_cell_pad:!0,dp__cell_in_between:(f=t.multiModelValue)!=null&&f.length?M($.value):!1}})}))),j=(0,vue__WEBPACK_IMPORTED_MODULE_0__.computed)(()=>({dp__button:!0,dp__overlay_action:!0,dp__over_action_scroll:i.value,dp__button_bottom:y})),ne=(0,vue__WEBPACK_IMPORTED_MODULE_0__.computed)(()=>{var u,$;return{dp__overlay_container:!0,dp__container_flex:((u=t.items)==null?void 0:u.length)<=6,dp__container_block:(($=t.items)==null?void 0:$.length)>6}}),Z=u=>{const $=t.maxValue||t.maxValue===0,L=t.minValue||t.minValue===0;return!$&&!L?!1:$&&L?+u>+t.maxValue||+u<+t.minValue:$?+u>+t.maxValue:L?+u<+t.minValue:!1},X=()=>{const u=he(m);if(u){const $=he(v);$&&($.scrollTop=u.offsetTop-$.offsetTop-($.getBoundingClientRect().height/2-u.getBoundingClientRect().height))}},Q=u=>{!t.disabledValues.some($=>$===u)&&!Z(u)&&(n("update:modelValue",u),n("selected"))},M=u=>En(t.multiModelValue,(0,date_fns__WEBPACK_IMPORTED_MODULE_12__["default"])((0,date_fns__WEBPACK_IMPORTED_MODULE_11__["default"])(new Date,V.value||0),t.year),(0,date_fns__WEBPACK_IMPORTED_MODULE_12__["default"])((0,date_fns__WEBPACK_IMPORTED_MODULE_11__["default"])(new Date,u),t.year)),o=()=>{n("toggle"),n("reset-flow")},b=(u,$,L,ae)=>{var I,se;if(u&&($.value===+t.modelValue&&!t.disabledValues.includes($.value)&&(m.value=u),w!=null&&w.value)){Array.isArray(p.value[L])?p.value[L][ae]=u:p.value[L]=[u];const f=(I=t.headerRefs)!=null&&I.length?[t.headerRefs].concat(p.value):p.value.concat([t.skipButtonRef?[]:[Y.value]]);H(f,(se=t.headerRefs)!=null&&se.length?"monthPicker":"selectionGrid")}};return a({focusGrid:P}),(u,$)=>((0,vue__WEBPACK_IMPORTED_MODULE_0__.openBlock)(),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementBlock)("div",{ref_key:"gridWrapRef",ref:v,class:(0,vue__WEBPACK_IMPORTED_MODULE_0__.normalizeClass)((0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(C)),role:"dialog",tabindex:"0"},[(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementVNode)("div",{class:(0,vue__WEBPACK_IMPORTED_MODULE_0__.normalizeClass)((0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(ne)),role:"grid"},[(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementVNode)("div",fr,[(0,vue__WEBPACK_IMPORTED_MODULE_0__.renderSlot)(u.$slots,"header")]),((0,vue__WEBPACK_IMPORTED_MODULE_0__.openBlock)(!0),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementBlock)(vue__WEBPACK_IMPORTED_MODULE_0__.Fragment,null,(0,vue__WEBPACK_IMPORTED_MODULE_0__.renderList)((0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(N),(L,ae)=>((0,vue__WEBPACK_IMPORTED_MODULE_0__.openBlock)(),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementBlock)("div",{class:"dp__overlay_row",key:(0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(El)(ae),role:"row"},[((0,vue__WEBPACK_IMPORTED_MODULE_0__.openBlock)(!0),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementBlock)(vue__WEBPACK_IMPORTED_MODULE_0__.Fragment,null,(0,vue__WEBPACK_IMPORTED_MODULE_0__.renderList)(L,(I,se)=>((0,vue__WEBPACK_IMPORTED_MODULE_0__.openBlock)(),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementBlock)("div",{role:"gridcell",class:(0,vue__WEBPACK_IMPORTED_MODULE_0__.normalizeClass)((0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(h)),key:I.value,"aria-selected":I.value===e.modelValue&&!e.disabledValues.includes(I.value),"aria-disabled":I.className.dp__overlay_cell_disabled,ref_for:!0,ref:f=>b(f,I,ae,se),tabindex:"0",onClick:f=>Q(I.value),onKeydown:(0,vue__WEBPACK_IMPORTED_MODULE_0__.withKeys)(f=>Q(I.value),["enter"]),onMouseover:f=>V.value=I.value},[(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementVNode)("div",{class:(0,vue__WEBPACK_IMPORTED_MODULE_0__.normalizeClass)(I.className)},[u.$slots.item?(0,vue__WEBPACK_IMPORTED_MODULE_0__.renderSlot)(u.$slots,"item",{key:0,item:I}):(0,vue__WEBPACK_IMPORTED_MODULE_0__.createCommentVNode)("",!0),u.$slots.item?(0,vue__WEBPACK_IMPORTED_MODULE_0__.createCommentVNode)("",!0):((0,vue__WEBPACK_IMPORTED_MODULE_0__.openBlock)(),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementBlock)(vue__WEBPACK_IMPORTED_MODULE_0__.Fragment,{key:1},[(0,vue__WEBPACK_IMPORTED_MODULE_0__.createTextVNode)((0,vue__WEBPACK_IMPORTED_MODULE_0__.toDisplayString)(I.text),1)],64))],2)],42,yr))),128))]))),128)),u.$slots["button-icon"]?((0,vue__WEBPACK_IMPORTED_MODULE_0__.openBlock)(),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementBlock)("div",{key:0,role:"button","aria-label":(0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(E).toggleOverlay,class:(0,vue__WEBPACK_IMPORTED_MODULE_0__.normalizeClass)((0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(j)),tabindex:"0",ref_key:"toggleButton",ref:Y,onClick:o,onKeydown:(0,vue__WEBPACK_IMPORTED_MODULE_0__.withKeys)(o,["enter"])},[(0,vue__WEBPACK_IMPORTED_MODULE_0__.renderSlot)(u.$slots,"button-icon")],42,hr)):(0,vue__WEBPACK_IMPORTED_MODULE_0__.createCommentVNode)("",!0)],2)],2))}}),Ut=()=>{const e=(0,vue__WEBPACK_IMPORTED_MODULE_0__.inject)(Lt);return{transitionName:(0,vue__WEBPACK_IMPORTED_MODULE_0__.computed)(()=>a=>e!=null&&e.value?a?e.value.open:e.value.close:""),showTransition:!!(e!=null&&e.value)}},gr={key:0,class:"dp__time_input"},wr=(0,vue__WEBPACK_IMPORTED_MODULE_0__.createTextVNode)(" : "),kr=["aria-label","onKeydown","onClick"],br=["aria-label","onKeydown","onClick"],$r=["aria-label","onKeydown","onClick"],Dr={key:0},Mr=["aria-label","onKeydown"],Sr=(0,vue__WEBPACK_IMPORTED_MODULE_0__.defineComponent)({__name:"TimeInput",props:De(J({},jn),{hours:{type:Number,default:0},minutes:{type:Number,default:0},seconds:{type:Number,default:0},filters:{type:Object,default:()=>({})},disabled:{type:Boolean,default:!1},closeTimePickerBtn:{type:Object,default:null},order:{type:Number,default:0}}),emits:["setHours","setMinutes","update:hours","update:minutes","update:seconds","reset-flow","mounted","overlay-closed"],setup(e,{expose:a,emit:n}){const t=e,i=(0,vue__WEBPACK_IMPORTED_MODULE_0__.reactive)({hours:!1,minutes:!1,seconds:!1}),m=(0,vue__WEBPACK_IMPORTED_MODULE_0__.ref)("AM"),v=(0,vue__WEBPACK_IMPORTED_MODULE_0__.ref)(null),p=(0,vue__WEBPACK_IMPORTED_MODULE_0__.inject)(Xe),y=(0,vue__WEBPACK_IMPORTED_MODULE_0__.inject)(qe),_=(0,vue__WEBPACK_IMPORTED_MODULE_0__.ref)([]),{transitionName:E,showTransition:w}=Ut(),{setTimePickerElements:V,setTimePickerBackRef:Y}=Je();(0,vue__WEBPACK_IMPORTED_MODULE_0__.onMounted)(()=>{n("mounted")});const F=(0,vue__WEBPACK_IMPORTED_MODULE_0__.computed)(()=>({dp__time_col:!0,dp__time_col_reg:!t.enableSeconds&&t.is24,dp__time_col_reg_with_button:!t.enableSeconds&&!t.is24,dp__time_col_sec:t.enableSeconds&&t.is24,dp__time_col_sec_with_button:t.enableSeconds&&!t.is24})),H=(0,vue__WEBPACK_IMPORTED_MODULE_0__.computed)(()=>{const M=[{type:"hours"},"separator",{type:"minutes"}];return t.enableSeconds?M.concat(["separator",{type:"seconds"}]):M}),z=(0,vue__WEBPACK_IMPORTED_MODULE_0__.computed)(()=>H.value.filter(M=>typeof M!="string")),r=(0,vue__WEBPACK_IMPORTED_MODULE_0__.computed)(()=>M=>{if(M==="hours"){const o=j(t.hours);return{text:o<10?`0${o}`:`${o}`,value:o}}return{text:t[M]<10?`0${t[M]}`:`${t[M]}`,value:t[M]}}),P=M=>{const o=M==="hours"?t.is24?24:12:60,b=+t[`${M}GridIncrement`],u=[];for(let $=0;$<o;$+=b)u.push({value:$,text:$<10?`0${$}`:`${$}`});return Ol(u)},C=M=>t[`no${M[0].toUpperCase()+M.slice(1)}Overlay`],h=M=>{C(M)||(i[M]=!i[M],i[M]||n("overlay-closed"))},N=(M,o=!0)=>{const b=M==="hours"?date_fns__WEBPACK_IMPORTED_MODULE_13__["default"]:M==="minutes"?date_fns__WEBPACK_IMPORTED_MODULE_14__["default"]:date_fns__WEBPACK_IMPORTED_MODULE_15__["default"],u=o?Al:Pl;n(`update:${M}`,b(u({[M]:+t[M]},{[M]:+t[`${M}Increment`]})))},j=M=>t.is24?M:(M>=12?m.value="PM":m.value="AM",Il(M)),ne=()=>{m.value==="PM"?(m.value="AM",n("update:hours",t.hours-12)):(m.value="PM",n("update:hours",t.hours+12))},Z=M=>{i[M]=!0},X=(M,o,b)=>{if(M&&(y==null?void 0:y.value)){Array.isArray(_.value[o])?_.value[o][b]=M:_.value[o]=[M];const u=_.value.reduce(($,L)=>L.map((ae,I)=>[...$[I]||[],L[I]]),[]);Y(t.closeTimePickerBtn),v.value&&(u[1]=u[1].concat(v.value)),V(u,t.order)}},Q=(M,o)=>M==="hours"&&!t.is24?n(`update:${M}`,m.value==="PM"?o+12:o):n(`update:${M}`,o);return a({openChildCmp:Z}),(M,o)=>e.disabled?(0,vue__WEBPACK_IMPORTED_MODULE_0__.createCommentVNode)("",!0):((0,vue__WEBPACK_IMPORTED_MODULE_0__.openBlock)(),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementBlock)("div",gr,[((0,vue__WEBPACK_IMPORTED_MODULE_0__.openBlock)(!0),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementBlock)(vue__WEBPACK_IMPORTED_MODULE_0__.Fragment,null,(0,vue__WEBPACK_IMPORTED_MODULE_0__.renderList)((0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(H),(b,u)=>((0,vue__WEBPACK_IMPORTED_MODULE_0__.openBlock)(),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementBlock)("div",{key:u,class:(0,vue__WEBPACK_IMPORTED_MODULE_0__.normalizeClass)((0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(F))},[b==="separator"?((0,vue__WEBPACK_IMPORTED_MODULE_0__.openBlock)(),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementBlock)(vue__WEBPACK_IMPORTED_MODULE_0__.Fragment,{key:0},[wr],64)):((0,vue__WEBPACK_IMPORTED_MODULE_0__.openBlock)(),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementBlock)(vue__WEBPACK_IMPORTED_MODULE_0__.Fragment,{key:1},[(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementVNode)("div",{class:"dp__inc_dec_button",role:"button","aria-label":(0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(p).incrementValue(b.type),tabindex:"0",onKeydown:(0,vue__WEBPACK_IMPORTED_MODULE_0__.withKeys)($=>N(b.type),["enter"]),onClick:$=>N(b.type),ref_for:!0,ref:$=>X($,u,0)},[M.$slots["arrow-up"]?(0,vue__WEBPACK_IMPORTED_MODULE_0__.renderSlot)(M.$slots,"arrow-up",{key:0}):(0,vue__WEBPACK_IMPORTED_MODULE_0__.createCommentVNode)("",!0),M.$slots["arrow-up"]?(0,vue__WEBPACK_IMPORTED_MODULE_0__.createCommentVNode)("",!0):((0,vue__WEBPACK_IMPORTED_MODULE_0__.openBlock)(),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createBlock)((0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(Vn),{key:1}))],40,kr),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementVNode)("div",{role:"button","aria-label":(0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(p).openTpOverlay(b.type),class:(0,vue__WEBPACK_IMPORTED_MODULE_0__.normalizeClass)(C(b.type)?"":"dp__time_display"),tabindex:"0",onKeydown:(0,vue__WEBPACK_IMPORTED_MODULE_0__.withKeys)($=>h(b.type),["enter"]),onClick:$=>h(b.type),ref_for:!0,ref:$=>X($,u,1)},[M.$slots[b.type]?(0,vue__WEBPACK_IMPORTED_MODULE_0__.renderSlot)(M.$slots,b.type,{key:0,text:(0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(r)(b.type).text,value:(0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(r)(b.type).value}):(0,vue__WEBPACK_IMPORTED_MODULE_0__.createCommentVNode)("",!0),M.$slots[b.type]?(0,vue__WEBPACK_IMPORTED_MODULE_0__.createCommentVNode)("",!0):((0,vue__WEBPACK_IMPORTED_MODULE_0__.openBlock)(),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementBlock)(vue__WEBPACK_IMPORTED_MODULE_0__.Fragment,{key:1},[(0,vue__WEBPACK_IMPORTED_MODULE_0__.createTextVNode)((0,vue__WEBPACK_IMPORTED_MODULE_0__.toDisplayString)((0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(r)(b.type).text),1)],64))],42,br),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementVNode)("div",{class:"dp__inc_dec_button",role:"button","aria-label":(0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(p).decrementValue(b.type),tabindex:"0",onKeydown:(0,vue__WEBPACK_IMPORTED_MODULE_0__.withKeys)($=>N(b.type,!1),["enter"]),onClick:$=>N(b.type,!1),ref_for:!0,ref:$=>X($,u,2)},[M.$slots["arrow-down"]?(0,vue__WEBPACK_IMPORTED_MODULE_0__.renderSlot)(M.$slots,"arrow-down",{key:0}):(0,vue__WEBPACK_IMPORTED_MODULE_0__.createCommentVNode)("",!0),M.$slots["arrow-down"]?(0,vue__WEBPACK_IMPORTED_MODULE_0__.createCommentVNode)("",!0):((0,vue__WEBPACK_IMPORTED_MODULE_0__.openBlock)(),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createBlock)((0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(Bn),{key:1}))],40,$r)],64))],2))),128)),M.is24?(0,vue__WEBPACK_IMPORTED_MODULE_0__.createCommentVNode)("",!0):((0,vue__WEBPACK_IMPORTED_MODULE_0__.openBlock)(),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementBlock)("div",Dr,[M.$slots["am-pm-button"]?(0,vue__WEBPACK_IMPORTED_MODULE_0__.renderSlot)(M.$slots,"am-pm-button",{key:0,toggle:ne,value:m.value}):(0,vue__WEBPACK_IMPORTED_MODULE_0__.createCommentVNode)("",!0),M.$slots["am-pm-button"]?(0,vue__WEBPACK_IMPORTED_MODULE_0__.createCommentVNode)("",!0):((0,vue__WEBPACK_IMPORTED_MODULE_0__.openBlock)(),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementBlock)("button",{key:1,ref_key:"amPmButton",ref:v,type:"button",class:"dp__pm_am_button",role:"button","aria-label":(0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(p).amPmButton,tabindex:"0",onClick:ne,onKeydown:(0,vue__WEBPACK_IMPORTED_MODULE_0__.withKeys)((0,vue__WEBPACK_IMPORTED_MODULE_0__.withModifiers)(ne,["prevent"]),["enter"])},(0,vue__WEBPACK_IMPORTED_MODULE_0__.toDisplayString)(m.value),41,Mr))])),((0,vue__WEBPACK_IMPORTED_MODULE_0__.openBlock)(!0),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementBlock)(vue__WEBPACK_IMPORTED_MODULE_0__.Fragment,null,(0,vue__WEBPACK_IMPORTED_MODULE_0__.renderList)((0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(z),(b,u)=>((0,vue__WEBPACK_IMPORTED_MODULE_0__.openBlock)(),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createBlock)(vue__WEBPACK_IMPORTED_MODULE_0__.Transition,{key:u,name:(0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(E)(i[b.type]),css:(0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(w)},{default:(0,vue__WEBPACK_IMPORTED_MODULE_0__.withCtx)(()=>[i[b.type]?((0,vue__WEBPACK_IMPORTED_MODULE_0__.openBlock)(),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createBlock)(At,{key:0,items:P(b.type),"disabled-values":e.filters.times[b.type],"onUpdate:modelValue":$=>Q(b.type,$),onSelected:$=>h(b.type),onToggle:$=>h(b.type),onResetFlow:o[0]||(o[0]=$=>M.$emit("reset-flow"))},(0,vue__WEBPACK_IMPORTED_MODULE_0__.createSlots)({"button-icon":(0,vue__WEBPACK_IMPORTED_MODULE_0__.withCtx)(()=>[M.$slots["clock-icon"]?(0,vue__WEBPACK_IMPORTED_MODULE_0__.renderSlot)(M.$slots,"clock-icon",{key:0}):(0,vue__WEBPACK_IMPORTED_MODULE_0__.createCommentVNode)("",!0),M.$slots["clock-icon"]?(0,vue__WEBPACK_IMPORTED_MODULE_0__.createCommentVNode)("",!0):((0,vue__WEBPACK_IMPORTED_MODULE_0__.openBlock)(),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createBlock)((0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(On),{key:1}))]),_:2},[M.$slots[`${b.type}-overlay`]?{name:"item",fn:(0,vue__WEBPACK_IMPORTED_MODULE_0__.withCtx)(({item:$})=>[(0,vue__WEBPACK_IMPORTED_MODULE_0__.renderSlot)(M.$slots,`${b.type}-overlay`,{text:$.text,value:$.value})])}:void 0]),1032,["items","disabled-values","onUpdate:modelValue","onSelected","onToggle"])):(0,vue__WEBPACK_IMPORTED_MODULE_0__.createCommentVNode)("",!0)]),_:2},1032,["name","css"]))),128))]))}}),Pt=[{name:"clock-icon",use:["time","calendar"]},{name:"arrow-left",use:["month-year","calendar"]},{name:"arrow-right",use:["month-year","calendar"]},{name:"arrow-up",use:["time","calendar"]},{name:"arrow-down",use:["time","calendar"]},{name:"calendar-icon",use:["month-year","time","calendar"]},{name:"day",use:["calendar"]},{name:"month-overlay",use:["calendar","month-year"]},{name:"year-overlay",use:["calendar","month-year"]},{name:"hours-overlay",use:["calendar","time"]},{name:"minutes-overlay",use:["calendar","time"]},{name:"seconds-overlay",use:["calendar","time"]},{name:"hours",use:["calendar","time"]},{name:"minutes",use:["calendar","time"]},{name:"month",use:["calendar","month-year"]},{name:"year",use:["calendar","month-year"]},{name:"action-select",use:["action"]},{name:"action-preview",use:["action"]},{name:"calendar-header",use:["calendar"]},{name:"marker-tooltip",use:["calendar"]},{name:"now-button",use:[]},{name:"time-picker-overlay",use:["calendar","time"]},{name:"am-pm-button",use:["calendar","time"]}],Ar=[{name:"trigger"},{name:"input-icon"},{name:"clear-icon"},{name:"dp-input"}],Pr={all:()=>Pt,monthYear:()=>Pt.filter(e=>e.use.includes("month-year")),input:()=>Ar,timePicker:()=>Pt.filter(e=>e.use.includes("time")),action:()=>Pt.filter(e=>e.use.includes("action")),calendar:()=>Pt.filter(e=>e.use.includes("calendar"))},st=(e,a)=>{const n=[];return Pr[a]().forEach(t=>{e[t.name]&&n.push(t.name)}),n},Cr=["aria-label"],Tr={class:"dp__overlay_container dp__container_flex"},_r={key:1,class:"dp__overlay_row"},Rr=["aria-label"],Or=(0,vue__WEBPACK_IMPORTED_MODULE_0__.defineComponent)({__name:"TimePicker",props:De(J({},Gn),{range:{type:Boolean,default:!1},filters:{type:Object,default:()=>({})},hours:{type:[Number,Array],default:0},minutes:{type:[Number,Array],default:0},seconds:{type:[Number,Array],default:0},customProps:{type:Object,default:null},modelAuto:{type:Boolean,default:!1},internalModelValue:{type:[Date,Array],default:null}}),emits:["update:hours","update:minutes","update:seconds","mount","reset-flow","overlay-closed"],setup(e,{expose:a,emit:n}){const t=e,i=(0,vue__WEBPACK_IMPORTED_MODULE_0__.useSlots)(),m=(0,vue__WEBPACK_IMPORTED_MODULE_0__.ref)(null),v=(0,vue__WEBPACK_IMPORTED_MODULE_0__.ref)(null),p=(0,vue__WEBPACK_IMPORTED_MODULE_0__.inject)(rn,!1),y=(0,vue__WEBPACK_IMPORTED_MODULE_0__.ref)([]),_=(0,vue__WEBPACK_IMPORTED_MODULE_0__.ref)(null),E=(0,vue__WEBPACK_IMPORTED_MODULE_0__.inject)(Xe),w=(0,vue__WEBPACK_IMPORTED_MODULE_0__.inject)(qe),{transitionName:V,showTransition:Y}=Ut(),{buildMatrix:F,setTimePicker:H}=Je();(0,vue__WEBPACK_IMPORTED_MODULE_0__.onMounted)(()=>{n("mount"),!t.timePicker&&(w==null?void 0:w.value)?F([he(m.value)],"time"):H(!0,t.timePicker)});const z=(0,vue__WEBPACK_IMPORTED_MODULE_0__.computed)(()=>t.range&&t.modelAuto?Hn(t.internalModelValue):!0),r=(0,vue__WEBPACK_IMPORTED_MODULE_0__.ref)(!1),P=o=>({hours:Array.isArray(t.hours)?t.hours[o]:t.hours,minutes:Array.isArray(t.minutes)?t.minutes[o]:t.minutes,seconds:Array.isArray(t.seconds)?t.seconds[o]:t.seconds}),C=(0,vue__WEBPACK_IMPORTED_MODULE_0__.computed)(()=>{const o=[];if(t.range)for(let b=0;b<2;b++)o.push(P(b));else o.push(P(0));return o}),h=(o,b=!1,u="")=>{b||n("reset-flow"),r.value=o,w!=null&&w.value&&(H(o),o||n("overlay-closed")),(0,vue__WEBPACK_IMPORTED_MODULE_0__.nextTick)(()=>{u!==""&&y.value[0]&&y.value[0].openChildCmp(u)})},N=(0,vue__WEBPACK_IMPORTED_MODULE_0__.computed)(()=>({dp__button:!0,dp__button_bottom:p})),j=st(i,"timePicker"),ne=(o,b,u)=>t.range?b===0?[o,C.value[1][u]]:[C.value[0][u],o]:o,Z=o=>{n("update:hours",o)},X=o=>{n("update:minutes",o)},Q=o=>{n("update:seconds",o)},M=()=>{_.value&&(w==null?void 0:w.value)&&_.value.focus({preventScroll:!0})};return a({toggleTimePicker:h}),(o,b)=>((0,vue__WEBPACK_IMPORTED_MODULE_0__.openBlock)(),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementBlock)("div",null,[o.timePicker?(0,vue__WEBPACK_IMPORTED_MODULE_0__.createCommentVNode)("",!0):((0,vue__WEBPACK_IMPORTED_MODULE_0__.openBlock)(),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementBlock)("div",{key:0,class:(0,vue__WEBPACK_IMPORTED_MODULE_0__.normalizeClass)((0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(N)),role:"button","aria-label":(0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(E).openTimePicker,tabindex:"0",ref_key:"openTimePickerBtn",ref:m,onKeydown:b[0]||(b[0]=(0,vue__WEBPACK_IMPORTED_MODULE_0__.withKeys)(u=>h(!0),["enter"])),onClick:b[1]||(b[1]=u=>h(!0))},[o.$slots["clock-icon"]?(0,vue__WEBPACK_IMPORTED_MODULE_0__.renderSlot)(o.$slots,"clock-icon",{key:0}):(0,vue__WEBPACK_IMPORTED_MODULE_0__.createCommentVNode)("",!0),o.$slots["clock-icon"]?(0,vue__WEBPACK_IMPORTED_MODULE_0__.createCommentVNode)("",!0):((0,vue__WEBPACK_IMPORTED_MODULE_0__.openBlock)(),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createBlock)((0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(On),{key:1}))],42,Cr)),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createVNode)(vue__WEBPACK_IMPORTED_MODULE_0__.Transition,{name:(0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(V)(r.value),css:(0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(Y)},{default:(0,vue__WEBPACK_IMPORTED_MODULE_0__.withCtx)(()=>[r.value||o.timePicker?((0,vue__WEBPACK_IMPORTED_MODULE_0__.openBlock)(),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementBlock)("div",{key:0,class:"dp__overlay",ref_key:"overlayRef",ref:_,tabindex:"0"},[(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementVNode)("div",Tr,[o.$slots["time-picker-overlay"]?(0,vue__WEBPACK_IMPORTED_MODULE_0__.renderSlot)(o.$slots,"time-picker-overlay",{key:0,range:e.range,hours:e.hours,minutes:e.minutes,seconds:e.seconds,setHours:Z,setMinutes:X,setSeconds:Q}):(0,vue__WEBPACK_IMPORTED_MODULE_0__.createCommentVNode)("",!0),o.$slots["time-picker-overlay"]?(0,vue__WEBPACK_IMPORTED_MODULE_0__.createCommentVNode)("",!0):((0,vue__WEBPACK_IMPORTED_MODULE_0__.openBlock)(),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementBlock)("div",_r,[((0,vue__WEBPACK_IMPORTED_MODULE_0__.openBlock)(!0),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementBlock)(vue__WEBPACK_IMPORTED_MODULE_0__.Fragment,null,(0,vue__WEBPACK_IMPORTED_MODULE_0__.renderList)((0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(C),(u,$)=>(0,vue__WEBPACK_IMPORTED_MODULE_0__.withDirectives)(((0,vue__WEBPACK_IMPORTED_MODULE_0__.openBlock)(),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createBlock)(Sr,(0,vue__WEBPACK_IMPORTED_MODULE_0__.mergeProps)({key:$,disabled:$===0?o.fixedStart:o.fixedEnd,hours:u.hours,minutes:u.minutes,seconds:u.seconds,filters:e.filters,ref_for:!0,ref_key:"timeInputRefs",ref:y},{is24:o.is24,hoursGridIncrement:o.hoursGridIncrement,minutesGridIncrement:o.minutesGridIncrement,secondsGridIncrement:o.secondsGridIncrement,hoursIncrement:o.hoursIncrement,minutesIncrement:o.minutesIncrement,secondsIncrement:o.secondsIncrement,filters:e.filters,noHoursOverlay:o.noHoursOverlay,noMinutesOverlay:o.noMinutesOverlay,noSecondsOverlay:o.noSecondsOverlay,enableSeconds:o.enableSeconds,closeTimePickerBtn:v.value,order:$},{"onUpdate:hours":L=>Z(ne(L,$,"hours")),"onUpdate:minutes":L=>X(ne(L,$,"minutes")),"onUpdate:seconds":L=>Q(ne(L,$,"seconds")),onMounted:M,onOverlayClosed:M}),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createSlots)({_:2},[(0,vue__WEBPACK_IMPORTED_MODULE_0__.renderList)((0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(j),(L,ae)=>({name:L,fn:(0,vue__WEBPACK_IMPORTED_MODULE_0__.withCtx)(I=>[(0,vue__WEBPACK_IMPORTED_MODULE_0__.renderSlot)(o.$slots,L,(0,vue__WEBPACK_IMPORTED_MODULE_0__.normalizeProps)((0,vue__WEBPACK_IMPORTED_MODULE_0__.guardReactiveProps)(I)))])}))]),1040,["disabled","hours","minutes","seconds","filters","onUpdate:hours","onUpdate:minutes","onUpdate:seconds"])),[[vue__WEBPACK_IMPORTED_MODULE_0__.vShow,$===0?!0:(0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(z)]])),128))])),o.timePicker?(0,vue__WEBPACK_IMPORTED_MODULE_0__.createCommentVNode)("",!0):((0,vue__WEBPACK_IMPORTED_MODULE_0__.openBlock)(),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementBlock)("div",{key:2,ref_key:"closeTimePickerBtn",ref:v,class:(0,vue__WEBPACK_IMPORTED_MODULE_0__.normalizeClass)((0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(N)),role:"button","aria-label":(0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(E).closeTimePicker,tabindex:"0",onKeydown:b[2]||(b[2]=(0,vue__WEBPACK_IMPORTED_MODULE_0__.withKeys)(u=>h(!1),["enter"])),onClick:b[3]||(b[3]=u=>h(!1))},[o.$slots["calendar-icon"]?(0,vue__WEBPACK_IMPORTED_MODULE_0__.renderSlot)(o.$slots,"calendar-icon",{key:0}):(0,vue__WEBPACK_IMPORTED_MODULE_0__.createCommentVNode)("",!0),o.$slots["calendar-icon"]?(0,vue__WEBPACK_IMPORTED_MODULE_0__.createCommentVNode)("",!0):((0,vue__WEBPACK_IMPORTED_MODULE_0__.openBlock)(),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createBlock)((0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(Yt),{key:1}))],42,Rr))])],512)):(0,vue__WEBPACK_IMPORTED_MODULE_0__.createCommentVNode)("",!0)]),_:3},8,["name","css"])]))}}),Vr=["aria-label"],yn=(0,vue__WEBPACK_IMPORTED_MODULE_0__.defineComponent)({__name:"ActionIcon",props:{ariaLabel:{type:String,default:""}},emits:["activate","setRef"],setup(e,{emit:a}){const n=(0,vue__WEBPACK_IMPORTED_MODULE_0__.ref)(null);return (0,vue__WEBPACK_IMPORTED_MODULE_0__.onMounted)(()=>a("setRef",n)),(t,i)=>((0,vue__WEBPACK_IMPORTED_MODULE_0__.openBlock)(),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementBlock)("div",{class:"dp__month_year_col_nav",onClick:i[0]||(i[0]=m=>t.$emit("activate")),onKeydown:i[1]||(i[1]=(0,vue__WEBPACK_IMPORTED_MODULE_0__.withKeys)(m=>t.$emit("activate"),["enter"])),tabindex:"0",ref_key:"elRef",ref:n},[(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementVNode)("div",{class:"dp__inner_nav",role:"button","aria-label":e.ariaLabel},[(0,vue__WEBPACK_IMPORTED_MODULE_0__.renderSlot)(t.$slots,"default")],8,Vr)],544))}}),Br=["aria-label"],na=(0,vue__WEBPACK_IMPORTED_MODULE_0__.defineComponent)({__name:"RegularPicker",props:{ariaLabel:{type:String,default:""},showSelectionGrid:{type:Boolean,default:!1},modelValue:{type:Number,default:null},items:{type:Array,default:()=>[]},disabledValues:{type:Array,default:()=>[]},minValue:{type:Number,default:null},maxValue:{type:Number,default:null},slotName:{type:String,default:""},headerRefs:{type:Array,default:()=>[]}},emits:["update:model-value","toggle","setRef"],setup(e,{emit:a}){const{transitionName:n,showTransition:t}=Ut(),i=(0,vue__WEBPACK_IMPORTED_MODULE_0__.ref)(null);return (0,vue__WEBPACK_IMPORTED_MODULE_0__.onMounted)(()=>a("setRef",i)),(m,v)=>((0,vue__WEBPACK_IMPORTED_MODULE_0__.openBlock)(),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementBlock)(vue__WEBPACK_IMPORTED_MODULE_0__.Fragment,null,[(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementVNode)("div",{class:"dp__month_year_select",onClick:v[0]||(v[0]=p=>m.$emit("toggle")),onKeydown:v[1]||(v[1]=(0,vue__WEBPACK_IMPORTED_MODULE_0__.withKeys)(p=>m.$emit("toggle"),["enter"])),role:"button","aria-label":e.ariaLabel,tabindex:"0",ref_key:"elRef",ref:i},[(0,vue__WEBPACK_IMPORTED_MODULE_0__.renderSlot)(m.$slots,"default")],40,Br),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createVNode)(vue__WEBPACK_IMPORTED_MODULE_0__.Transition,{name:(0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(n)(e.showSelectionGrid),css:(0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(t)},{default:(0,vue__WEBPACK_IMPORTED_MODULE_0__.withCtx)(()=>[e.showSelectionGrid?((0,vue__WEBPACK_IMPORTED_MODULE_0__.openBlock)(),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createBlock)(At,(0,vue__WEBPACK_IMPORTED_MODULE_0__.mergeProps)({key:0},{modelValue:e.modelValue,items:e.items,disabledValues:e.disabledValues,minValue:e.minValue,maxValue:e.maxValue},{"header-refs":[],"onUpdate:modelValue":v[2]||(v[2]=p=>m.$emit("update:model-value",p)),onToggle:v[3]||(v[3]=p=>m.$emit("toggle"))}),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createSlots)({"button-icon":(0,vue__WEBPACK_IMPORTED_MODULE_0__.withCtx)(()=>[m.$slots["calendar-icon"]?(0,vue__WEBPACK_IMPORTED_MODULE_0__.renderSlot)(m.$slots,"calendar-icon",{key:0}):(0,vue__WEBPACK_IMPORTED_MODULE_0__.createCommentVNode)("",!0),m.$slots["calendar-icon"]?(0,vue__WEBPACK_IMPORTED_MODULE_0__.createCommentVNode)("",!0):((0,vue__WEBPACK_IMPORTED_MODULE_0__.openBlock)(),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createBlock)((0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(Yt),{key:1}))]),_:2},[m.$slots[e.slotName]?{name:"item",fn:(0,vue__WEBPACK_IMPORTED_MODULE_0__.withCtx)(({item:p})=>[(0,vue__WEBPACK_IMPORTED_MODULE_0__.renderSlot)(m.$slots,e.slotName,{item:p})])}:void 0]),1040)):(0,vue__WEBPACK_IMPORTED_MODULE_0__.createCommentVNode)("",!0)]),_:3},8,["name","css"])],64))}}),jt=(e,a,n)=>[(0,date_fns__WEBPACK_IMPORTED_MODULE_21__["default"])(new Date(e),{date:1}),(0,date_fns__WEBPACK_IMPORTED_MODULE_21__["default"])(new Date,{month:a,year:n,date:1})],aa=(e,a,n)=>be(...jt(e,a,n))||ie(...jt(e,a,n)),la=(e,a,n)=>Te(...jt(e,a,n))||ie(...jt(e,a,n)),ra=(e,a,n,t,i,m)=>{let v=!1;return m?e&&a?(a&&i&&la(a,n,t)&&(v=!0),e&&!i&&aa(e,n,t)&&(v=!0)):(e&&aa(e,n,t)||a&&la(a,n,t))&&(v=!0):v=!0,v},Nr=(e,a)=>{const n=(v,p)=>{let y=v;return e.filters.months.includes((0,date_fns__WEBPACK_IMPORTED_MODULE_9__["default"])(y))?(y=p?(0,date_fns__WEBPACK_IMPORTED_MODULE_8__["default"])(v,1):(0,date_fns__WEBPACK_IMPORTED_MODULE_28__["default"])(v,1),n(y,p)):y},t=(v,p)=>{let y=v;return e.filters.years.includes((0,date_fns__WEBPACK_IMPORTED_MODULE_10__["default"])(y))?(y=p?(0,date_fns__WEBPACK_IMPORTED_MODULE_29__["default"])(v,1):(0,date_fns__WEBPACK_IMPORTED_MODULE_30__["default"])(v,1),t(y,p)):y},i=v=>{const p=(0,date_fns__WEBPACK_IMPORTED_MODULE_21__["default"])(new Date,{month:e.month,year:e.year});let y=v?(0,date_fns__WEBPACK_IMPORTED_MODULE_8__["default"])(p,1):(0,date_fns__WEBPACK_IMPORTED_MODULE_28__["default"])(p,1),_=(0,date_fns__WEBPACK_IMPORTED_MODULE_9__["default"])(y),E=(0,date_fns__WEBPACK_IMPORTED_MODULE_10__["default"])(y);e.filters.months.includes(_)&&(y=n(y,v),_=(0,date_fns__WEBPACK_IMPORTED_MODULE_9__["default"])(y),E=(0,date_fns__WEBPACK_IMPORTED_MODULE_10__["default"])(y)),e.filters.years.includes(E)&&(y=t(y,v),E=(0,date_fns__WEBPACK_IMPORTED_MODULE_10__["default"])(y)),ra(e.minDate,e.maxDate,_,E,v,e.preventMinMaxNavigation)&&m(_,E)},m=(v,p)=>{a("update-month-year",{month:v,year:p})};return{handleMonthYearChange:i}},Ir={class:"dp__month_year_row"},Yr={class:"dp__month_picker_header"},Fr=["aria-label"],Er=["aria-label","onKeydown"],Lr=["aria-label"],Kr=(0,vue__WEBPACK_IMPORTED_MODULE_0__.defineComponent)({__name:"MonthYearPicker",props:De(J(J({},xn),un),{preventMinMaxNavigation:{type:Boolean,default:!1},reverseYears:{type:Boolean,default:!1},years:{type:Array,default:()=>[]},months:{type:Array,default:()=>[]},filters:{type:Object,default:()=>({})},multiCalendarsSolo:{type:Boolean,default:!1},yearPicker:{type:Boolean,default:!1}}),emits:["update-month-year","monthYearSelect","mount","reset-flow","overlay-closed"],setup(e,{expose:a,emit:n}){const t=e,{transitionName:i,showTransition:m}=Ut(),{buildMatrix:v}=Je(),p=(0,vue__WEBPACK_IMPORTED_MODULE_0__.ref)(!1),y=(0,vue__WEBPACK_IMPORTED_MODULE_0__.ref)(!1),_=(0,vue__WEBPACK_IMPORTED_MODULE_0__.ref)([null,null,null,null]),E=(0,vue__WEBPACK_IMPORTED_MODULE_0__.ref)(null),w=(0,vue__WEBPACK_IMPORTED_MODULE_0__.ref)(null),V=(0,vue__WEBPACK_IMPORTED_MODULE_0__.ref)(null),Y=(0,vue__WEBPACK_IMPORTED_MODULE_0__.inject)(Xe),F=(0,vue__WEBPACK_IMPORTED_MODULE_0__.inject)(qe),{handleMonthYearChange:H}=Nr(t,n);(0,vue__WEBPACK_IMPORTED_MODULE_0__.onMounted)(()=>{n("mount")});const z=f=>({get:()=>t[f],set:T=>{const B=f==="month"?"year":"month";n("update-month-year",{[f]:T,[B]:t[B]}),n("monthYearSelect",f==="year"),f==="month"?$(!0):L(!0)}}),r=(0,vue__WEBPACK_IMPORTED_MODULE_0__.computed)(z("month")),P=(0,vue__WEBPACK_IMPORTED_MODULE_0__.computed)(z("year")),C=(0,vue__WEBPACK_IMPORTED_MODULE_0__.computed)(()=>f=>{const T=f==="month";return{showSelectionGrid:(T?p:y).value,items:(T?M:o).value,disabledValues:t.filters[T?"months":"years"],minValue:(T?j:h).value,maxValue:(T?ne:N).value,headerRefs:T&&t.monthPicker?[E.value,w.value,V.value]:[]}}),h=(0,vue__WEBPACK_IMPORTED_MODULE_0__.computed)(()=>t.minDate?(0,date_fns__WEBPACK_IMPORTED_MODULE_10__["default"])(new Date(t.minDate)):null),N=(0,vue__WEBPACK_IMPORTED_MODULE_0__.computed)(()=>t.maxDate?(0,date_fns__WEBPACK_IMPORTED_MODULE_10__["default"])(new Date(t.maxDate)):null),j=(0,vue__WEBPACK_IMPORTED_MODULE_0__.computed)(()=>{if(t.minDate&&h.value){if(h.value>t.year)return 12;if(h.value===t.year)return (0,date_fns__WEBPACK_IMPORTED_MODULE_9__["default"])(new Date(t.minDate))}return null}),ne=(0,vue__WEBPACK_IMPORTED_MODULE_0__.computed)(()=>t.maxDate&&N.value?N.value<t.year?-1:N.value===t.year?(0,date_fns__WEBPACK_IMPORTED_MODULE_9__["default"])(new Date(t.maxDate)):null:null),Z=(0,vue__WEBPACK_IMPORTED_MODULE_0__.computed)(()=>t.range&&t.internalModelValue&&t.monthPicker?t.internalModelValue:[]),X=(f,T=!1)=>{const B=[];for(let ke=0;ke<f.length;ke+=3){const Fe=[f[ke],f[ke+1],f[ke+2]];B.push(T?Fe.reverse():Fe)}return T?B.reverse():B},Q=(0,vue__WEBPACK_IMPORTED_MODULE_0__.computed)(()=>{const f=t.months.find(T=>T.value===t.month);return f||{text:"",value:0}}),M=(0,vue__WEBPACK_IMPORTED_MODULE_0__.computed)(()=>X(t.months)),o=(0,vue__WEBPACK_IMPORTED_MODULE_0__.computed)(()=>X(t.years,t.reverseYears)),b=(0,vue__WEBPACK_IMPORTED_MODULE_0__.computed)(()=>t.multiCalendars?t.multiCalendarsSolo?!0:t.instance===0:!0),u=(0,vue__WEBPACK_IMPORTED_MODULE_0__.computed)(()=>t.multiCalendars?t.multiCalendarsSolo?!0:t.instance===t.multiCalendars-1:!0),$=(f=!1)=>{ae(f),p.value=!p.value,p.value||n("overlay-closed")},L=(f=!1)=>{ae(f),y.value=!y.value,y.value||n("overlay-closed")},ae=f=>{f||n("reset-flow")},I=(f=!1)=>{n("update-month-year",{year:f?t.year+1:t.year-1,month:t.month})},se=(f,T)=>{F!=null&&F.value&&(_.value[T]=he(f),v(_.value,"monthYear"))};return a({toggleMonthPicker:$,toggleYearPicker:L}),(f,T)=>((0,vue__WEBPACK_IMPORTED_MODULE_0__.openBlock)(),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementBlock)("div",Ir,[!f.monthPicker&&!e.yearPicker?((0,vue__WEBPACK_IMPORTED_MODULE_0__.openBlock)(),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementBlock)(vue__WEBPACK_IMPORTED_MODULE_0__.Fragment,{key:0},[(0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(b)&&!f.vertical?((0,vue__WEBPACK_IMPORTED_MODULE_0__.openBlock)(),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createBlock)(yn,{key:0,"aria-label":(0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(Y).prevMonth,onActivate:T[0]||(T[0]=B=>(0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(H)(!1)),onSetRef:T[1]||(T[1]=B=>se(B,0))},{default:(0,vue__WEBPACK_IMPORTED_MODULE_0__.withCtx)(()=>[f.$slots["arrow-left"]?(0,vue__WEBPACK_IMPORTED_MODULE_0__.renderSlot)(f.$slots,"arrow-left",{key:0}):(0,vue__WEBPACK_IMPORTED_MODULE_0__.createCommentVNode)("",!0),f.$slots["arrow-left"]?(0,vue__WEBPACK_IMPORTED_MODULE_0__.createCommentVNode)("",!0):((0,vue__WEBPACK_IMPORTED_MODULE_0__.openBlock)(),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createBlock)((0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(_n),{key:1}))]),_:3},8,["aria-label"])):(0,vue__WEBPACK_IMPORTED_MODULE_0__.createCommentVNode)("",!0),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createVNode)(na,(0,vue__WEBPACK_IMPORTED_MODULE_0__.mergeProps)({"aria-label":(0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(Y).openMonthsOverlay,"slot-name":"month-overlay",modelValue:(0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(r),"onUpdate:modelValue":T[2]||(T[2]=B=>(0,vue__WEBPACK_IMPORTED_MODULE_0__.isRef)(r)?r.value=B:null)},(0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(C)("month"),{onToggle:$,onSetRef:T[3]||(T[3]=B=>se(B,1))}),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createSlots)({default:(0,vue__WEBPACK_IMPORTED_MODULE_0__.withCtx)(()=>[f.$slots.month?(0,vue__WEBPACK_IMPORTED_MODULE_0__.renderSlot)(f.$slots,"month",(0,vue__WEBPACK_IMPORTED_MODULE_0__.normalizeProps)((0,vue__WEBPACK_IMPORTED_MODULE_0__.mergeProps)({key:0},(0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(Q)))):(0,vue__WEBPACK_IMPORTED_MODULE_0__.createCommentVNode)("",!0),f.$slots.month?(0,vue__WEBPACK_IMPORTED_MODULE_0__.createCommentVNode)("",!0):((0,vue__WEBPACK_IMPORTED_MODULE_0__.openBlock)(),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementBlock)(vue__WEBPACK_IMPORTED_MODULE_0__.Fragment,{key:1},[(0,vue__WEBPACK_IMPORTED_MODULE_0__.createTextVNode)((0,vue__WEBPACK_IMPORTED_MODULE_0__.toDisplayString)((0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(Q).text),1)],64))]),_:2},[f.$slots["calendar-icon"]?{name:"calendar-icon",fn:(0,vue__WEBPACK_IMPORTED_MODULE_0__.withCtx)(()=>[(0,vue__WEBPACK_IMPORTED_MODULE_0__.renderSlot)(f.$slots,"calendar-icon")])}:void 0,f.$slots["month-overlay"]?{name:"month-overlay",fn:(0,vue__WEBPACK_IMPORTED_MODULE_0__.withCtx)(({item:B})=>[(0,vue__WEBPACK_IMPORTED_MODULE_0__.renderSlot)(f.$slots,"month-overlay",{text:B.text,value:B.value})])}:void 0]),1040,["aria-label","modelValue"]),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createVNode)(na,(0,vue__WEBPACK_IMPORTED_MODULE_0__.mergeProps)({"aria-label":(0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(Y).openYearsOverlay,"slot-name":"year-overlay",modelValue:(0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(P),"onUpdate:modelValue":T[4]||(T[4]=B=>(0,vue__WEBPACK_IMPORTED_MODULE_0__.isRef)(P)?P.value=B:null)},(0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(C)("year"),{onToggle:L,onSetRef:T[5]||(T[5]=B=>se(B,2))}),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createSlots)({default:(0,vue__WEBPACK_IMPORTED_MODULE_0__.withCtx)(()=>[f.$slots.year?(0,vue__WEBPACK_IMPORTED_MODULE_0__.renderSlot)(f.$slots,"year",{key:0,year:f.year}):(0,vue__WEBPACK_IMPORTED_MODULE_0__.createCommentVNode)("",!0),f.$slots.year?(0,vue__WEBPACK_IMPORTED_MODULE_0__.createCommentVNode)("",!0):((0,vue__WEBPACK_IMPORTED_MODULE_0__.openBlock)(),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementBlock)(vue__WEBPACK_IMPORTED_MODULE_0__.Fragment,{key:1},[(0,vue__WEBPACK_IMPORTED_MODULE_0__.createTextVNode)((0,vue__WEBPACK_IMPORTED_MODULE_0__.toDisplayString)(f.year),1)],64))]),_:2},[f.$slots["calendar-icon"]?{name:"calendar-icon",fn:(0,vue__WEBPACK_IMPORTED_MODULE_0__.withCtx)(()=>[(0,vue__WEBPACK_IMPORTED_MODULE_0__.renderSlot)(f.$slots,"calendar-icon")])}:void 0,f.$slots["year-overlay"]?{name:"year-overlay",fn:(0,vue__WEBPACK_IMPORTED_MODULE_0__.withCtx)(({item:B})=>[(0,vue__WEBPACK_IMPORTED_MODULE_0__.renderSlot)(f.$slots,"year-overlay",{text:B.text,value:B.value})])}:void 0]),1040,["aria-label","modelValue"]),(0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(b)&&f.vertical?((0,vue__WEBPACK_IMPORTED_MODULE_0__.openBlock)(),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createBlock)(yn,{key:1,"aria-label":(0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(Y).prevMonth,onActivate:T[6]||(T[6]=B=>(0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(H)(!1))},{default:(0,vue__WEBPACK_IMPORTED_MODULE_0__.withCtx)(()=>[f.$slots["arrow-up"]?(0,vue__WEBPACK_IMPORTED_MODULE_0__.renderSlot)(f.$slots,"arrow-up",{key:0}):(0,vue__WEBPACK_IMPORTED_MODULE_0__.createCommentVNode)("",!0),f.$slots["arrow-up"]?(0,vue__WEBPACK_IMPORTED_MODULE_0__.createCommentVNode)("",!0):((0,vue__WEBPACK_IMPORTED_MODULE_0__.openBlock)(),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createBlock)((0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(Vn),{key:1}))]),_:3},8,["aria-label"])):(0,vue__WEBPACK_IMPORTED_MODULE_0__.createCommentVNode)("",!0),(0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(u)?((0,vue__WEBPACK_IMPORTED_MODULE_0__.openBlock)(),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createBlock)(yn,{key:2,"arial-label":(0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(Y).nextMonth,onActivate:T[7]||(T[7]=B=>(0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(H)(!0)),ref:"rightIcon",onSetRef:T[8]||(T[8]=B=>se(B,3))},{default:(0,vue__WEBPACK_IMPORTED_MODULE_0__.withCtx)(()=>[f.$slots[f.vertical?"arrow-down":"arrow-right"]?(0,vue__WEBPACK_IMPORTED_MODULE_0__.renderSlot)(f.$slots,f.vertical?"arrow-down":"arrow-right",{key:0}):(0,vue__WEBPACK_IMPORTED_MODULE_0__.createCommentVNode)("",!0),f.$slots[f.vertical?"arrow-down":"arrow-right"]?(0,vue__WEBPACK_IMPORTED_MODULE_0__.createCommentVNode)("",!0):((0,vue__WEBPACK_IMPORTED_MODULE_0__.openBlock)(),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createBlock)((0,vue__WEBPACK_IMPORTED_MODULE_0__.resolveDynamicComponent)(f.vertical?(0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(Bn):(0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(Rn)),{key:1}))]),_:3},8,["arial-label"])):(0,vue__WEBPACK_IMPORTED_MODULE_0__.createCommentVNode)("",!0)],64)):(0,vue__WEBPACK_IMPORTED_MODULE_0__.createCommentVNode)("",!0),f.monthPicker?((0,vue__WEBPACK_IMPORTED_MODULE_0__.openBlock)(),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createBlock)(At,(0,vue__WEBPACK_IMPORTED_MODULE_0__.mergeProps)({key:1},(0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(C)("month"),{"skip-active":t.range,year:f.year,"multi-model-value":(0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(Z),modelValue:(0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(r),"onUpdate:modelValue":T[15]||(T[15]=B=>(0,vue__WEBPACK_IMPORTED_MODULE_0__.isRef)(r)?r.value=B:null),onToggle:$,onSelected:T[16]||(T[16]=B=>f.$emit("overlay-closed"))}),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createSlots)({header:(0,vue__WEBPACK_IMPORTED_MODULE_0__.withCtx)(()=>[(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementVNode)("div",Yr,[(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementVNode)("div",{class:"dp__month_year_col_nav",tabindex:"0",ref_key:"mpPrevIconRef",ref:E,onClick:T[9]||(T[9]=B=>I(!1)),onKeydown:T[10]||(T[10]=(0,vue__WEBPACK_IMPORTED_MODULE_0__.withKeys)(B=>I(!1),["enter"]))},[(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementVNode)("div",{class:"dp__inner_nav",role:"button","aria-label":(0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(Y).prevMonth},[f.$slots["arrow-left"]?(0,vue__WEBPACK_IMPORTED_MODULE_0__.renderSlot)(f.$slots,"arrow-left",{key:0}):(0,vue__WEBPACK_IMPORTED_MODULE_0__.createCommentVNode)("",!0),f.$slots["arrow-left"]?(0,vue__WEBPACK_IMPORTED_MODULE_0__.createCommentVNode)("",!0):((0,vue__WEBPACK_IMPORTED_MODULE_0__.openBlock)(),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createBlock)((0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(_n),{key:1}))],8,Fr)],544),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementVNode)("div",{class:"dp__pointer",role:"button",ref_key:"mpYearButtonRef",ref:w,"aria-label":(0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(Y).openYearsOverlay,tabindex:"0",onClick:L,onKeydown:(0,vue__WEBPACK_IMPORTED_MODULE_0__.withKeys)(L,["enter"])},[f.$slots.year?(0,vue__WEBPACK_IMPORTED_MODULE_0__.renderSlot)(f.$slots,"year",{key:0,year:f.year}):(0,vue__WEBPACK_IMPORTED_MODULE_0__.createCommentVNode)("",!0),f.$slots.year?(0,vue__WEBPACK_IMPORTED_MODULE_0__.createCommentVNode)("",!0):((0,vue__WEBPACK_IMPORTED_MODULE_0__.openBlock)(),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementBlock)(vue__WEBPACK_IMPORTED_MODULE_0__.Fragment,{key:1},[(0,vue__WEBPACK_IMPORTED_MODULE_0__.createTextVNode)((0,vue__WEBPACK_IMPORTED_MODULE_0__.toDisplayString)(f.year),1)],64))],40,Er),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementVNode)("div",{class:"dp__month_year_col_nav",tabindex:"0",ref_key:"mpNextIconRef",ref:V,onClick:T[11]||(T[11]=B=>I(!0)),onKeydown:T[12]||(T[12]=(0,vue__WEBPACK_IMPORTED_MODULE_0__.withKeys)(B=>I(!0),["enter"]))},[(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementVNode)("div",{class:"dp__inner_nav",role:"button","aria-label":(0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(Y).nextMonth},[f.$slots["arrow-right"]?(0,vue__WEBPACK_IMPORTED_MODULE_0__.renderSlot)(f.$slots,"arrow-right",{key:0}):(0,vue__WEBPACK_IMPORTED_MODULE_0__.createCommentVNode)("",!0),f.$slots["arrow-right"]?(0,vue__WEBPACK_IMPORTED_MODULE_0__.createCommentVNode)("",!0):((0,vue__WEBPACK_IMPORTED_MODULE_0__.openBlock)(),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createBlock)((0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(Rn),{key:1}))],8,Lr)],544)]),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createVNode)(vue__WEBPACK_IMPORTED_MODULE_0__.Transition,{name:(0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(i)(y.value),css:(0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(m)},{default:(0,vue__WEBPACK_IMPORTED_MODULE_0__.withCtx)(()=>[y.value?((0,vue__WEBPACK_IMPORTED_MODULE_0__.openBlock)(),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createBlock)(At,(0,vue__WEBPACK_IMPORTED_MODULE_0__.mergeProps)({key:0},(0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(C)("year"),{modelValue:(0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(P),"onUpdate:modelValue":T[13]||(T[13]=B=>(0,vue__WEBPACK_IMPORTED_MODULE_0__.isRef)(P)?P.value=B:null),onToggle:L,onSelected:T[14]||(T[14]=B=>f.$emit("overlay-closed"))}),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createSlots)({"button-icon":(0,vue__WEBPACK_IMPORTED_MODULE_0__.withCtx)(()=>[f.$slots["calendar-icon"]?(0,vue__WEBPACK_IMPORTED_MODULE_0__.renderSlot)(f.$slots,"calendar-icon",{key:0}):(0,vue__WEBPACK_IMPORTED_MODULE_0__.createCommentVNode)("",!0),f.$slots["calendar-icon"]?(0,vue__WEBPACK_IMPORTED_MODULE_0__.createCommentVNode)("",!0):((0,vue__WEBPACK_IMPORTED_MODULE_0__.openBlock)(),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createBlock)((0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(Yt),{key:1}))]),_:2},[f.$slots["year-overlay"]?{name:"item",fn:(0,vue__WEBPACK_IMPORTED_MODULE_0__.withCtx)(({item:B})=>[(0,vue__WEBPACK_IMPORTED_MODULE_0__.renderSlot)(f.$slots,"year-overlay",{text:B.text,value:B.value})])}:void 0]),1040,["modelValue"])):(0,vue__WEBPACK_IMPORTED_MODULE_0__.createCommentVNode)("",!0)]),_:3},8,["name","css"])]),_:2},[f.$slots["month-overlay"]?{name:"item",fn:(0,vue__WEBPACK_IMPORTED_MODULE_0__.withCtx)(({item:B})=>[(0,vue__WEBPACK_IMPORTED_MODULE_0__.renderSlot)(f.$slots,"month-overlay",{text:B.text,value:B.value})])}:void 0]),1040,["skip-active","year","multi-model-value","modelValue"])):(0,vue__WEBPACK_IMPORTED_MODULE_0__.createCommentVNode)("",!0),e.yearPicker?((0,vue__WEBPACK_IMPORTED_MODULE_0__.openBlock)(),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createBlock)(At,(0,vue__WEBPACK_IMPORTED_MODULE_0__.mergeProps)({key:2},(0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(C)("year"),{modelValue:(0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(P),"onUpdate:modelValue":T[17]||(T[17]=B=>(0,vue__WEBPACK_IMPORTED_MODULE_0__.isRef)(P)?P.value=B:null),"skip-button-ref":"",onToggle:L,onSelected:T[18]||(T[18]=B=>f.$emit("overlay-closed"))}),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createSlots)({_:2},[f.$slots["year-overlay"]?{name:"item",fn:(0,vue__WEBPACK_IMPORTED_MODULE_0__.withCtx)(({item:B})=>[(0,vue__WEBPACK_IMPORTED_MODULE_0__.renderSlot)(f.$slots,"year-overlay",{text:B.text,value:B.value})])}:void 0]),1040,["modelValue"])):(0,vue__WEBPACK_IMPORTED_MODULE_0__.createCommentVNode)("",!0)]))}}),Hr=(e,a,n,t)=>{const i=(0,vue__WEBPACK_IMPORTED_MODULE_0__.ref)(new Date),m=(0,vue__WEBPACK_IMPORTED_MODULE_0__.ref)(),v=(0,vue__WEBPACK_IMPORTED_MODULE_0__.ref)([{month:(0,date_fns__WEBPACK_IMPORTED_MODULE_9__["default"])(new Date),year:(0,date_fns__WEBPACK_IMPORTED_MODULE_10__["default"])(new Date)}]),p=(0,vue__WEBPACK_IMPORTED_MODULE_0__.ref)(e.range?[(0,date_fns__WEBPACK_IMPORTED_MODULE_13__["default"])(new Date),(0,date_fns__WEBPACK_IMPORTED_MODULE_13__["default"])(new Date)]:(0,date_fns__WEBPACK_IMPORTED_MODULE_13__["default"])(new Date)),y=(0,vue__WEBPACK_IMPORTED_MODULE_0__.ref)(e.range?[(0,date_fns__WEBPACK_IMPORTED_MODULE_14__["default"])(new Date),(0,date_fns__WEBPACK_IMPORTED_MODULE_14__["default"])(new Date)]:(0,date_fns__WEBPACK_IMPORTED_MODULE_14__["default"])(new Date)),_=(0,vue__WEBPACK_IMPORTED_MODULE_0__.ref)(e.range?[0,0]:0);(0,vue__WEBPACK_IMPORTED_MODULE_0__.watch)(v,()=>{setTimeout(()=>{e.openOnTop&&a("dpOpen")},0)},{deep:!0}),(0,vue__WEBPACK_IMPORTED_MODULE_0__.onMounted)(()=>{X(!0),r.value||(e.startDate&&(v.value[0].month=(0,date_fns__WEBPACK_IMPORTED_MODULE_9__["default"])(new Date(e.startDate)),v.value[0].year=(0,date_fns__WEBPACK_IMPORTED_MODULE_10__["default"])(new Date(e.startDate)),e.multiCalendars&&B(0)),e.startTime&&z())});const E=(0,vue__WEBPACK_IMPORTED_MODULE_0__.computed)(()=>l=>v.value[l]?v.value[l].month:0),w=(0,vue__WEBPACK_IMPORTED_MODULE_0__.computed)(()=>l=>v.value[l]?v.value[l].year:0),V=(l,k,A)=>{v.value[l].month=k,v.value[l].year=A},Y=(l,k)=>v.value[l].month=k,F=(l,k)=>v.value[l].year=k,H=(l=!0)=>e.enableSeconds?Array.isArray(_.value)?l?_.value[0]:_.value[1]:_.value:0,z=()=>{e.startTime&&(ir(e.startTime)?(p.value=[+e.startTime[0].hours,+e.startTime[1].hours],y.value=[+e.startTime[0].minutes,+e.startTime[1].minutes],e.enableSeconds&&(_.value=[+e.startTime[0].seconds,+e.startTime[1].seconds])):(p.value=+e.startTime.hours,y.value=+e.startTime.minutes,e.enableSeconds&&(_.value=+e.startTime.seconds)))},r=(0,vue__WEBPACK_IMPORTED_MODULE_0__.computed)({get:()=>e.internalModelValue,set:l=>{!e.readonly&&!e.disabled&&a("update:internalModelValue",l)}});(0,vue__WEBPACK_IMPORTED_MODULE_0__.watch)(r,()=>X());const P=l=>{const{validate:k}=Ln(e.minDate,e.maxDate,e.disabledDates,e.allowedDates,e.filters,e.disabledWeekDays,e.yearRange);return!k(l)},C=l=>!r.value||e.hideOffsetDates&&!l.current?!1:e.range?e.modelAuto&&Array.isArray(r.value)?ie(l.value,r.value[0]?r.value[0]:i.value):!1:e.multiDates&&Array.isArray(r.value)?r.value.some(k=>ie(k,l.value)):ie(l.value,r.value?r.value:i.value),h=l=>En(r.value,m.value,l.value),N=(l,k=!1)=>{if((!e.multiCalendars||!e.multiStatic||k)&&(Y(0,(0,date_fns__WEBPACK_IMPORTED_MODULE_9__["default"])(l)),F(0,(0,date_fns__WEBPACK_IMPORTED_MODULE_10__["default"])(l))),e.multiCalendars)for(let A=1;A<=e.multiCalendars;A++){const x=(0,date_fns__WEBPACK_IMPORTED_MODULE_21__["default"])(new Date,{month:E.value(A-1),year:w.value(A-1)}),Ce=(0,date_fns__WEBPACK_IMPORTED_MODULE_20__["default"])(x,{months:1});v.value[A]={month:(0,date_fns__WEBPACK_IMPORTED_MODULE_9__["default"])(Ce),year:(0,date_fns__WEBPACK_IMPORTED_MODULE_10__["default"])(Ce)}}},j=()=>{if(Array.isArray(r.value)&&r.value.length===2){const l=new Date(r.value[1]?r.value[1]:(0,date_fns__WEBPACK_IMPORTED_MODULE_8__["default"])(r.value[0],1)),[k,A]=[(0,date_fns__WEBPACK_IMPORTED_MODULE_9__["default"])(r.value[0]),(0,date_fns__WEBPACK_IMPORTED_MODULE_10__["default"])(r.value[0])],[x,Ce]=[(0,date_fns__WEBPACK_IMPORTED_MODULE_9__["default"])(r.value[1]),(0,date_fns__WEBPACK_IMPORTED_MODULE_10__["default"])(r.value[1])];(k!==x||k===x&&A!==Ce)&&e.multiCalendarsSolo&&(Y(1,(0,date_fns__WEBPACK_IMPORTED_MODULE_9__["default"])(l)),F(1,(0,date_fns__WEBPACK_IMPORTED_MODULE_10__["default"])(l)))}},ne=l=>{N(l),p.value=(0,date_fns__WEBPACK_IMPORTED_MODULE_13__["default"])(l),y.value=(0,date_fns__WEBPACK_IMPORTED_MODULE_14__["default"])(l),_.value=(0,date_fns__WEBPACK_IMPORTED_MODULE_15__["default"])(l)},Z=()=>Array.isArray(r.value)&&r.value.length?r.value[r.value.length-1]:null,X=(l=!1)=>{if(r.value)if(St(r.value)){if(r.value.length===2&&!e.multiDates)N(r.value[0],l),p.value=[(0,date_fns__WEBPACK_IMPORTED_MODULE_13__["default"])(r.value[0]),r.value[1]?(0,date_fns__WEBPACK_IMPORTED_MODULE_13__["default"])(r.value[1]):(0,date_fns__WEBPACK_IMPORTED_MODULE_13__["default"])(new Date)],y.value=[(0,date_fns__WEBPACK_IMPORTED_MODULE_14__["default"])(r.value[0]),r.value[1]?(0,date_fns__WEBPACK_IMPORTED_MODULE_14__["default"])(r.value[1]):(0,date_fns__WEBPACK_IMPORTED_MODULE_14__["default"])(new Date)],_.value=[(0,date_fns__WEBPACK_IMPORTED_MODULE_15__["default"])(r.value[0]),r.value[1]?(0,date_fns__WEBPACK_IMPORTED_MODULE_15__["default"])(r.value[1]):(0,date_fns__WEBPACK_IMPORTED_MODULE_15__["default"])(new Date)];else if(St(r.value)&&e.multiDates){const k=r.value[r.value.length-1];k&&ne(k)}e.multiCalendars&&e.multiCalendarsSolo&&j()}else ne(r.value);else e.timePicker?(z(),e.range?Ye(p.value)&&Ye(y.value)&&(r.value=[Ae(new Date,p.value[0],y.value[0],H()),Ae(new Date,p.value[1],y.value[1],H(!1))]):r.value=Ae(new Date,p.value,y.value,H())):e.monthPicker&&!e.range?r.value=ot(new Date,E.value(0),w.value(0)):e.multiCalendars?N(new Date):e.yearPicker&&(r.value=new Date)},Q=l=>{const k=(0,date_fns__WEBPACK_IMPORTED_MODULE_9__["default"])(new Date(l)),A=(0,date_fns__WEBPACK_IMPORTED_MODULE_10__["default"])(new Date(l));if(Y(0,k),F(0,A),e.multiCalendars>0)for(let x=1;x<e.multiCalendars;x++){const Ce=Sl((0,date_fns__WEBPACK_IMPORTED_MODULE_21__["default"])(new Date(l),{year:E.value(x-1),month:w.value(x-1)}));Y(x,Ce.month),F(x,Ce.year)}},M=l=>{if(r.value&&Array.isArray(r.value))if(r.value.some(k=>ie(l,k))){const k=r.value.filter(A=>!ie(A,l));r.value=k.length?k:null}else(e.multiDatesLimit&&+e.multiDatesLimit>r.value.length||!e.multiDatesLimit)&&r.value.push(l);else r.value=[l]},o=l=>{if(Array.isArray(r.value)&&r.value[0]){const k=(0,date_fns__WEBPACK_IMPORTED_MODULE_31__["default"])(l,r.value[0]),A=Math.abs(k<0?k+1:k-1);if(e.minRange&&e.maxRange)return A>=+e.minRange&&A<=+e.maxRange;if(e.minRange)return A>=+e.minRange;if(e.maxRange)return A<=+e.maxRange}return!0},b=l=>Array.isArray(r.value)&&r.value.length===2?e.fixedStart&&(Te(l,r.value[0])||ie(l,r.value[0]))?[r.value[0],l]:e.fixedEnd&&(be(l,r.value[1])||ie(l,r.value[1]))?[l,r.value[1]]:r.value:[],u=()=>{e.autoApply&&a("autoApply")},$=l=>!(0,date_fns__WEBPACK_IMPORTED_MODULE_32__["default"])({start:l[0],end:l[1]}).some(k=>P(k)),L=(l,k=!1)=>{if(!P(l.value)&&!(!l.current&&e.hideOffsetDates)){if(e.weekPicker)return r.value=Et(new Date(l.value),+e.weekStart),u();if(!e.range&&!Ye(p.value)&&!Ye(y.value)){const A=Ae(new Date(l.value),p.value,y.value,H());e.multiDates?M(A):r.value=A,n(),u()}else if(Ye(p.value)&&Ye(y.value)&&!e.multiDates){let A=r.value?r.value.slice():[];if(A.length===2&&!(e.fixedStart||e.fixedEnd)&&(A=[]),e.autoRange){const x=[new Date(l.value),(0,date_fns__WEBPACK_IMPORTED_MODULE_27__["default"])(new Date(l.value),+e.autoRange)];$(x)&&(k&&Q(l.value),A=x)}else e.fixedStart||e.fixedEnd?A=b(new Date(l.value)):A[0]?o(new Date(l.value))&&(be(new Date(l.value),new Date(A[0]))?A.unshift(new Date(l.value)):A[1]=new Date(l.value)):A[0]=new Date(l.value);A.length&&(A[0]&&!A[1]?A[0]=Ae(A[0],p.value[0],y.value[0],H()):(A[0]=Ae(A[0],p.value[0],y.value[0],H()),A[1]=Ae(A[1],p.value[1],y.value[1],H(!1)),n()),r.value=A,A[0]&&A[1]&&e.autoApply&&a("autoApply"))}}},ae=l=>{const k=l.find(A=>A.current);return k?(0,date_fns__WEBPACK_IMPORTED_MODULE_33__["default"])(k.value):""},I=l=>{!l.current&&e.hideOffsetDates||(m.value=l.value)},se=l=>{if(e.autoRange||e.weekPicker){if(m.value){if(e.hideOffsetDates&&!l.current)return!1;const k=(0,date_fns__WEBPACK_IMPORTED_MODULE_27__["default"])(m.value,+e.autoRange),A=Et(new Date(m.value),+e.weekStart);return e.weekPicker?ie(A[1],new Date(l.value)):ie(k,new Date(l.value))}return!1}return!1},f=l=>{if(e.autoRange||e.weekPicker){if(m.value){const k=(0,date_fns__WEBPACK_IMPORTED_MODULE_27__["default"])(m.value,+e.autoRange);if(e.hideOffsetDates&&!l.current)return!1;const A=Et(new Date(m.value),+e.weekStart);return e.weekPicker?Te(l.value,A[0])&&be(l.value,A[1]):Te(l.value,m.value)&&be(l.value,k)}return!1}return!1},T=l=>{if(e.autoRange||e.weekPicker){if(m.value){if(e.hideOffsetDates&&!l.current)return!1;const k=Et(new Date(m.value),+e.weekStart);return e.weekPicker?ie(k[0],l.value):ie(m.value,l.value)}return!1}return!1},B=l=>{for(let k=l-1;k>=0;k--){const A=(0,date_fns__WEBPACK_IMPORTED_MODULE_28__["default"])((0,date_fns__WEBPACK_IMPORTED_MODULE_21__["default"])(new Date,{month:E.value(k+1),year:w.value(k+1)}),1);V(k,(0,date_fns__WEBPACK_IMPORTED_MODULE_9__["default"])(A),(0,date_fns__WEBPACK_IMPORTED_MODULE_10__["default"])(A))}for(let k=l+1;k<=e.multiCalendars-1;k++){const A=(0,date_fns__WEBPACK_IMPORTED_MODULE_8__["default"])((0,date_fns__WEBPACK_IMPORTED_MODULE_21__["default"])(new Date,{month:E.value(k-1),year:w.value(k-1)}),1);V(k,(0,date_fns__WEBPACK_IMPORTED_MODULE_9__["default"])(A),(0,date_fns__WEBPACK_IMPORTED_MODULE_10__["default"])(A))}},ke=l=>ot(new Date,E.value(l),w.value(l)),Fe=(l,k)=>{const A=E.value(l)!==k.month;if(Y(l,k.month),F(l,k.year),e.multiCalendars&&!e.multiCalendarsSolo&&B(l),e.monthPicker)if(e.range){if(A){let x=r.value?r.value.slice():[];x.length===2&&x[1]!==null&&(x=[]),x.length?be(ke(l),x[0])?x.unshift(ke(l)):x[1]=ke(l):x=[ke(l)],r.value=x}}else r.value=ke(l);n(),a("updateMonthYear",{instance:l,month:k.month,year:k.year}),Ct(e.multiCalendarsSolo?l:void 0)},Ze=l=>Ae(l,p.value,y.value,H()),Ke=l=>{St(l)&&St(r.value)&&Ye(p.value)&&Ye(y.value)?(l[0]&&r.value[0]&&(r.value[0]=Ae(l[0],p.value[0],y.value[0],H())),l[1]&&r.value[1]&&(r.value[1]=Ae(l[1],p.value[1],y.value[1],H(!1)))):e.multiDates&&Array.isArray(r.value)?r.value[r.value.length-1]=Ze(l):!e.range&&!Wt(l)&&(r.value=Ze(l)),a("timeUpdate")},Oe=(l,k=!0,A=!1)=>{const x=k?l:p.value,Ce=!k&&!A?l:y.value,gt=A?l:_.value;if(e.range&&Wt(r.value)&&Ye(x)&&Ye(Ce)&&Ye(gt)&&!e.disableTimeRangeValidation){const nt=We=>Ae(r.value[We],x[We],Ce[We],gt[We]),Tt=We=>(0,date_fns__WEBPACK_IMPORTED_MODULE_7__["default"])(r.value[We],0);if(ie(r.value[0],r.value[1])&&((0,date_fns__WEBPACK_IMPORTED_MODULE_17__["default"])(nt(0),Tt(1))||(0,date_fns__WEBPACK_IMPORTED_MODULE_18__["default"])(nt(1),Tt(0))))return}if(p.value=x,y.value=Ce,_.value=gt,r.value)if(e.multiDates){const nt=Z();nt&&Ke(nt)}else Ke(r.value);else e.timePicker&&Ke(e.range?[new Date,new Date]:new Date);n()},Qe=()=>{m.value=null},vt=l=>ea(r.value,e.range)&&r.value[0]&&m.value?l?Te(m.value,r.value[0]):be(m.value,r.value[0]):!0,Ee=(l,k=!0)=>(e.range||e.weekPicker)&&Wt(r.value)?e.hideOffsetDates&&!l.current?!1:ie(new Date(l.value),r.value[k?0:1]):e.range?ie(new Date(l.value),r.value&&Array.isArray(r.value)?k?r.value[0]||null:r.value[1]:null)&&(k?!be(m.value||null,Array.isArray(r.value)?r.value[0]:null):!0)||ie(l.value,Array.isArray(r.value)?r.value[0]:null)&&vt(k):!1,Pe=(l,k)=>Array.isArray(e.internalModelValue)&&e.internalModelValue.length||e.weekPicker?!1:!l&&!C(k)&&!(!k.current&&e.hideOffsetDates)&&(e.range?!Ee(k)&&!Ee(k,!1):!0),ft=(l,k,A)=>Array.isArray(e.internalModelValue)&&e.internalModelValue[0]&&e.internalModelValue.length===1?l?!1:A?Te(e.internalModelValue[0],k.value):be(e.internalModelValue[0],k.value):!1,xe=(l=!1)=>{l&&e.yearPicker&&(r.value=(0,date_fns__WEBPACK_IMPORTED_MODULE_12__["default"])(new Date,v.value[0].year),e.autoApply&&a("autoApply")),e.autoApply&&e.monthPicker&&(0,vue__WEBPACK_IMPORTED_MODULE_0__.nextTick)().then(()=>{e.range?a("autoApply",l||!r.value||r.value.length===1):a("autoApply",l)})},et=(l,k)=>{const A=(0,date_fns__WEBPACK_IMPORTED_MODULE_21__["default"])(new Date,{month:E.value(k),year:w.value(k)}),x=l<0?(0,date_fns__WEBPACK_IMPORTED_MODULE_8__["default"])(A,1):(0,date_fns__WEBPACK_IMPORTED_MODULE_28__["default"])(A,1);ra(e.minDate,e.maxDate,(0,date_fns__WEBPACK_IMPORTED_MODULE_9__["default"])(x),(0,date_fns__WEBPACK_IMPORTED_MODULE_10__["default"])(x),l<0,e.preventMinMaxNavigation)&&(V(k,(0,date_fns__WEBPACK_IMPORTED_MODULE_9__["default"])(x),(0,date_fns__WEBPACK_IMPORTED_MODULE_10__["default"])(x)),e.multiCalendars&&!e.multiCalendarsSolo&&B(k),Ct())},yt=(l,k)=>{e.monthChangeOnScroll&&et(e.monthChangeOnScroll!=="inverse"?-l.deltaY:l.deltaY,k)},c=(l,k,A=!1)=>{e.monthChangeOnArrows&&e.vertical===A&&re(l,k)},re=(l,k)=>{et(l==="right"?-1:1,k)},fe=l=>e.markers.find(k=>ie(_e(l.value),_e(k.date))),ht=()=>{e.range?ea(r.value,e.range)&&(r.value&&r.value[0]?r.value=be(new Date,r.value[0])?[new Date,r.value[0]]:[r.value[0],new Date]:r.value=[new Date]):a("update:internalModelValue",new Date),e.autoApply&&a("selectDate")},tt=l=>{l.length&&l.length<=2&&e.range&&(r.value=l.map(k=>new Date(k)),e.autoApply&&a("selectDate"))},Ct=l=>{l||l===0?t.value[l].triggerTransition(E.value(l),w.value(l)):t.value.forEach((k,A)=>k.triggerTransition(E.value(A),w.value(A)))};return{today:i,hours:p,minutes:y,seconds:_,month:E,year:w,monthYearSelect:xe,isDisabled:P,updateTime:Oe,setHoverDate:I,getWeekNum:ae,selectDate:L,rangeActive:h,isActiveDate:C,updateMonthYear:Fe,isHoverRangeEnd:se,isAutoRangeInBetween:f,isAutoRangeStart:T,clearHoverDate:Qe,rangeActiveStartEnd:Ee,handleScroll:yt,getMarker:fe,handleArrow:c,handleSwipe:re,selectCurrentDate:ht,isHoverDate:Pe,isHoverDateStartEnd:ft,presetDateRange:tt}},Wr=["id","aria-label","onKeydown"],Ur={key:0,class:"dp__preset_ranges"},jr=["onClick"],Gr={key:1,class:"dp__now_wrap"},zr=(0,vue__WEBPACK_IMPORTED_MODULE_0__.defineComponent)({__name:"DatepickerMenu",props:De(J(J(J({},Zn),sn),on),{internalModelValue:{type:[Date,Array],default:null},multiCalendars:{type:Number,default:0},openOnTop:{type:Boolean,default:!1}}),emits:["update:internalModelValue","closePicker","selectDate","dpOpen","autoApply","timeUpdate","flow-step","updateMonthYear"],setup(e,{emit:a}){const n=e,t=(0,vue__WEBPACK_IMPORTED_MODULE_0__.useSlots)(),i=(0,vue__WEBPACK_IMPORTED_MODULE_0__.ref)(null),m=(0,vue__WEBPACK_IMPORTED_MODULE_0__.reactive)({timePicker:!!(!n.enableTimePicker||n.timePicker||n.monthPicker),monthYearInput:!!n.timePicker,calendar:!1}),v=(0,vue__WEBPACK_IMPORTED_MODULE_0__.ref)([]),p=(0,vue__WEBPACK_IMPORTED_MODULE_0__.ref)([]),y=(0,vue__WEBPACK_IMPORTED_MODULE_0__.ref)(null),_=(0,vue__WEBPACK_IMPORTED_MODULE_0__.ref)(null),E=(0,vue__WEBPACK_IMPORTED_MODULE_0__.ref)(0),w=(0,vue__WEBPACK_IMPORTED_MODULE_0__.ref)(!1),V=(0,vue__WEBPACK_IMPORTED_MODULE_0__.ref)(0),Y=(0,vue__WEBPACK_IMPORTED_MODULE_0__.inject)(Lt),F=(0,vue__WEBPACK_IMPORTED_MODULE_0__.inject)(Xe),H=(0,vue__WEBPACK_IMPORTED_MODULE_0__.inject)(qe),{setMenuFocused:z,setShiftKey:r}=cn();(0,vue__WEBPACK_IMPORTED_MODULE_0__.onMounted)(()=>{var G;w.value=!0,(G=n.presetRanges)!=null&&G.length||A();const d=he(_);if(d&&!n.textInput&&!n.inline&&(z(!0),j()),d){const W=q=>{q.stopImmediatePropagation(),q.stopPropagation()};d.addEventListener("pointerdown",W),d.addEventListener("mousedown",W)}document.addEventListener("resize",A)}),(0,vue__WEBPACK_IMPORTED_MODULE_0__.onUnmounted)(()=>{document.removeEventListener("resize",A)});const{arrowRight:P,arrowLeft:C,arrowDown:h,arrowUp:N}=Je(),j=()=>{const d=he(_);d&&d.focus({preventScroll:!0})},ne=()=>{var d;((d=n.flow)==null?void 0:d.length)&&V.value!==-1&&(V.value+=1,a("flow-step",V.value),wn())},Z=()=>{V.value=-1},{updateTime:X,updateMonthYear:Q,today:M,month:o,year:b,hours:u,minutes:$,seconds:L,isDisabled:ae,isActiveDate:I,selectDate:se,getWeekNum:f,setHoverDate:T,isHoverRangeEnd:B,isAutoRangeInBetween:ke,isAutoRangeStart:Fe,rangeActive:Ze,clearHoverDate:Ke,rangeActiveStartEnd:Oe,monthYearSelect:Qe,handleScroll:vt,handleArrow:Ee,handleSwipe:Pe,getMarker:ft,selectCurrentDate:xe,isHoverDateStartEnd:et,isHoverDate:yt,presetDateRange:c}=Hr(n,a,ne,p),re=st(t,"calendar"),fe=st(t,"action"),ht=st(t,"timePicker"),tt=st(t,"monthYear"),Ct=(0,vue__WEBPACK_IMPORTED_MODULE_0__.computed)(()=>n.openOnTop?"dp__arrow_bottom":"dp__arrow_top"),l=(0,vue__WEBPACK_IMPORTED_MODULE_0__.computed)(()=>Bl(n.yearRange)),k=(0,vue__WEBPACK_IMPORTED_MODULE_0__.computed)(()=>Nl(n.locale,n.monthNameFormat)),A=()=>{const d=he(i);d&&(E.value=d.getBoundingClientRect().width)},x=(0,vue__WEBPACK_IMPORTED_MODULE_0__.computed)(()=>d=>Rl(o.value(d),b.value(d),+n.weekStart,n.hideOffsetDates)),Ce=(0,vue__WEBPACK_IMPORTED_MODULE_0__.computed)(()=>n.multiCalendars>0&&n.range?[...Array(n.multiCalendars).keys()]:[0]),gt=(0,vue__WEBPACK_IMPORTED_MODULE_0__.computed)(()=>d=>d===1),nt=(0,vue__WEBPACK_IMPORTED_MODULE_0__.computed)(()=>n.monthPicker||n.timePicker||n.yearPicker),Tt=(0,vue__WEBPACK_IMPORTED_MODULE_0__.computed)(()=>({dp__flex_display:n.multiCalendars>0})),We=(0,vue__WEBPACK_IMPORTED_MODULE_0__.computed)(()=>({dp__instance_calendar:n.multiCalendars>0})),oa=(0,vue__WEBPACK_IMPORTED_MODULE_0__.computed)(()=>({dp__menu_disabled:n.disabled,dp__menu_readonly:n.readonly})),sa=(0,vue__WEBPACK_IMPORTED_MODULE_0__.computed)(()=>d=>ca(x,d)),ua=(0,vue__WEBPACK_IMPORTED_MODULE_0__.computed)(()=>({locale:n.locale,weekNumName:n.weekNumName,weekStart:n.weekStart,weekNumbers:n.weekNumbers,customProps:n.customProps,calendarClassName:n.calendarClassName,specificMode:nt.value,getWeekNum:f,multiCalendars:n.multiCalendars,modeHeight:n.modeHeight,internalModelValue:n.internalModelValue,noSwipe:n.noSwipe,vertical:n.vertical,dayNames:n.dayNames,monthChangeOnScroll:n.monthChangeOnScroll})),ia=(0,vue__WEBPACK_IMPORTED_MODULE_0__.computed)(()=>({dp__menu:!0,dp__menu_index:!n.inline,dp__relative:n.inline,[n.menuClassName]:!!n.menuClassName})),da=()=>n.modelAuto&&Array.isArray(n.internalModelValue)?!!n.internalModelValue[0]:!1,wt=()=>n.modelAuto?Hn(n.internalModelValue):!0,ca=(d,G)=>d.value(G).map(W=>De(J({},W),{days:W.days.map(q=>{const ee=ae(q.value),kt=yt(ee,q),ut=(n.range||n.weekPicker)&&(n.multiCalendars>0?q.current:!0)&&!ee&&wt()&&!(!q.current&&n.hideOffsetDates)&&!I(q)?Ze(q):!1;return q.marker=ft(q),q.classData={dp__cell_offset:!q.current,dp__pointer:!ee&&!(!q.current&&n.hideOffsetDates),dp__active_date:n.range?n.modelAuto?da()&&I(q):!1:I(q),dp__date_hover:kt,dp__date_hover_start:et(kt,q,!0),dp__date_hover_end:et(kt,q,!1),dp__range_between:ut&&!n.weekPicker,dp__range_between_week:ut&&n.weekPicker,dp__today:!n.noToday&&ie(q.value,M.value)&&q.current,dp__cell_disabled:ee,dp__cell_auto_range:ke(q),dp__cell_auto_range_start:Fe(q),dp__cell_auto_range_end:B(q),dp__range_start:n.multiCalendars>0?q.current&&Oe(q)&&wt():Oe(q)&&wt(),dp__range_end:n.multiCalendars>0?q.current&&Oe(q,!1)&&wt():Oe(q,!1)&&wt(),[n.calendarCellClassName]:!!n.calendarCellClassName},q})})),ma=d=>{d.stopPropagation(),d.preventDefault(),d.stopImmediatePropagation()},pa=()=>{n.escClose&&a("closePicker")},va=d=>{d.stopImmediatePropagation(),d.preventDefault(),n.spaceConfirm&&a("selectDate")},zt=d=>{var G;(G=n.flow)!=null&&G.length&&(m[d]=!0,Object.keys(m).filter(W=>!m[W]).length||wn())},wn=()=>{n.flow[V.value]==="month"&&v.value[0]&&v.value[0].toggleMonthPicker(!0),n.flow[V.value]==="year"&&v.value&&v.value[0].toggleYearPicker(!0),n.flow[V.value]==="calendar"&&y.value&&y.value.toggleTimePicker(!1,!0),n.flow[V.value]==="time"&&y.value&&y.value.toggleTimePicker(!0,!0);const d=n.flow[V.value];(d==="hours"||d==="minutes"||d==="seconds")&&y.value&&y.value.toggleTimePicker(!0,!0,d)},_t=d=>{if(H!=null&&H.value){if(d==="up")return N();if(d==="down")return h();if(d==="left")return C();if(d==="right")return P()}else d==="left"||d==="up"?Ee("left",0,d==="up"):Ee("right",0,d==="down")},fa=d=>{r(d.shiftKey)};return(d,G)=>((0,vue__WEBPACK_IMPORTED_MODULE_0__.openBlock)(),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createBlock)(vue__WEBPACK_IMPORTED_MODULE_0__.Transition,{appear:"",name:(0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(Y).menuAppear,mode:"out-in",css:!!(0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(Y)},{default:(0,vue__WEBPACK_IMPORTED_MODULE_0__.withCtx)(()=>[(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementVNode)("div",{id:d.uid?`dp-menu-${d.uid}`:void 0,tabindex:"0",ref_key:"dpMenuRef",ref:_,role:"dialog","aria-label":(0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(F).menu,class:(0,vue__WEBPACK_IMPORTED_MODULE_0__.normalizeClass)((0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(ia)),onMouseleave:G[11]||(G[11]=(...W)=>(0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(Ke)&&(0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(Ke)(...W)),onClick:ma,onKeydown:[(0,vue__WEBPACK_IMPORTED_MODULE_0__.withKeys)(pa,["esc"]),(0,vue__WEBPACK_IMPORTED_MODULE_0__.withKeys)(va,["space"]),G[12]||(G[12]=(0,vue__WEBPACK_IMPORTED_MODULE_0__.withKeys)((0,vue__WEBPACK_IMPORTED_MODULE_0__.withModifiers)(W=>_t("left"),["prevent"]),["left"])),G[13]||(G[13]=(0,vue__WEBPACK_IMPORTED_MODULE_0__.withKeys)((0,vue__WEBPACK_IMPORTED_MODULE_0__.withModifiers)(W=>_t("up"),["prevent"]),["up"])),G[14]||(G[14]=(0,vue__WEBPACK_IMPORTED_MODULE_0__.withKeys)((0,vue__WEBPACK_IMPORTED_MODULE_0__.withModifiers)(W=>_t("down"),["prevent"]),["down"])),G[15]||(G[15]=(0,vue__WEBPACK_IMPORTED_MODULE_0__.withKeys)((0,vue__WEBPACK_IMPORTED_MODULE_0__.withModifiers)(W=>_t("right"),["prevent"]),["right"])),fa]},[(d.disabled||d.readonly)&&d.inline?((0,vue__WEBPACK_IMPORTED_MODULE_0__.openBlock)(),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementBlock)("div",{key:0,class:(0,vue__WEBPACK_IMPORTED_MODULE_0__.normalizeClass)((0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(oa))},null,2)):(0,vue__WEBPACK_IMPORTED_MODULE_0__.createCommentVNode)("",!0),d.inline?(0,vue__WEBPACK_IMPORTED_MODULE_0__.createCommentVNode)("",!0):((0,vue__WEBPACK_IMPORTED_MODULE_0__.openBlock)(),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementBlock)("div",{key:1,class:(0,vue__WEBPACK_IMPORTED_MODULE_0__.normalizeClass)((0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(Ct))},null,2)),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementVNode)("div",{class:(0,vue__WEBPACK_IMPORTED_MODULE_0__.normalizeClass)(d.presetRanges.length?"dp__menu_content_wrapper":null)},[d.presetRanges.length?((0,vue__WEBPACK_IMPORTED_MODULE_0__.openBlock)(),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementBlock)("div",Ur,[((0,vue__WEBPACK_IMPORTED_MODULE_0__.openBlock)(!0),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementBlock)(vue__WEBPACK_IMPORTED_MODULE_0__.Fragment,null,(0,vue__WEBPACK_IMPORTED_MODULE_0__.renderList)(d.presetRanges,(W,q)=>((0,vue__WEBPACK_IMPORTED_MODULE_0__.openBlock)(),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementBlock)("div",{key:q,class:"dp__preset_range",onClick:ee=>(0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(c)(W.range)},(0,vue__WEBPACK_IMPORTED_MODULE_0__.toDisplayString)(W.label),9,jr))),128))])):(0,vue__WEBPACK_IMPORTED_MODULE_0__.createCommentVNode)("",!0),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementVNode)("div",{class:"dp__instance_calendar",ref_key:"calendarWrapperRef",ref:i,role:"document"},[(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementVNode)("div",{class:(0,vue__WEBPACK_IMPORTED_MODULE_0__.normalizeClass)((0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(Tt))},[((0,vue__WEBPACK_IMPORTED_MODULE_0__.openBlock)(!0),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementBlock)(vue__WEBPACK_IMPORTED_MODULE_0__.Fragment,null,(0,vue__WEBPACK_IMPORTED_MODULE_0__.renderList)((0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(Ce),(W,q)=>((0,vue__WEBPACK_IMPORTED_MODULE_0__.openBlock)(),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementBlock)("div",{key:W,class:(0,vue__WEBPACK_IMPORTED_MODULE_0__.normalizeClass)((0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(We))},[!d.disableMonthYearSelect&&!d.timePicker?((0,vue__WEBPACK_IMPORTED_MODULE_0__.openBlock)(),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createBlock)((0,vue__WEBPACK_IMPORTED_MODULE_0__.resolveDynamicComponent)(d.monthYearComponent?d.monthYearComponent:Kr),(0,vue__WEBPACK_IMPORTED_MODULE_0__.mergeProps)({key:0,ref_for:!0,ref:ee=>{ee&&(v.value[q]=ee)}},{months:(0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(k),years:(0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(l),filters:d.filters,monthPicker:d.monthPicker,month:(0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(o)(W),year:(0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(b)(W),customProps:d.customProps,multiCalendars:e.multiCalendars,multiCalendarsSolo:d.multiCalendarsSolo,instance:W,minDate:d.minDate,maxDate:d.maxDate,preventMinMaxNavigation:d.preventMinMaxNavigation,internalModelValue:e.internalModelValue,range:d.range,reverseYears:d.reverseYears,vertical:d.vertical,yearPicker:d.yearPicker},{onMount:G[0]||(G[0]=ee=>zt("monthYearInput")),onResetFlow:Z,onUpdateMonthYear:ee=>(0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(Q)(W,ee),onMonthYearSelect:(0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(Qe),onOverlayClosed:j}),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createSlots)({_:2},[(0,vue__WEBPACK_IMPORTED_MODULE_0__.renderList)((0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(tt),(ee,kt)=>({name:ee,fn:(0,vue__WEBPACK_IMPORTED_MODULE_0__.withCtx)(ut=>[(0,vue__WEBPACK_IMPORTED_MODULE_0__.renderSlot)(d.$slots,ee,(0,vue__WEBPACK_IMPORTED_MODULE_0__.normalizeProps)((0,vue__WEBPACK_IMPORTED_MODULE_0__.guardReactiveProps)(ut)))])}))]),1040,["onUpdateMonthYear","onMonthYearSelect"])):(0,vue__WEBPACK_IMPORTED_MODULE_0__.createCommentVNode)("",!0),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createVNode)(ar,(0,vue__WEBPACK_IMPORTED_MODULE_0__.mergeProps)({ref_for:!0,ref:ee=>{ee&&(p.value[q]=ee)}},(0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(ua),{"flow-step":V.value,"onUpdate:flow-step":G[1]||(G[1]=ee=>V.value=ee),instance:W,"mapped-dates":(0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(sa)(W),month:(0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(o)(W),year:(0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(b)(W),onSelectDate:ee=>(0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(se)(ee,!(0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(gt)(W)),onSetHoverDate:G[2]||(G[2]=ee=>(0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(T)(ee)),onHandleScroll:ee=>(0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(vt)(ee,W),onHandleSwipe:ee=>(0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(Pe)(ee,W),onMount:G[3]||(G[3]=ee=>zt("calendar")),onResetFlow:Z}),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createSlots)({_:2},[(0,vue__WEBPACK_IMPORTED_MODULE_0__.renderList)((0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(re),(ee,kt)=>({name:ee,fn:(0,vue__WEBPACK_IMPORTED_MODULE_0__.withCtx)(ut=>[(0,vue__WEBPACK_IMPORTED_MODULE_0__.renderSlot)(d.$slots,ee,(0,vue__WEBPACK_IMPORTED_MODULE_0__.normalizeProps)((0,vue__WEBPACK_IMPORTED_MODULE_0__.guardReactiveProps)(J({},ut))))])}))]),1040,["flow-step","instance","mapped-dates","month","year","onSelectDate","onHandleScroll","onHandleSwipe"])],2))),128))],2),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementVNode)("div",null,[d.enableTimePicker&&!d.monthPicker&&!d.weekPicker?((0,vue__WEBPACK_IMPORTED_MODULE_0__.openBlock)(),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createBlock)((0,vue__WEBPACK_IMPORTED_MODULE_0__.resolveDynamicComponent)(d.timePickerComponent?d.timePickerComponent:Or),(0,vue__WEBPACK_IMPORTED_MODULE_0__.mergeProps)({key:0,ref_key:"timePickerRef",ref:y},{is24:d.is24,hoursIncrement:d.hoursIncrement,minutesIncrement:d.minutesIncrement,hoursGridIncrement:d.hoursGridIncrement,secondsIncrement:d.secondsIncrement,minutesGridIncrement:d.minutesGridIncrement,secondsGridIncrement:d.secondsGridIncrement,noHoursOverlay:d.noHoursOverlay,noMinutesOverlay:d.noMinutesOverlay,noSecondsOverlay:d.noSecondsOverlay,range:d.range,filters:d.filters,timePicker:d.timePicker,hours:(0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(u),minutes:(0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)($),seconds:(0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(L),customProps:d.customProps,enableSeconds:d.enableSeconds,fixedStart:d.fixedStart,fixedEnd:d.fixedEnd,modelAuto:d.modelAuto,internalModelValue:e.internalModelValue},{onMount:G[4]||(G[4]=W=>zt("timePicker")),"onUpdate:hours":G[5]||(G[5]=W=>(0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(X)(W)),"onUpdate:minutes":G[6]||(G[6]=W=>(0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(X)(W,!1)),"onUpdate:seconds":G[7]||(G[7]=W=>(0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(X)(W,!1,!0)),onResetFlow:Z,onOverlayClosed:j}),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createSlots)({_:2},[(0,vue__WEBPACK_IMPORTED_MODULE_0__.renderList)((0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(ht),(W,q)=>({name:W,fn:(0,vue__WEBPACK_IMPORTED_MODULE_0__.withCtx)(ee=>[(0,vue__WEBPACK_IMPORTED_MODULE_0__.renderSlot)(d.$slots,W,(0,vue__WEBPACK_IMPORTED_MODULE_0__.normalizeProps)((0,vue__WEBPACK_IMPORTED_MODULE_0__.guardReactiveProps)(ee)))])}))]),1040)):(0,vue__WEBPACK_IMPORTED_MODULE_0__.createCommentVNode)("",!0)])],512),d.showNowButton?((0,vue__WEBPACK_IMPORTED_MODULE_0__.openBlock)(),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementBlock)("div",Gr,[d.$slots["now-button"]?(0,vue__WEBPACK_IMPORTED_MODULE_0__.renderSlot)(d.$slots,"now-button",{key:0,selectCurrentDate:(0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(xe)}):(0,vue__WEBPACK_IMPORTED_MODULE_0__.createCommentVNode)("",!0),d.$slots["now-button"]?(0,vue__WEBPACK_IMPORTED_MODULE_0__.createCommentVNode)("",!0):((0,vue__WEBPACK_IMPORTED_MODULE_0__.openBlock)(),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementBlock)("button",{key:1,type:"button",role:"button",class:"dp__now_button",onClick:G[8]||(G[8]=(...W)=>(0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(xe)&&(0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(xe)(...W))},(0,vue__WEBPACK_IMPORTED_MODULE_0__.toDisplayString)(d.nowButtonLabel),1))])):(0,vue__WEBPACK_IMPORTED_MODULE_0__.createCommentVNode)("",!0)],2),!d.autoApply||d.keepActionRow?((0,vue__WEBPACK_IMPORTED_MODULE_0__.openBlock)(),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createBlock)((0,vue__WEBPACK_IMPORTED_MODULE_0__.resolveDynamicComponent)(d.actionRowComponent?d.actionRowComponent:vr),(0,vue__WEBPACK_IMPORTED_MODULE_0__.mergeProps)({key:2},{calendarWidth:E.value,selectText:d.selectText,cancelText:d.cancelText,internalModelValue:e.internalModelValue,range:d.range,previewFormat:d.previewFormat,inline:d.inline,monthPicker:d.monthPicker,timePicker:d.timePicker,customProps:d.customProps,multiCalendars:e.multiCalendars,menuMount:w.value,maxTime:d.maxTime,minTime:d.minTime,enableTimePicker:d.enableTimePicker,minDate:d.minDate,maxDate:d.maxDate,multiDates:d.multiDates,modelAuto:d.modelAuto},{onClosePicker:G[9]||(G[9]=W=>d.$emit("closePicker")),onSelectDate:G[10]||(G[10]=W=>d.$emit("selectDate"))}),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createSlots)({_:2},[(0,vue__WEBPACK_IMPORTED_MODULE_0__.renderList)((0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(fe),(W,q)=>({name:W,fn:(0,vue__WEBPACK_IMPORTED_MODULE_0__.withCtx)(ee=>[(0,vue__WEBPACK_IMPORTED_MODULE_0__.renderSlot)(d.$slots,W,(0,vue__WEBPACK_IMPORTED_MODULE_0__.normalizeProps)((0,vue__WEBPACK_IMPORTED_MODULE_0__.guardReactiveProps)(J({},ee))))])}))]),1040)):(0,vue__WEBPACK_IMPORTED_MODULE_0__.createCommentVNode)("",!0)],42,Wr)]),_:3},8,["name","css"]))}});var Gt=(e=>(e.center="center",e.left="left",e.right="right",e))(Gt||{});const Xr=(e,a,n,t,i,m,v)=>{const p=(0,vue__WEBPACK_IMPORTED_MODULE_0__.ref)({top:"0",left:"0",transform:"none"}),y=(0,vue__WEBPACK_IMPORTED_MODULE_0__.ref)(!1),_=10,E=390,w=C=>{const h=C.getBoundingClientRect();return{left:h.left+window.scrollX,top:h.top+window.scrollY}},V=C=>{const h=C.getBoundingClientRect();let N=0,j=0;for(;C&&!isNaN(C.offsetLeft)&&!isNaN(C.offsetTop);)N+=C.offsetLeft-C.scrollLeft,j=h.top+C.scrollTop,C=C.offsetParent;return{top:j,left:N}},Y=(C,h)=>{p.value.left=`${C+h}px`,p.value.transform="translateX(-100%)"},F=C=>{p.value.left=`${C}px`,p.value.transform="translateX(0)"},H=(C,h)=>{e===Gt.left&&F(C),e===Gt.right&&Y(C,h),e===Gt.center&&(p.value.left=`${C+h/2}px`,p.value.transform="translateX(-50%)")},z=()=>{const C=he(i);if(C){const h=window.innerHeight,{top:N}=a?V(C):w(C),{left:j,width:ne,top:Z,height:X}=C.getBoundingClientRect(),Q=h-Z-X;p.value.top=Z>Q?`${N-E}px`:`${N}px`,H(j,ne)}},r=(C=!0)=>{if(!m){const h=he(i);if(a&&typeof a!="boolean")p.value=a(h);else if(h){const{left:N,width:j,height:ne}=h.getBoundingClientRect(),{top:Z}=a?V(h):w(h);p.value.top=`${ne+Z+_}px`,H(N,j),C&&n&&P()}}},P=()=>{const C=he(i);if(C&&n&&!m){const{height:h,top:N,left:j,width:ne}=C.getBoundingClientRect(),{top:Z}=a?V(C):w(C),X=window.innerHeight-N-h,Q=he(t);if(Q){const{height:M,left:o,right:b}=Q.getBoundingClientRect(),u=M+h;u>N&&u>X?N<X&&(r(!1),y.value=!1):u>X?(p.value.top=`${Z-M-_}px`,y.value=!0):(r(!1),y.value=!1),o<0?F(j):b>document.documentElement.clientWidth&&Y(j,ne)}}v("recalculatePosition")};return{openOnTop:y,menuPosition:p,setMenuPosition:r,setInitialPosition:z,recalculatePosition:P}},qr=(e,a,n,t,i,m,v,p,y,_,E,w,V,Y,F,H,z)=>{const r=(0,vue__WEBPACK_IMPORTED_MODULE_0__.ref)(""),P=(0,vue__WEBPACK_IMPORTED_MODULE_0__.ref)();(0,vue__WEBPACK_IMPORTED_MODULE_0__.watch)(P,()=>{z("internalModelChange",P.value)});const C=o=>[Z(o[0]),o[1]?Z(o[1]):null],h=o=>{let b=null;o?a?rr(o)&&"hours"in o[0]&&"minutes"in o[0]?b=[Ae(null,+o[0].hours,+o[0].minutes,+o[0].seconds),Ae(null,+o[1].hours,+o[1].minutes,+o[1].seconds)]:lr(o)&&(b=Ae(null,+o.hours,+o.minutes,+o.seconds)):n?or(o)&&"month"in o[0]&&"year"in o[0]?(b=[ot(null,+o[0].month,+o[0].year)],o[1]?b[1]=ot(null,+o[1].month,+o[1].year):!o[1]&&i&&(b[1]=null)):sr(o)&&"month"in o&&"year"in o&&(b=ot(null,+o.month,+o.year)):V?b=(0,date_fns__WEBPACK_IMPORTED_MODULE_12__["default"])(new Date,o):_&&Array.isArray(o)?b=o.map(u=>Z(u)):w&&Array.isArray(o)?b=[new Date(o[0]),new Date(o[1])]:t?H?Array.isArray(o)?b=C(o):b=[Z(o),null]:ur(o,i)&&(b=C(o)):dr(o)&&(b=Z(o)):b=null,xt(b)?(P.value=b,j()):(P.value=null,r.value="")},N=()=>In(e,m,p,n,a,w,V,v),j=()=>{if(!P.value)r.value="";else if(!e||typeof e=="string"){const o=N();Array.isArray(P.value)&&_?r.value=P.value.map(b=>pt(b,o,y==null?void 0:y.value)).join("; "):r.value=pt(P.value,o,y==null?void 0:y.value,Y==null?void 0:Y.rangeSeparator,H)}else a?r.value=e(tn(P.value)):n?r.value=e(Yn(P.value)):r.value=e(P.value)},ne=()=>P.value?t?i?P.value.length>=1:P.value.length===2:!!P.value:!1,Z=o=>F?F==="date"||F==="timestamp"?new Date(o):F==="format"&&(typeof e=="string"||!e)?(0,date_fns__WEBPACK_IMPORTED_MODULE_1__["default"])(o,N(),new Date):(0,date_fns__WEBPACK_IMPORTED_MODULE_1__["default"])(o,F,new Date):new Date(o),X=o=>F?F==="timestamp"?+o:F==="format"&&(typeof e=="string"||!e)?pt(o,N(),y==null?void 0:y.value,Y==null?void 0:Y.rangeSeparator):pt(o,F,y==null?void 0:y.value,Y==null?void 0:Y.rangeSeparator):o,Q=o=>{z("update:modelValue",o)},M=()=>[X(P.value[0]),P.value[1]?X(P.value[1]):null];return{parseExternalModelValue:h,formatInputValue:j,internalModelValue:P,inputValue:r,emitModelValue:()=>{if(n)Q(Yn(P.value));else if(a)Q(tn(P.value));else if(w)Q(P.value);else if(V)Q((0,date_fns__WEBPACK_IMPORTED_MODULE_10__["default"])(P.value));else{if(P.value&&t&&i&&P.value.length===1&&P.value.push(null),E){let o;if(Array.isArray(P.value)){const b=u=>u&&_e(u);H?o=P.value[1]?P.value.map(b):_e(P.value[0]):o=P.value.map(b)}else o=_e(P.value);return Q(o)}Array.isArray(P.value)&&!_?Q(H?P.value[1]?M():X(P.value[0]):M()):Array.isArray(P.value)&&_?Q(P.value.map(o=>X(o))):Q(X(P.value))}j()},checkBeforeEmit:ne}},Jr=typeof window<"u"?window:void 0,hn=()=>{},Zr=e=>(0,vue__WEBPACK_IMPORTED_MODULE_0__.getCurrentScope)()?((0,vue__WEBPACK_IMPORTED_MODULE_0__.onScopeDispose)(e),!0):!1,Qr=(e,a,n,t)=>{if(!e)return hn;let i=hn;const m=(0,vue__WEBPACK_IMPORTED_MODULE_0__.watch)(()=>(0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(e),p=>{i(),p&&(p.addEventListener(a,n,t),i=()=>{p.removeEventListener(a,n,t),i=hn})},{immediate:!0,flush:"post"}),v=()=>{m(),i()};return Zr(v),v},xr=(e,a,n,t={})=>{const{window:i=Jr,event:m="pointerdown"}=t;return i?Qr(i,m,v=>{const p=he(e),y=he(a);!p||!y||p===v.target||v.composedPath().includes(p)||v.composedPath().includes(y)||n(v)},{passive:!0}):void 0},eo=(0,vue__WEBPACK_IMPORTED_MODULE_0__.defineComponent)({__name:"VueDatePicker",props:J({},Hl),emits:["update:modelValue","textSubmit","closed","cleared","open","focus","blur","internalModelChange","recalculatePosition","flow-step","focus-prev","updateMonthYear"],setup(e,{expose:a,emit:n}){const t=e,i=(0,vue__WEBPACK_IMPORTED_MODULE_0__.useSlots)(),m=(0,vue__WEBPACK_IMPORTED_MODULE_0__.ref)(!1),v=(0,vue__WEBPACK_IMPORTED_MODULE_0__.toRef)(t,"modelValue"),p=(0,vue__WEBPACK_IMPORTED_MODULE_0__.ref)(null),y=(0,vue__WEBPACK_IMPORTED_MODULE_0__.ref)(null),_=(0,vue__WEBPACK_IMPORTED_MODULE_0__.ref)(null),E=(0,vue__WEBPACK_IMPORTED_MODULE_0__.ref)(null);(0,vue__WEBPACK_IMPORTED_MODULE_0__.provide)(rn,t.autoApply);const w=(0,vue__WEBPACK_IMPORTED_MODULE_0__.computed)(()=>t.formatLocale);(0,vue__WEBPACK_IMPORTED_MODULE_0__.provide)(Un,w),(0,vue__WEBPACK_IMPORTED_MODULE_0__.provide)(Wn,(0,vue__WEBPACK_IMPORTED_MODULE_0__.toRef)(t,"textInput")),(0,vue__WEBPACK_IMPORTED_MODULE_0__.provide)(qe,(0,vue__WEBPACK_IMPORTED_MODULE_0__.toRef)(t,"arrowNavigation")),(0,vue__WEBPACK_IMPORTED_MODULE_0__.onMounted)(()=>{N(t.modelValue),t.inline||(window.addEventListener("scroll",B),window.addEventListener("resize",ke)),t.inline&&(m.value=!0)}),(0,vue__WEBPACK_IMPORTED_MODULE_0__.onUnmounted)(()=>{t.inline||(window.removeEventListener("scroll",B),window.removeEventListener("resize",ke))});const V=st(i,"all"),Y=st(i,"input");(0,vue__WEBPACK_IMPORTED_MODULE_0__.watch)(v,()=>{N(v.value)},{deep:!0});const{openOnTop:F,menuPosition:H,setMenuPosition:z,recalculatePosition:r,setInitialPosition:P}=Xr(t.position,t.altPosition,t.autoPosition,p,y,t.inline,n),{internalModelValue:C,inputValue:h,parseExternalModelValue:N,emitModelValue:j,checkBeforeEmit:ne,formatInputValue:Z}=qr(t.format,t.timePicker,t.monthPicker,t.range,t.partialRange,t.is24,t.enableTimePicker,t.enableSeconds,w,t.multiDates,t.utc,t.weekPicker,t.yearPicker,t.textInputOptions,t.modelType,t.modelAuto,n),{clearArrowNav:X}=Je(),{setMenuFocused:Q,setShiftKey:M}=cn(),o=(0,vue__WEBPACK_IMPORTED_MODULE_0__.computed)(()=>({dp__main:!0,dp__theme_dark:t.dark,dp__theme_light:!t.dark,dp__flex_display:t.inline,dp__flex_display_with_input:t.inlineWithInput})),b=(0,vue__WEBPACK_IMPORTED_MODULE_0__.computed)(()=>ta(t.format)?t.format:In(null,t.is24,t.enableSeconds,t.monthPicker,t.timePicker,t.weekPicker,t.yearPicker,t.enableTimePicker)),u=(0,vue__WEBPACK_IMPORTED_MODULE_0__.computed)(()=>t.previewFormat?t.previewFormat:ta(b.value)?b.value:t.format),$=(0,vue__WEBPACK_IMPORTED_MODULE_0__.computed)(()=>typeof t.transitions=="boolean"?t.transitions?Kn({}):!1:Kn(t.transitions));(0,vue__WEBPACK_IMPORTED_MODULE_0__.provide)(Lt,$);const L=(0,vue__WEBPACK_IMPORTED_MODULE_0__.computed)(()=>t.dark?"dp__theme_dark":"dp__theme_light"),ae=(0,vue__WEBPACK_IMPORTED_MODULE_0__.computed)(()=>Object.assign(Yl(),t.textInputOptions)),I=(0,vue__WEBPACK_IMPORTED_MODULE_0__.computed)(()=>Kl(t.ariaLabels));(0,vue__WEBPACK_IMPORTED_MODULE_0__.provide)(Xe,I);const se=(0,vue__WEBPACK_IMPORTED_MODULE_0__.computed)(()=>Fl(t.filters)),f=(0,vue__WEBPACK_IMPORTED_MODULE_0__.computed)(()=>{const c=re=>{const fe={hours:(0,date_fns__WEBPACK_IMPORTED_MODULE_13__["default"])(new Date),minutes:(0,date_fns__WEBPACK_IMPORTED_MODULE_14__["default"])(new Date),seconds:(0,date_fns__WEBPACK_IMPORTED_MODULE_15__["default"])(new Date)};return Object.assign(fe,re)};return t.range?t.startTime&&Array.isArray(t.startTime)?[c(t.startTime[0]),c(t.startTime[1])]:null:t.startTime&&!Array.isArray(t.startTime)?c(t.startTime):null}),T=(0,vue__WEBPACK_IMPORTED_MODULE_0__.computed)(()=>t.multiCalendars===null?0:typeof t.multiCalendars=="boolean"?t.multiCalendars?2:0:+t.multiCalendars>=2?+t.multiCalendars:2),B=()=>{m.value&&(t.closeOnScroll?Pe():t.autoPosition?z():window.removeEventListener("scroll",B))},ke=()=>{m.value&&z()},Fe=()=>{!t.disabled&&!t.readonly&&(P(),m.value=!0,(0,vue__WEBPACK_IMPORTED_MODULE_0__.nextTick)().then(()=>{z(),m.value&&(n("open"),n("focus"))}),m.value||Ee(),N(t.modelValue))},Ze=()=>{h.value="",Ee(),n("update:modelValue",null),n("cleared"),Pe()},Ke=()=>{const{validate:c}=Ln(t.minDate,t.maxDate,t.disabledDates,t.allowedDates,se.value,t.disabledWeekDays,t.yearRange),re=C.value;return!Array.isArray(re)&&c(re)?!0:Array.isArray(re)?re.length===2&&c(re[0])&&c(re[1])?!0:!!c(re[0]):!1},Oe=()=>{ne()&&Ke()&&(j(),Pe())},Qe=c=>{j(),t.closeOnAutoApply&&!c&&Pe()},vt=(c=!1)=>{t.autoApply&&(!t.enableTimePicker||t.monthPicker||t.yearPicker?!0:ln(C.value,t.maxTime,t.minTime))&&Ke()&&(t.range&&Array.isArray(C.value)?(t.partialRange||C.value.length===2)&&Qe(c):Qe(c))},Ee=()=>{C.value=null},Pe=()=>{t.inline||(m.value&&(m.value=!1,Q(!1),M(!1),X(),n("closed"),n("blur"),P(),h.value&&N(v.value)),Ee(),y.value&&y.value.unFocus(),et())},ft=(c,re)=>{if(!c){C.value=null;return}C.value=c,re&&(Oe(),n("textSubmit"))},xe=()=>{t.autoApply&&ln(C.value,t.maxTime,t.minTime)&&j()},et=()=>{_.value&&_.value.focus({preventScroll:!0})},yt=()=>m.value?Pe():Fe();return xr(p,y,Pe),a({closeMenu:Pe,selectDate:Oe,clearValue:Ze,openMenu:Fe,onScroll:B,formatInputValue:Z}),(c,re)=>((0,vue__WEBPACK_IMPORTED_MODULE_0__.openBlock)(),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementBlock)("div",{class:(0,vue__WEBPACK_IMPORTED_MODULE_0__.normalizeClass)((0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(o))},[(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementVNode)("span",{tabindex:"-1",ref_key:"focusRefBefore",ref:E},null,512),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createVNode)(zl,(0,vue__WEBPACK_IMPORTED_MODULE_0__.mergeProps)({ref_key:"inputRef",ref:y},{placeholder:c.placeholder,hideInputIcon:c.hideInputIcon,readonly:c.readonly,disabled:c.disabled,inputClassName:c.inputClassName,clearable:c.clearable,state:c.state,inline:c.inline,inlineWithInput:c.inlineWithInput,textInput:c.textInput,textInputOptions:(0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(ae),range:c.range,isMenuOpen:m.value,pattern:(0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(b),autoApply:c.autoApply,uid:c.uid,openMenuOnFocus:c.openMenuOnFocus,required:c.required,name:c.name,autocomplete:c.autocomplete},{"input-value":(0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(h),"onUpdate:input-value":re[0]||(re[0]=fe=>(0,vue__WEBPACK_IMPORTED_MODULE_0__.isRef)(h)?h.value=fe:null),onClear:Ze,onOpen:Fe,onSetInputDate:ft,onSetEmptyDate:(0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(j),onSelectDate:Oe,onToggle:yt,onClose:Pe,onFocusPrev:re[1]||(re[1]=fe=>c.$emit("focus-prev"))}),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createSlots)({_:2},[(0,vue__WEBPACK_IMPORTED_MODULE_0__.renderList)((0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(Y),(fe,ht)=>({name:fe,fn:(0,vue__WEBPACK_IMPORTED_MODULE_0__.withCtx)(tt=>[(0,vue__WEBPACK_IMPORTED_MODULE_0__.renderSlot)(c.$slots,fe,(0,vue__WEBPACK_IMPORTED_MODULE_0__.normalizeProps)((0,vue__WEBPACK_IMPORTED_MODULE_0__.guardReactiveProps)(tt)))])}))]),1040,["input-value","onSetEmptyDate"]),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementVNode)("span",{tabindex:"-1",ref_key:"focusRef",ref:_},null,512),m.value?((0,vue__WEBPACK_IMPORTED_MODULE_0__.openBlock)(),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createBlock)(vue__WEBPACK_IMPORTED_MODULE_0__.Teleport,{key:0,to:c.teleport,disabled:c.inline},[m.value?((0,vue__WEBPACK_IMPORTED_MODULE_0__.openBlock)(),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createBlock)(zr,(0,vue__WEBPACK_IMPORTED_MODULE_0__.mergeProps)({key:0,ref_key:"dpMenuRef",ref:p,class:(0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(L),style:(0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(H)},{weekNumbers:c.weekNumbers,weekStart:c.weekStart,disableMonthYearSelect:c.disableMonthYearSelect,menuClassName:c.menuClassName,calendarClassName:c.calendarClassName,yearRange:c.yearRange,range:c.range,multiCalendars:(0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(T),multiCalendarsSolo:c.multiCalendarsSolo,multiStatic:c.multiStatic,calendarCellClassName:c.calendarCellClassName,enableTimePicker:c.enableTimePicker,is24:c.is24,hoursIncrement:c.hoursIncrement,minutesIncrement:c.minutesIncrement,hoursGridIncrement:c.hoursGridIncrement,minutesGridIncrement:c.minutesGridIncrement,minDate:c.minDate,maxDate:c.maxDate,autoApply:c.autoApply,selectText:c.selectText,cancelText:c.cancelText,previewFormat:(0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(u),locale:c.locale,weekNumName:c.weekNumName,disabledDates:c.disabledDates,filters:(0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(se),minTime:c.minTime,maxTime:c.maxTime,inline:c.inline,openOnTop:(0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(F),monthPicker:c.monthPicker,timePicker:c.timePicker,monthNameFormat:c.monthNameFormat,startDate:c.startDate,startTime:(0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(f),monthYearComponent:c.monthYearComponent,timePickerComponent:c.timePickerComponent,actionRowComponent:c.actionRowComponent,customProps:c.customProps,hideOffsetDates:c.hideOffsetDates,autoRange:c.autoRange,noToday:c.noToday,noHoursOverlay:c.noHoursOverlay,noMinutesOverlay:c.noMinutesOverlay,disabledWeekDays:c.disabledWeekDays,allowedDates:c.allowedDates,showNowButton:c.showNowButton,nowButtonLabel:c.nowButtonLabel,monthChangeOnScroll:c.monthChangeOnScroll,markers:c.markers,uid:c.uid,modeHeight:c.modeHeight,enableSeconds:c.enableSeconds,secondsIncrement:c.secondsIncrement,secondsGridIncrement:c.secondsGridIncrement,noSecondsOverlay:c.noSecondsOverlay,escClose:c.escClose,spaceConfirm:c.spaceConfirm,monthChangeOnArrows:c.monthChangeOnArrows,textInput:c.textInput,disabled:c.disabled,readonly:c.readonly,multiDates:c.multiDates,presetRanges:c.presetRanges,flow:c.flow,preventMinMaxNavigation:c.preventMinMaxNavigation,minRange:c.minRange,maxRange:c.maxRange,fixedStart:c.fixedStart,fixedEnd:c.fixedEnd,multiDatesLimit:c.multiDatesLimit,reverseYears:c.reverseYears,keepActionRow:c.keepActionRow,weekPicker:c.weekPicker,noSwipe:c.noSwipe,vertical:c.vertical,arrowNavigation:c.arrowNavigation,yearPicker:c.yearPicker,disableTimeRangeValidation:c.disableTimeRangeValidation,dayNames:c.dayNames,modelAuto:c.modelAuto},{internalModelValue:(0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(C),"onUpdate:internalModelValue":re[2]||(re[2]=fe=>(0,vue__WEBPACK_IMPORTED_MODULE_0__.isRef)(C)?C.value=fe:null),onClosePicker:Pe,onSelectDate:Oe,onDpOpen:(0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(r),onAutoApply:vt,onTimeUpdate:xe,onFlowStep:re[3]||(re[3]=fe=>c.$emit("flow-step",fe)),onUpdateMonthYear:re[4]||(re[4]=fe=>c.$emit("updateMonthYear",fe))}),(0,vue__WEBPACK_IMPORTED_MODULE_0__.createSlots)({_:2},[(0,vue__WEBPACK_IMPORTED_MODULE_0__.renderList)((0,vue__WEBPACK_IMPORTED_MODULE_0__.unref)(V),(fe,ht)=>({name:fe,fn:(0,vue__WEBPACK_IMPORTED_MODULE_0__.withCtx)(tt=>[(0,vue__WEBPACK_IMPORTED_MODULE_0__.renderSlot)(c.$slots,fe,(0,vue__WEBPACK_IMPORTED_MODULE_0__.normalizeProps)((0,vue__WEBPACK_IMPORTED_MODULE_0__.guardReactiveProps)(J({},tt))))])}))]),1040,["class","style","internalModelValue","onDpOpen"])):(0,vue__WEBPACK_IMPORTED_MODULE_0__.createCommentVNode)("",!0)],8,["to","disabled"])):(0,vue__WEBPACK_IMPORTED_MODULE_0__.createCommentVNode)("",!0)],2))}});var gn=(()=>{const e=eo;return e.install=a=>{a.component("Vue3DatePicker",e)},e})(),to=Object.freeze(Object.defineProperty({__proto__:null,default:gn},Symbol.toStringTag,{value:"Module"}));Object.entries(to).forEach(([e,a])=>{e!=="default"&&(gn[e]=a)});
 
 
 /***/ }),
@@ -19468,21 +19593,24 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony export */   "default": () => (__WEBPACK_DEFAULT_EXPORT__)
 /* harmony export */ });
 /* harmony import */ var _CarrinhoQuantidadeItem_vue__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ./CarrinhoQuantidadeItem.vue */ "./resources/js/vueComponents/CarrinhoQuantidadeItem.vue");
-/* harmony import */ var axios__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! axios */ "./node_modules/axios/index.js");
-/* harmony import */ var axios__WEBPACK_IMPORTED_MODULE_1___default = /*#__PURE__*/__webpack_require__.n(axios__WEBPACK_IMPORTED_MODULE_1__);
+/* harmony import */ var _CarrinhoItensAdicionais_vue__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ./CarrinhoItensAdicionais.vue */ "./resources/js/vueComponents/CarrinhoItensAdicionais.vue");
+/* harmony import */ var axios__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! axios */ "./node_modules/axios/index.js");
+/* harmony import */ var axios__WEBPACK_IMPORTED_MODULE_2___default = /*#__PURE__*/__webpack_require__.n(axios__WEBPACK_IMPORTED_MODULE_2__);
+
 
 
 /* harmony default export */ const __WEBPACK_DEFAULT_EXPORT__ = ({
   inject: ['adicionarErro'],
   props: ['carrinhoitem'],
   components: {
-    CarrinhoQuantidadeItem: _CarrinhoQuantidadeItem_vue__WEBPACK_IMPORTED_MODULE_0__["default"]
+    CarrinhoQuantidadeItem: _CarrinhoQuantidadeItem_vue__WEBPACK_IMPORTED_MODULE_0__["default"],
+    CarrinhoItensAdicionais: _CarrinhoItensAdicionais_vue__WEBPACK_IMPORTED_MODULE_1__["default"]
   },
   methods: {
     alterarquantidade: function alterarquantidade(quantidade) {
       var _this = this;
 
-      axios__WEBPACK_IMPORTED_MODULE_1___default().post(this.carrinhoitem.link_alterar_quantidade, {
+      axios__WEBPACK_IMPORTED_MODULE_2___default().post(this.carrinhoitem.link_alterar_quantidade, {
         quantidade: quantidade
       }).then(function (response) {
         if (response.data.erro) {
@@ -19508,7 +19636,7 @@ __webpack_require__.r(__webpack_exports__);
       var _this = this;
 
       loader.mostrar();
-      axios__WEBPACK_IMPORTED_MODULE_1___default().get(this.carrinhoitem.link_remover).then(function (response) {
+      axios__WEBPACK_IMPORTED_MODULE_2___default().get(this.carrinhoitem.link_remover).then(function (response) {
         loader.esconder();
 
         if (response.data.erro) {
@@ -19528,6 +19656,44 @@ __webpack_require__.r(__webpack_exports__);
         setTimeout(function () {
           window.location.reload();
         }, 5000);
+      });
+    }
+  }
+});
+
+/***/ }),
+
+/***/ "./node_modules/babel-loader/lib/index.js??clonedRuleSet-5.use[0]!./node_modules/vue-loader/dist/index.js??ruleSet[0].use[0]!./resources/js/vueComponents/CarrinhoItensAdicionais.vue?vue&type=script&lang=js":
+/*!********************************************************************************************************************************************************************************************************************!*\
+  !*** ./node_modules/babel-loader/lib/index.js??clonedRuleSet-5.use[0]!./node_modules/vue-loader/dist/index.js??ruleSet[0].use[0]!./resources/js/vueComponents/CarrinhoItensAdicionais.vue?vue&type=script&lang=js ***!
+  \********************************************************************************************************************************************************************************************************************/
+/***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
+
+"use strict";
+__webpack_require__.r(__webpack_exports__);
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   "default": () => (__WEBPACK_DEFAULT_EXPORT__)
+/* harmony export */ });
+/* harmony import */ var axios__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! axios */ "./node_modules/axios/index.js");
+/* harmony import */ var axios__WEBPACK_IMPORTED_MODULE_0___default = /*#__PURE__*/__webpack_require__.n(axios__WEBPACK_IMPORTED_MODULE_0__);
+
+/* harmony default export */ const __WEBPACK_DEFAULT_EXPORT__ = ({
+  props: ['pedidoItem'],
+  data: function data() {
+    return {
+      adicionais: []
+    };
+  },
+  methods: {
+    carregar: function carregar() {
+      var _this = this;
+
+      loader.mostrar();
+      axios__WEBPACK_IMPORTED_MODULE_0___default().get(this.pedidoItem.link_adicionais).then(function (response) {
+        loader.esconder();
+        _this.adicionais = response.data.adicionais;
+        var modal = new bootstrap.Modal(document.querySelector('.modal-adicionais-' + _this.pedidoItem.id));
+        modal.show();
       });
     }
   }
@@ -19723,7 +19889,7 @@ __webpack_require__.r(__webpack_exports__);
 
       axios__WEBPACK_IMPORTED_MODULE_1___default().post(this.checkout.finalizarPedido).then(function (response) {
         if (response.data.redirect) {
-          window.location = resposne.data.redirect;
+          window.location = response.data.redirect;
           return;
         }
 
@@ -19731,15 +19897,8 @@ __webpack_require__.r(__webpack_exports__);
           _this.checkout = response.data.checkout;
         }
 
-        if (response.data.erros) {
-          _this.erros = response.data.erros;
-          setTimeout(function () {
-            var alert = document.querySelector('.alert.alert-danger');
-
-            if (alert) {
-              document.body.scrollTop = alert.offsetTop - 100;
-            }
-          }, 100);
+        if (response.data.hasOwnProperty('erros')) {
+          _this.adicionarErro(Object.values(response.data.erros).flat().join('<br>'));
         }
       })["catch"](function (error) {
         _this.adicionarErro("ocorreu um erro ao finalizar o pedido, tente novamente mais tarde");
@@ -19993,6 +20152,8 @@ var _hoisted_11 = {
   "class": "informacoes"
 };
 function render(_ctx, _cache, $props, $setup, $data, $options) {
+  var _component_CarrinhoItensAdicionais = (0,vue__WEBPACK_IMPORTED_MODULE_0__.resolveComponent)("CarrinhoItensAdicionais");
+
   var _component_CarrinhoQuantidadeItem = (0,vue__WEBPACK_IMPORTED_MODULE_0__.resolveComponent)("CarrinhoQuantidadeItem");
 
   return (0,vue__WEBPACK_IMPORTED_MODULE_0__.openBlock)(), (0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementBlock)("div", {
@@ -20009,7 +20170,12 @@ function render(_ctx, _cache, $props, $setup, $data, $options) {
   /* TEXT */
   ), (0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementVNode)("span", _hoisted_7, (0,vue__WEBPACK_IMPORTED_MODULE_0__.toDisplayString)($props.carrinhoitem.preco_unidade) + " / " + (0,vue__WEBPACK_IMPORTED_MODULE_0__.toDisplayString)($props.carrinhoitem.unidade), 1
   /* TEXT */
-  )]), (0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementVNode)("div", _hoisted_8, [(0,vue__WEBPACK_IMPORTED_MODULE_0__.createVNode)(_component_CarrinhoQuantidadeItem, {
+  )]), (0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementVNode)("div", _hoisted_8, [$props.carrinhoitem.tem_adicionais ? ((0,vue__WEBPACK_IMPORTED_MODULE_0__.openBlock)(), (0,vue__WEBPACK_IMPORTED_MODULE_0__.createBlock)(_component_CarrinhoItensAdicionais, {
+    key: 0,
+    pedidoItem: $props.carrinhoitem
+  }, null, 8
+  /* PROPS */
+  , ["pedidoItem"])) : (0,vue__WEBPACK_IMPORTED_MODULE_0__.createCommentVNode)("v-if", true), (0,vue__WEBPACK_IMPORTED_MODULE_0__.createVNode)(_component_CarrinhoQuantidadeItem, {
     "class": "quantidade-item component-carrinho-quantidade-item",
     value: $props.carrinhoitem.quantidade,
     name: "quantidade",
@@ -20042,6 +20208,131 @@ function render(_ctx, _cache, $props, $setup, $data, $options) {
   ))], 8
   /* PROPS */
   , _hoisted_1);
+}
+
+/***/ }),
+
+/***/ "./node_modules/babel-loader/lib/index.js??clonedRuleSet-5.use[0]!./node_modules/vue-loader/dist/templateLoader.js??ruleSet[1].rules[2]!./node_modules/vue-loader/dist/index.js??ruleSet[0].use[0]!./resources/js/vueComponents/CarrinhoItensAdicionais.vue?vue&type=template&id=f1f40558&scoped=true":
+/*!************************************************************************************************************************************************************************************************************************************************************************************************************!*\
+  !*** ./node_modules/babel-loader/lib/index.js??clonedRuleSet-5.use[0]!./node_modules/vue-loader/dist/templateLoader.js??ruleSet[1].rules[2]!./node_modules/vue-loader/dist/index.js??ruleSet[0].use[0]!./resources/js/vueComponents/CarrinhoItensAdicionais.vue?vue&type=template&id=f1f40558&scoped=true ***!
+  \************************************************************************************************************************************************************************************************************************************************************************************************************/
+/***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
+
+"use strict";
+__webpack_require__.r(__webpack_exports__);
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   "render": () => (/* binding */ render)
+/* harmony export */ });
+/* harmony import */ var vue__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! vue */ "./node_modules/vue/dist/vue.esm-bundler.js");
+
+
+var _withScopeId = function _withScopeId(n) {
+  return (0,vue__WEBPACK_IMPORTED_MODULE_0__.pushScopeId)("data-v-f1f40558"), n = n(), (0,vue__WEBPACK_IMPORTED_MODULE_0__.popScopeId)(), n;
+};
+
+var _hoisted_1 = /*#__PURE__*/_withScopeId(function () {
+  return /*#__PURE__*/(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementVNode)("i", {
+    "class": "fa-solid fa-seedling"
+  }, null, -1
+  /* HOISTED */
+  );
+});
+
+var _hoisted_2 = [_hoisted_1];
+var _hoisted_3 = {
+  "class": "modal-dialog modal-lg"
+};
+var _hoisted_4 = {
+  "class": "modal-content"
+};
+
+var _hoisted_5 = /*#__PURE__*/_withScopeId(function () {
+  return /*#__PURE__*/(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementVNode)("div", {
+    "class": "modal-header"
+  }, [/*#__PURE__*/(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementVNode)("h3", null, "Adicionais"), /*#__PURE__*/(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementVNode)("button", {
+    type: "button",
+    "class": "close",
+    "data-bs-dismiss": "modal",
+    "aria-label": "Close"
+  }, [/*#__PURE__*/(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementVNode)("i", {
+    "class": "fas fa-times"
+  })])], -1
+  /* HOISTED */
+  );
+});
+
+var _hoisted_6 = {
+  "class": "modal-body"
+};
+var _hoisted_7 = {
+  "class": "col-4 col-lg-3"
+};
+var _hoisted_8 = ["src", "alt"];
+var _hoisted_9 = {
+  "class": "col-6 col-lg-7"
+};
+var _hoisted_10 = {
+  "class": "row"
+};
+var _hoisted_11 = {
+  "class": "preco"
+};
+
+var _hoisted_12 = /*#__PURE__*/_withScopeId(function () {
+  return /*#__PURE__*/(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementVNode)("span", {
+    "class": "unidade"
+  }, " / Kg", -1
+  /* HOISTED */
+  );
+});
+
+var _hoisted_13 = /*#__PURE__*/_withScopeId(function () {
+  return /*#__PURE__*/(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementVNode)("div", {
+    "class": "col-lg-2 d-flex align-items-center justify-content-center"
+  }, [/*#__PURE__*/(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementVNode)("button", {
+    "class": "selecionar"
+  }, [/*#__PURE__*/(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementVNode)("i", {
+    "class": "fa-solid fa-check"
+  })])], -1
+  /* HOISTED */
+  );
+});
+
+var _hoisted_14 = {
+  "class": "modal-footer"
+};
+function render(_ctx, _cache, $props, $setup, $data, $options) {
+  return (0,vue__WEBPACK_IMPORTED_MODULE_0__.openBlock)(), (0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementBlock)("div", null, [(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementVNode)("button", {
+    "class": "adicionais",
+    onClick: _cache[0] || (_cache[0] = (0,vue__WEBPACK_IMPORTED_MODULE_0__.withModifiers)(function ($event) {
+      return $options.carregar();
+    }, ["prevent"]))
+  }, _hoisted_2), ((0,vue__WEBPACK_IMPORTED_MODULE_0__.openBlock)(), (0,vue__WEBPACK_IMPORTED_MODULE_0__.createBlock)(vue__WEBPACK_IMPORTED_MODULE_0__.Teleport, {
+    to: "body"
+  }, [(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementVNode)("div", {
+    "class": (0,vue__WEBPACK_IMPORTED_MODULE_0__.normalizeClass)(["modal fade show modal-adicionais", ['modal fade show modal-adicionais', 'modal-adicionais-' + $props.pedidoItem.id]]),
+    tabindex: "-1"
+  }, [(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementVNode)("div", _hoisted_3, [(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementVNode)("div", _hoisted_4, [_hoisted_5, (0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementVNode)("div", _hoisted_6, [((0,vue__WEBPACK_IMPORTED_MODULE_0__.openBlock)(true), (0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementBlock)(vue__WEBPACK_IMPORTED_MODULE_0__.Fragment, null, (0,vue__WEBPACK_IMPORTED_MODULE_0__.renderList)($data.adicionais, function (adicional) {
+    return (0,vue__WEBPACK_IMPORTED_MODULE_0__.openBlock)(), (0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementBlock)("div", {
+      "class": "row item-adicional",
+      key: adicional.id
+    }, [(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementVNode)("div", _hoisted_7, [(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementVNode)("img", {
+      src: adicional.imagem.src,
+      alt: adicional.imagem.descricao
+    }, null, 8
+    /* PROPS */
+    , _hoisted_8)]), (0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementVNode)("div", _hoisted_9, [(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementVNode)("div", _hoisted_10, [(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementVNode)("h3", null, (0,vue__WEBPACK_IMPORTED_MODULE_0__.toDisplayString)(adicional.nome), 1
+    /* TEXT */
+    ), (0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementVNode)("span", null, (0,vue__WEBPACK_IMPORTED_MODULE_0__.toDisplayString)(adicional.descricao), 1
+    /* TEXT */
+    ), (0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementVNode)("span", null, [(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementVNode)("span", _hoisted_11, "R$ " + (0,vue__WEBPACK_IMPORTED_MODULE_0__.toDisplayString)(adicional.preco), 1
+    /* TEXT */
+    ), _hoisted_12])])]), _hoisted_13]);
+  }), 128
+  /* KEYED_FRAGMENT */
+  ))]), (0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementVNode)("div", _hoisted_14, [(0,vue__WEBPACK_IMPORTED_MODULE_0__.renderSlot)(_ctx.$slots, "footer", {}, undefined, true)])])])], 2
+  /* CLASS */
+  )]))]);
 }
 
 /***/ }),
@@ -20225,14 +20516,12 @@ var _hoisted_27 = {
   "class": "mt-4"
 };
 function render(_ctx, _cache, $props, $setup, $data, $options) {
-  var _$data$checkout$data_, _$data$checkout$data_2;
-
   var _component_datepicker = (0,vue__WEBPACK_IMPORTED_MODULE_0__.resolveComponent)("datepicker");
 
   return (0,vue__WEBPACK_IMPORTED_MODULE_0__.openBlock)(), (0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementBlock)("div", _hoisted_1, [(0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementVNode)("div", _hoisted_2, [_hoisted_3, (0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementVNode)("div", _hoisted_4, [_hoisted_5, (0,vue__WEBPACK_IMPORTED_MODULE_0__.createVNode)(_component_datepicker, {
     name: "data_entrega",
     onAlterarData: $options.alterarDataEntrega,
-    data: (_$data$checkout$data_ = $data.checkout.data_entrega) !== null && _$data$checkout$data_ !== void 0 ? _$data$checkout$data_ : new Date()
+    data: $data.checkout.data_entrega
   }, null, 8
   /* PROPS */
   , ["onAlterarData", "data"]), $data.erros.data_entrega && $data.erros.data_entrega.length > 0 ? ((0,vue__WEBPACK_IMPORTED_MODULE_0__.openBlock)(), (0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementBlock)("div", _hoisted_6, [((0,vue__WEBPACK_IMPORTED_MODULE_0__.openBlock)(true), (0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementBlock)(vue__WEBPACK_IMPORTED_MODULE_0__.Fragment, null, (0,vue__WEBPACK_IMPORTED_MODULE_0__.renderList)($data.erros.data_entrega, function (erro) {
@@ -20319,7 +20608,7 @@ function render(_ctx, _cache, $props, $setup, $data, $options) {
   ))])) : (0,vue__WEBPACK_IMPORTED_MODULE_0__.createCommentVNode)("v-if", true)]), $options.mostrarDataPagamento ? ((0,vue__WEBPACK_IMPORTED_MODULE_0__.openBlock)(), (0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementBlock)("div", _hoisted_24, [_hoisted_25, (0,vue__WEBPACK_IMPORTED_MODULE_0__.createVNode)(_component_datepicker, {
     name: "data_pagamento",
     onAlterarData: $options.alterarDataPagamento,
-    data: (_$data$checkout$data_2 = $data.checkout.data_pagamento) !== null && _$data$checkout$data_2 !== void 0 ? _$data$checkout$data_2 : new Date()
+    data: $data.checkout.data_pagamento
   }, null, 8
   /* PROPS */
   , ["onAlterarData", "data"]), $data.erros.data_pagamento && $data.erros.data_pagamento.length > 0 ? ((0,vue__WEBPACK_IMPORTED_MODULE_0__.openBlock)(), (0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementBlock)("div", _hoisted_26, [((0,vue__WEBPACK_IMPORTED_MODULE_0__.openBlock)(true), (0,vue__WEBPACK_IMPORTED_MODULE_0__.createElementBlock)(vue__WEBPACK_IMPORTED_MODULE_0__.Fragment, null, (0,vue__WEBPACK_IMPORTED_MODULE_0__.renderList)($data.erros.data_pagamento, function (erro) {
@@ -20424,7 +20713,31 @@ __webpack_require__.r(__webpack_exports__);
 
 var ___CSS_LOADER_EXPORT___ = _node_modules_css_loader_dist_runtime_api_js__WEBPACK_IMPORTED_MODULE_0___default()(function(i){return i[1]});
 // Module
-___CSS_LOADER_EXPORT___.push([module.id, "\n.carrinho .carrinho-item {\n    display: flex;\n    flex-direction: column;\n    align-items: flex-start;\n    background: #ffffff;\n    box-shadow: 0px 4px 4px rgba(0, 0, 0, 0.06);\n    border-radius: 12px;\n    padding: 1rem;\n    margin: 2rem 0;\n}\n.carrinho .carrinho-item:first-child{\n    margin-top: 0\n}\n.carrinho .carrinho-item:last-child{\n    margin-bottom: 0\n}\n.carrinho .carrinho-item .item-detalhe{\n    display: flex;\n    width: 100%;\n}\n.carrinho .carrinho-item img {\n    height: auto;\n    width: 100%;\n    border-radius: 14px;\n}\n.carrinho .carrinho-item .informacoes {\n    display: flex;\n    flex-direction: column;\n}\n.carrinho .carrinho-item .preco {\n    font-family: \"Poppins\", Arial, Helvetica, sans-serif;\n    margin-top: 0.5rem;\n    color: var(--verde-claro);\n    font-size: 24px;\n    font-weight: 600;\n}\n.carrinho .carrinho-item .preco-unidade {\n    font-family: \"Poppins\", Arial, Helvetica, sans-serif;\n    color: var(--cinza-escuro);\n    font-size: 16px;\n    font-weight: 500;\n}\n.carrinho .carrinho-item .detalhes {\n    flex: auto;\n    gap: 10px;\n    padding-top: 1rem;\n}\n/*\n.carrinho .carrinho-item .detalhes {\n    display: flex;\n    align-items: flex-end;\n    justify-content: flex-end;\n    flex: auto;\n}*/\n\n/* .cart .cart-data-item .cart-item-details .seed-tsi {\n    width: 56px;\n    height: 56px;\n    padding: 4px;\n    border-radius: 12px;\n    border: unset;\n    background: url(\"/img/semente-maca.svg\") top center no-repeat;\n    background-color: var(--verde-claro);\n} */\n.carrinho .carrinho-item .quantidade-item {\n    height: 56px;\n    display: flex;\n}\n.carrinho .carrinho-item .remover {\n    width: 56px;\n    height: 56px;\n    color: var(--borda);\n    border: 1px solid var(--borda);\n    background: var(--branco);\n    font-size: 24px;\n    border-radius: 12px;\n}\n\n/* ADICIONAIS */\n.carrinho .carrinho-item .adicionais .informacoes {\n    list-style: none;\n    padding: unset;\n}\n.carrinho .carrinho-item .adicionais b {\n    font-size: 16px;\n    color: var(--subtitulo);\n    font-weight: bold;\n}\n.carrinho .carrinho-item .adicionais {\n    margin-top: 1rem;\n}\n.carrinho .carrinho-item .item-adicional {\n    color: var(--subtitulo);\n    font-weight: 100;\n    font-size: 14px;\n}\n", ""]);
+___CSS_LOADER_EXPORT___.push([module.id, "\n.carrinho .carrinho-item {\n    display: flex;\n    flex-direction: column;\n    align-items: flex-start;\n    background: #ffffff;\n    box-shadow: 0px 4px 4px rgba(0, 0, 0, 0.06);\n    border-radius: 12px;\n    padding: 1rem;\n    margin: 2rem 0;\n}\n.carrinho .carrinho-item:first-child{\n    margin-top: 0\n}\n.carrinho .carrinho-item:last-child{\n    margin-bottom: 0\n}\n.carrinho .carrinho-item .item-detalhe{\n    display: flex;\n    width: 100%;\n}\n.carrinho .carrinho-item img {\n    height: auto;\n    width: 100%;\n    border-radius: 14px;\n}\n.carrinho .carrinho-item .informacoes {\n    display: flex;\n    flex-direction: column;\n}\n.carrinho .carrinho-item .preco {\n    font-family: \"Poppins\", Arial, Helvetica, sans-serif;\n    margin-top: 0.5rem;\n    color: var(--verde-claro);\n    font-size: 24px;\n    font-weight: 600;\n}\n.carrinho .carrinho-item .preco-unidade {\n    font-family: \"Poppins\", Arial, Helvetica, sans-serif;\n    color: var(--cinza-escuro);\n    font-size: 16px;\n    font-weight: 500;\n}\n.carrinho .carrinho-item .detalhes {\n    flex: auto;\n    gap: 10px;\n    padding-top: 1rem;\n}\n.carrinho .carrinho-item .quantidade-item {\n    height: 56px;\n    display: flex;\n}\n.carrinho .carrinho-item .remover {\n    width: 56px;\n    height: 56px;\n    color: var(--borda);\n    border: 1px solid var(--borda);\n    background: var(--branco);\n    font-size: 24px;\n    border-radius: 12px;\n}\n.carrinho .carrinho-item .adicionais {\n    width: 56px;\n    height: 56px;\n    color: var(--borda);\n    border: 1px solid var(--borda);\n    background: var(--branco);\n    font-size: 24px;\n    border-radius: 12px;\n}\n\n/* ADICIONAIS */\n.carrinho .carrinho-item .adicionais .informacoes {\n    list-style: none;\n    padding: unset;\n}\n.carrinho .carrinho-item .adicionais b {\n    font-size: 16px;\n    color: var(--subtitulo);\n    font-weight: bold;\n}\n.carrinho .carrinho-item .adicionais {\n    margin-top: 1rem;\n}\n.carrinho .carrinho-item .item-adicional {\n    color: var(--subtitulo);\n    font-weight: 100;\n    font-size: 14px;\n}\n", ""]);
+// Exports
+/* harmony default export */ const __WEBPACK_DEFAULT_EXPORT__ = (___CSS_LOADER_EXPORT___);
+
+
+/***/ }),
+
+/***/ "./node_modules/css-loader/dist/cjs.js??clonedRuleSet-11.use[1]!./node_modules/vue-loader/dist/stylePostLoader.js!./node_modules/postcss-loader/dist/cjs.js??clonedRuleSet-11.use[2]!./node_modules/vue-loader/dist/index.js??ruleSet[0].use[0]!./resources/js/vueComponents/CarrinhoItensAdicionais.vue?vue&type=style&index=0&id=f1f40558&scoped=true&lang=css":
+/*!***********************************************************************************************************************************************************************************************************************************************************************************************************************************************************************!*\
+  !*** ./node_modules/css-loader/dist/cjs.js??clonedRuleSet-11.use[1]!./node_modules/vue-loader/dist/stylePostLoader.js!./node_modules/postcss-loader/dist/cjs.js??clonedRuleSet-11.use[2]!./node_modules/vue-loader/dist/index.js??ruleSet[0].use[0]!./resources/js/vueComponents/CarrinhoItensAdicionais.vue?vue&type=style&index=0&id=f1f40558&scoped=true&lang=css ***!
+  \***********************************************************************************************************************************************************************************************************************************************************************************************************************************************************************/
+/***/ ((module, __webpack_exports__, __webpack_require__) => {
+
+"use strict";
+__webpack_require__.r(__webpack_exports__);
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   "default": () => (__WEBPACK_DEFAULT_EXPORT__)
+/* harmony export */ });
+/* harmony import */ var _node_modules_css_loader_dist_runtime_api_js__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ../../../node_modules/css-loader/dist/runtime/api.js */ "./node_modules/css-loader/dist/runtime/api.js");
+/* harmony import */ var _node_modules_css_loader_dist_runtime_api_js__WEBPACK_IMPORTED_MODULE_0___default = /*#__PURE__*/__webpack_require__.n(_node_modules_css_loader_dist_runtime_api_js__WEBPACK_IMPORTED_MODULE_0__);
+// Imports
+
+var ___CSS_LOADER_EXPORT___ = _node_modules_css_loader_dist_runtime_api_js__WEBPACK_IMPORTED_MODULE_0___default()(function(i){return i[1]});
+// Module
+___CSS_LOADER_EXPORT___.push([module.id, "\n.modal-adicionais img[data-v-f1f40558]{\n    width: 100%;\n}\n.modal-adicionais .item-adicional + .item-adicional[data-v-f1f40558]{\n    margin-top: 15px;\n}\n.modal-adicionais .selecionar[data-v-f1f40558]{\n    width: 56px;\n    height: 56px;\n    color: var(--borda);\n    border: 1px solid var(--borda);\n    background: var(--branco);\n    font-size: 24px;\n    border-radius: 12px;\n}\n.modal-adicionais .item-adicional .preco[data-v-f1f40558] {\n    font-family: \"Poppins\", Arial, Helvetica, sans-serif;\n    margin-top: 0.5rem;\n    color: var(--verde-claro);\n    font-size: 24px;\n    font-weight: 600;\n}\n.modal-adicionais .item-adicional .unidade[data-v-f1f40558] {\n    font-family: \"Poppins\", Arial, Helvetica, sans-serif;\n    color: var(--cinza-escuro);\n    font-size: 16px;\n    font-weight: 500;\n}\n\n", ""]);
 // Exports
 /* harmony default export */ const __WEBPACK_DEFAULT_EXPORT__ = (___CSS_LOADER_EXPORT___);
 
@@ -20590,20 +20903,58 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony export */ __webpack_require__.d(__webpack_exports__, {
 /* harmony export */   "default": () => (/* binding */ assign)
 /* harmony export */ });
-function assign(target, dirtyObject) {
+function assign(target, object) {
   if (target == null) {
     throw new TypeError('assign requires that input parameter not be null or undefined');
   }
 
-  dirtyObject = dirtyObject || {};
-
-  for (var property in dirtyObject) {
-    if (Object.prototype.hasOwnProperty.call(dirtyObject, property)) {
-      target[property] = dirtyObject[property];
+  for (var property in object) {
+    if (Object.prototype.hasOwnProperty.call(object, property)) {
+      ;
+      target[property] = object[property];
     }
   }
 
   return target;
+}
+
+/***/ }),
+
+/***/ "./node_modules/date-fns/esm/_lib/defaultLocale/index.js":
+/*!***************************************************************!*\
+  !*** ./node_modules/date-fns/esm/_lib/defaultLocale/index.js ***!
+  \***************************************************************/
+/***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
+
+"use strict";
+__webpack_require__.r(__webpack_exports__);
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   "default": () => (__WEBPACK_DEFAULT_EXPORT__)
+/* harmony export */ });
+/* harmony import */ var _locale_en_US_index_js__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ../../locale/en-US/index.js */ "./node_modules/date-fns/esm/locale/en-US/index.js");
+
+/* harmony default export */ const __WEBPACK_DEFAULT_EXPORT__ = (_locale_en_US_index_js__WEBPACK_IMPORTED_MODULE_0__["default"]);
+
+/***/ }),
+
+/***/ "./node_modules/date-fns/esm/_lib/defaultOptions/index.js":
+/*!****************************************************************!*\
+  !*** ./node_modules/date-fns/esm/_lib/defaultOptions/index.js ***!
+  \****************************************************************/
+/***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
+
+"use strict";
+__webpack_require__.r(__webpack_exports__);
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   "getDefaultOptions": () => (/* binding */ getDefaultOptions),
+/* harmony export */   "setDefaultOptions": () => (/* binding */ setDefaultOptions)
+/* harmony export */ });
+var defaultOptions = {};
+function getDefaultOptions() {
+  return defaultOptions;
+}
+function setDefaultOptions(newOptions) {
+  defaultOptions = newOptions;
 }
 
 /***/ }),
@@ -20643,6 +20994,7 @@ var dayPeriodEnum = {
   evening: 'evening',
   night: 'night'
 };
+
 /*
  * |     | Unit                           |     | Unit                           |
  * |-----|--------------------------------|-----|--------------------------------|
@@ -20688,7 +21040,6 @@ var dayPeriodEnum = {
  * - `P` is long localized date format
  * - `p` is long localized time format
  */
-
 var formatters = {
   // Era
   G: function (date, token, localize) {
@@ -21605,7 +21956,7 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony export */ __webpack_require__.d(__webpack_exports__, {
 /* harmony export */   "default": () => (__WEBPACK_DEFAULT_EXPORT__)
 /* harmony export */ });
-function dateLongFormatter(pattern, formatLong) {
+var dateLongFormatter = function (pattern, formatLong) {
   switch (pattern) {
     case 'P':
       return formatLong.date({
@@ -21628,9 +21979,9 @@ function dateLongFormatter(pattern, formatLong) {
         width: 'full'
       });
   }
-}
+};
 
-function timeLongFormatter(pattern, formatLong) {
+var timeLongFormatter = function (pattern, formatLong) {
   switch (pattern) {
     case 'p':
       return formatLong.time({
@@ -21653,9 +22004,9 @@ function timeLongFormatter(pattern, formatLong) {
         width: 'full'
       });
   }
-}
+};
 
-function dateTimeLongFormatter(pattern, formatLong) {
+var dateTimeLongFormatter = function (pattern, formatLong) {
   var matchResult = pattern.match(/(P+)(p+)?/) || [];
   var datePattern = matchResult[1];
   var timePattern = matchResult[2];
@@ -21694,7 +22045,7 @@ function dateTimeLongFormatter(pattern, formatLong) {
   }
 
   return dateTimeFormat.replace('{{date}}', dateLongFormatter(datePattern, formatLong)).replace('{{time}}', timeLongFormatter(timePattern, formatLong));
-}
+};
 
 var longFormatters = {
   p: timeLongFormatter,
@@ -21749,9 +22100,7 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony import */ var _requiredArgs_index_js__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ../requiredArgs/index.js */ "./node_modules/date-fns/esm/_lib/requiredArgs/index.js");
 
 
-var MILLISECONDS_IN_DAY = 86400000; // This function will be a part of public API when UTC function will be implemented.
-// See issue: https://github.com/date-fns/date-fns/issues/376
-
+var MILLISECONDS_IN_DAY = 86400000;
 function getUTCDayOfYear(dirtyDate) {
   (0,_requiredArgs_index_js__WEBPACK_IMPORTED_MODULE_0__["default"])(1, arguments);
   var date = (0,_toDate_index_js__WEBPACK_IMPORTED_MODULE_1__["default"])(dirtyDate);
@@ -21784,9 +22133,7 @@ __webpack_require__.r(__webpack_exports__);
 
 
 
-var MILLISECONDS_IN_WEEK = 604800000; // This function will be a part of public API when UTC function will be implemented.
-// See issue: https://github.com/date-fns/date-fns/issues/376
-
+var MILLISECONDS_IN_WEEK = 604800000;
 function getUTCISOWeek(dirtyDate) {
   (0,_requiredArgs_index_js__WEBPACK_IMPORTED_MODULE_0__["default"])(1, arguments);
   var date = (0,_toDate_index_js__WEBPACK_IMPORTED_MODULE_1__["default"])(dirtyDate);
@@ -21815,8 +22162,6 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony import */ var _startOfUTCISOWeek_index_js__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! ../startOfUTCISOWeek/index.js */ "./node_modules/date-fns/esm/_lib/startOfUTCISOWeek/index.js");
 
 
- // This function will be a part of public API when UTC function will be implemented.
-// See issue: https://github.com/date-fns/date-fns/issues/376
 
 function getUTCISOWeekYear(dirtyDate) {
   (0,_requiredArgs_index_js__WEBPACK_IMPORTED_MODULE_0__["default"])(1, arguments);
@@ -21861,9 +22206,7 @@ __webpack_require__.r(__webpack_exports__);
 
 
 
-var MILLISECONDS_IN_WEEK = 604800000; // This function will be a part of public API when UTC function will be implemented.
-// See issue: https://github.com/date-fns/date-fns/issues/376
-
+var MILLISECONDS_IN_WEEK = 604800000;
 function getUTCWeek(dirtyDate, options) {
   (0,_requiredArgs_index_js__WEBPACK_IMPORTED_MODULE_0__["default"])(1, arguments);
   var date = (0,_toDate_index_js__WEBPACK_IMPORTED_MODULE_1__["default"])(dirtyDate);
@@ -21889,23 +22232,22 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony export */ });
 /* harmony import */ var _toDate_index_js__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ../../toDate/index.js */ "./node_modules/date-fns/esm/toDate/index.js");
 /* harmony import */ var _requiredArgs_index_js__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ../requiredArgs/index.js */ "./node_modules/date-fns/esm/_lib/requiredArgs/index.js");
-/* harmony import */ var _startOfUTCWeek_index_js__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__(/*! ../startOfUTCWeek/index.js */ "./node_modules/date-fns/esm/_lib/startOfUTCWeek/index.js");
-/* harmony import */ var _toInteger_index_js__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! ../toInteger/index.js */ "./node_modules/date-fns/esm/_lib/toInteger/index.js");
+/* harmony import */ var _startOfUTCWeek_index_js__WEBPACK_IMPORTED_MODULE_4__ = __webpack_require__(/*! ../startOfUTCWeek/index.js */ "./node_modules/date-fns/esm/_lib/startOfUTCWeek/index.js");
+/* harmony import */ var _toInteger_index_js__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__(/*! ../toInteger/index.js */ "./node_modules/date-fns/esm/_lib/toInteger/index.js");
+/* harmony import */ var _defaultOptions_index_js__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! ../defaultOptions/index.js */ "./node_modules/date-fns/esm/_lib/defaultOptions/index.js");
 
 
 
- // This function will be a part of public API when UTC function will be implemented.
-// See issue: https://github.com/date-fns/date-fns/issues/376
 
-function getUTCWeekYear(dirtyDate, dirtyOptions) {
+
+function getUTCWeekYear(dirtyDate, options) {
+  var _ref, _ref2, _ref3, _options$firstWeekCon, _options$locale, _options$locale$optio, _defaultOptions$local, _defaultOptions$local2;
+
   (0,_requiredArgs_index_js__WEBPACK_IMPORTED_MODULE_0__["default"])(1, arguments);
   var date = (0,_toDate_index_js__WEBPACK_IMPORTED_MODULE_1__["default"])(dirtyDate);
   var year = date.getUTCFullYear();
-  var options = dirtyOptions || {};
-  var locale = options.locale;
-  var localeFirstWeekContainsDate = locale && locale.options && locale.options.firstWeekContainsDate;
-  var defaultFirstWeekContainsDate = localeFirstWeekContainsDate == null ? 1 : (0,_toInteger_index_js__WEBPACK_IMPORTED_MODULE_2__["default"])(localeFirstWeekContainsDate);
-  var firstWeekContainsDate = options.firstWeekContainsDate == null ? defaultFirstWeekContainsDate : (0,_toInteger_index_js__WEBPACK_IMPORTED_MODULE_2__["default"])(options.firstWeekContainsDate); // Test if weekStartsOn is between 1 and 7 _and_ is not NaN
+  var defaultOptions = (0,_defaultOptions_index_js__WEBPACK_IMPORTED_MODULE_2__.getDefaultOptions)();
+  var firstWeekContainsDate = (0,_toInteger_index_js__WEBPACK_IMPORTED_MODULE_3__["default"])((_ref = (_ref2 = (_ref3 = (_options$firstWeekCon = options === null || options === void 0 ? void 0 : options.firstWeekContainsDate) !== null && _options$firstWeekCon !== void 0 ? _options$firstWeekCon : options === null || options === void 0 ? void 0 : (_options$locale = options.locale) === null || _options$locale === void 0 ? void 0 : (_options$locale$optio = _options$locale.options) === null || _options$locale$optio === void 0 ? void 0 : _options$locale$optio.firstWeekContainsDate) !== null && _ref3 !== void 0 ? _ref3 : defaultOptions.firstWeekContainsDate) !== null && _ref2 !== void 0 ? _ref2 : (_defaultOptions$local = defaultOptions.locale) === null || _defaultOptions$local === void 0 ? void 0 : (_defaultOptions$local2 = _defaultOptions$local.options) === null || _defaultOptions$local2 === void 0 ? void 0 : _defaultOptions$local2.firstWeekContainsDate) !== null && _ref !== void 0 ? _ref : 1); // Test if weekStartsOn is between 1 and 7 _and_ is not NaN
 
   if (!(firstWeekContainsDate >= 1 && firstWeekContainsDate <= 7)) {
     throw new RangeError('firstWeekContainsDate must be between 1 and 7 inclusively');
@@ -21914,11 +22256,11 @@ function getUTCWeekYear(dirtyDate, dirtyOptions) {
   var firstWeekOfNextYear = new Date(0);
   firstWeekOfNextYear.setUTCFullYear(year + 1, 0, firstWeekContainsDate);
   firstWeekOfNextYear.setUTCHours(0, 0, 0, 0);
-  var startOfNextYear = (0,_startOfUTCWeek_index_js__WEBPACK_IMPORTED_MODULE_3__["default"])(firstWeekOfNextYear, dirtyOptions);
+  var startOfNextYear = (0,_startOfUTCWeek_index_js__WEBPACK_IMPORTED_MODULE_4__["default"])(firstWeekOfNextYear, options);
   var firstWeekOfThisYear = new Date(0);
   firstWeekOfThisYear.setUTCFullYear(year, 0, firstWeekContainsDate);
   firstWeekOfThisYear.setUTCHours(0, 0, 0, 0);
-  var startOfThisYear = (0,_startOfUTCWeek_index_js__WEBPACK_IMPORTED_MODULE_3__["default"])(firstWeekOfThisYear, dirtyOptions);
+  var startOfThisYear = (0,_startOfUTCWeek_index_js__WEBPACK_IMPORTED_MODULE_4__["default"])(firstWeekOfThisYear, options);
 
   if (date.getTime() >= startOfNextYear.getTime()) {
     return year + 1;
@@ -21954,13 +22296,13 @@ function isProtectedWeekYearToken(token) {
 }
 function throwProtectedError(token, format, input) {
   if (token === 'YYYY') {
-    throw new RangeError("Use `yyyy` instead of `YYYY` (in `".concat(format, "`) for formatting years to the input `").concat(input, "`; see: https://git.io/fxCyr"));
+    throw new RangeError("Use `yyyy` instead of `YYYY` (in `".concat(format, "`) for formatting years to the input `").concat(input, "`; see: https://github.com/date-fns/date-fns/blob/master/docs/unicodeTokens.md"));
   } else if (token === 'YY') {
-    throw new RangeError("Use `yy` instead of `YY` (in `".concat(format, "`) for formatting years to the input `").concat(input, "`; see: https://git.io/fxCyr"));
+    throw new RangeError("Use `yy` instead of `YY` (in `".concat(format, "`) for formatting years to the input `").concat(input, "`; see: https://github.com/date-fns/date-fns/blob/master/docs/unicodeTokens.md"));
   } else if (token === 'D') {
-    throw new RangeError("Use `d` instead of `D` (in `".concat(format, "`) for formatting days of the month to the input `").concat(input, "`; see: https://git.io/fxCyr"));
+    throw new RangeError("Use `d` instead of `D` (in `".concat(format, "`) for formatting days of the month to the input `").concat(input, "`; see: https://github.com/date-fns/date-fns/blob/master/docs/unicodeTokens.md"));
   } else if (token === 'DD') {
-    throw new RangeError("Use `dd` instead of `DD` (in `".concat(format, "`) for formatting days of the month to the input `").concat(input, "`; see: https://git.io/fxCyr"));
+    throw new RangeError("Use `dd` instead of `DD` (in `".concat(format, "`) for formatting days of the month to the input `").concat(input, "`; see: https://github.com/date-fns/date-fns/blob/master/docs/unicodeTokens.md"));
   }
 }
 
@@ -21996,28 +22338,27 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony export */ __webpack_require__.d(__webpack_exports__, {
 /* harmony export */   "default": () => (/* binding */ setUTCDay)
 /* harmony export */ });
-/* harmony import */ var _toDate_index_js__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! ../../toDate/index.js */ "./node_modules/date-fns/esm/toDate/index.js");
+/* harmony import */ var _toDate_index_js__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__(/*! ../../toDate/index.js */ "./node_modules/date-fns/esm/toDate/index.js");
 /* harmony import */ var _requiredArgs_index_js__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ../requiredArgs/index.js */ "./node_modules/date-fns/esm/_lib/requiredArgs/index.js");
-/* harmony import */ var _toInteger_index_js__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ../toInteger/index.js */ "./node_modules/date-fns/esm/_lib/toInteger/index.js");
+/* harmony import */ var _toInteger_index_js__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! ../toInteger/index.js */ "./node_modules/date-fns/esm/_lib/toInteger/index.js");
+/* harmony import */ var _defaultOptions_index_js__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ../defaultOptions/index.js */ "./node_modules/date-fns/esm/_lib/defaultOptions/index.js");
 
 
- // This function will be a part of public API when UTC function will be implemented.
-// See issue: https://github.com/date-fns/date-fns/issues/376
 
-function setUTCDay(dirtyDate, dirtyDay, dirtyOptions) {
+
+function setUTCDay(dirtyDate, dirtyDay, options) {
+  var _ref, _ref2, _ref3, _options$weekStartsOn, _options$locale, _options$locale$optio, _defaultOptions$local, _defaultOptions$local2;
+
   (0,_requiredArgs_index_js__WEBPACK_IMPORTED_MODULE_0__["default"])(2, arguments);
-  var options = dirtyOptions || {};
-  var locale = options.locale;
-  var localeWeekStartsOn = locale && locale.options && locale.options.weekStartsOn;
-  var defaultWeekStartsOn = localeWeekStartsOn == null ? 0 : (0,_toInteger_index_js__WEBPACK_IMPORTED_MODULE_1__["default"])(localeWeekStartsOn);
-  var weekStartsOn = options.weekStartsOn == null ? defaultWeekStartsOn : (0,_toInteger_index_js__WEBPACK_IMPORTED_MODULE_1__["default"])(options.weekStartsOn); // Test if weekStartsOn is between 0 and 6 _and_ is not NaN
+  var defaultOptions = (0,_defaultOptions_index_js__WEBPACK_IMPORTED_MODULE_1__.getDefaultOptions)();
+  var weekStartsOn = (0,_toInteger_index_js__WEBPACK_IMPORTED_MODULE_2__["default"])((_ref = (_ref2 = (_ref3 = (_options$weekStartsOn = options === null || options === void 0 ? void 0 : options.weekStartsOn) !== null && _options$weekStartsOn !== void 0 ? _options$weekStartsOn : options === null || options === void 0 ? void 0 : (_options$locale = options.locale) === null || _options$locale === void 0 ? void 0 : (_options$locale$optio = _options$locale.options) === null || _options$locale$optio === void 0 ? void 0 : _options$locale$optio.weekStartsOn) !== null && _ref3 !== void 0 ? _ref3 : defaultOptions.weekStartsOn) !== null && _ref2 !== void 0 ? _ref2 : (_defaultOptions$local = defaultOptions.locale) === null || _defaultOptions$local === void 0 ? void 0 : (_defaultOptions$local2 = _defaultOptions$local.options) === null || _defaultOptions$local2 === void 0 ? void 0 : _defaultOptions$local2.weekStartsOn) !== null && _ref !== void 0 ? _ref : 0); // Test if weekStartsOn is between 0 and 6 _and_ is not NaN
 
   if (!(weekStartsOn >= 0 && weekStartsOn <= 6)) {
     throw new RangeError('weekStartsOn must be between 0 and 6 inclusively');
   }
 
-  var date = (0,_toDate_index_js__WEBPACK_IMPORTED_MODULE_2__["default"])(dirtyDate);
-  var day = (0,_toInteger_index_js__WEBPACK_IMPORTED_MODULE_1__["default"])(dirtyDay);
+  var date = (0,_toDate_index_js__WEBPACK_IMPORTED_MODULE_3__["default"])(dirtyDate);
+  var day = (0,_toInteger_index_js__WEBPACK_IMPORTED_MODULE_2__["default"])(dirtyDay);
   var currentDay = date.getUTCDay();
   var remainder = day % 7;
   var dayIndex = (remainder + 7) % 7;
@@ -22044,8 +22385,6 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony import */ var _toInteger_index_js__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ../toInteger/index.js */ "./node_modules/date-fns/esm/_lib/toInteger/index.js");
 
 
- // This function will be a part of public API when UTC function will be implemented.
-// See issue: https://github.com/date-fns/date-fns/issues/376
 
 function setUTCISODay(dirtyDate, dirtyDay) {
   (0,_requiredArgs_index_js__WEBPACK_IMPORTED_MODULE_0__["default"])(2, arguments);
@@ -22085,8 +22424,6 @@ __webpack_require__.r(__webpack_exports__);
 
 
 
- // This function will be a part of public API when UTC function will be implemented.
-// See issue: https://github.com/date-fns/date-fns/issues/376
 
 function setUTCISOWeek(dirtyDate, dirtyISOWeek) {
   (0,_requiredArgs_index_js__WEBPACK_IMPORTED_MODULE_0__["default"])(2, arguments);
@@ -22117,8 +22454,6 @@ __webpack_require__.r(__webpack_exports__);
 
 
 
- // This function will be a part of public API when UTC function will be implemented.
-// See issue: https://github.com/date-fns/date-fns/issues/376
 
 function setUTCWeek(dirtyDate, dirtyWeek, options) {
   (0,_requiredArgs_index_js__WEBPACK_IMPORTED_MODULE_0__["default"])(2, arguments);
@@ -22145,8 +22480,6 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony import */ var _toDate_index_js__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ../../toDate/index.js */ "./node_modules/date-fns/esm/toDate/index.js");
 /* harmony import */ var _requiredArgs_index_js__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ../requiredArgs/index.js */ "./node_modules/date-fns/esm/_lib/requiredArgs/index.js");
 
- // This function will be a part of public API when UTC function will be implemented.
-// See issue: https://github.com/date-fns/date-fns/issues/376
 
 function startOfUTCISOWeek(dirtyDate) {
   (0,_requiredArgs_index_js__WEBPACK_IMPORTED_MODULE_0__["default"])(1, arguments);
@@ -22177,8 +22510,6 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony import */ var _requiredArgs_index_js__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ../requiredArgs/index.js */ "./node_modules/date-fns/esm/_lib/requiredArgs/index.js");
 
 
- // This function will be a part of public API when UTC function will be implemented.
-// See issue: https://github.com/date-fns/date-fns/issues/376
 
 function startOfUTCISOWeekYear(dirtyDate) {
   (0,_requiredArgs_index_js__WEBPACK_IMPORTED_MODULE_0__["default"])(1, arguments);
@@ -22203,27 +22534,26 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony export */ __webpack_require__.d(__webpack_exports__, {
 /* harmony export */   "default": () => (/* binding */ startOfUTCWeek)
 /* harmony export */ });
-/* harmony import */ var _toDate_index_js__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! ../../toDate/index.js */ "./node_modules/date-fns/esm/toDate/index.js");
+/* harmony import */ var _toDate_index_js__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__(/*! ../../toDate/index.js */ "./node_modules/date-fns/esm/toDate/index.js");
 /* harmony import */ var _requiredArgs_index_js__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ../requiredArgs/index.js */ "./node_modules/date-fns/esm/_lib/requiredArgs/index.js");
-/* harmony import */ var _toInteger_index_js__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ../toInteger/index.js */ "./node_modules/date-fns/esm/_lib/toInteger/index.js");
+/* harmony import */ var _toInteger_index_js__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! ../toInteger/index.js */ "./node_modules/date-fns/esm/_lib/toInteger/index.js");
+/* harmony import */ var _defaultOptions_index_js__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ../defaultOptions/index.js */ "./node_modules/date-fns/esm/_lib/defaultOptions/index.js");
 
 
- // This function will be a part of public API when UTC function will be implemented.
-// See issue: https://github.com/date-fns/date-fns/issues/376
 
-function startOfUTCWeek(dirtyDate, dirtyOptions) {
+
+function startOfUTCWeek(dirtyDate, options) {
+  var _ref, _ref2, _ref3, _options$weekStartsOn, _options$locale, _options$locale$optio, _defaultOptions$local, _defaultOptions$local2;
+
   (0,_requiredArgs_index_js__WEBPACK_IMPORTED_MODULE_0__["default"])(1, arguments);
-  var options = dirtyOptions || {};
-  var locale = options.locale;
-  var localeWeekStartsOn = locale && locale.options && locale.options.weekStartsOn;
-  var defaultWeekStartsOn = localeWeekStartsOn == null ? 0 : (0,_toInteger_index_js__WEBPACK_IMPORTED_MODULE_1__["default"])(localeWeekStartsOn);
-  var weekStartsOn = options.weekStartsOn == null ? defaultWeekStartsOn : (0,_toInteger_index_js__WEBPACK_IMPORTED_MODULE_1__["default"])(options.weekStartsOn); // Test if weekStartsOn is between 0 and 6 _and_ is not NaN
+  var defaultOptions = (0,_defaultOptions_index_js__WEBPACK_IMPORTED_MODULE_1__.getDefaultOptions)();
+  var weekStartsOn = (0,_toInteger_index_js__WEBPACK_IMPORTED_MODULE_2__["default"])((_ref = (_ref2 = (_ref3 = (_options$weekStartsOn = options === null || options === void 0 ? void 0 : options.weekStartsOn) !== null && _options$weekStartsOn !== void 0 ? _options$weekStartsOn : options === null || options === void 0 ? void 0 : (_options$locale = options.locale) === null || _options$locale === void 0 ? void 0 : (_options$locale$optio = _options$locale.options) === null || _options$locale$optio === void 0 ? void 0 : _options$locale$optio.weekStartsOn) !== null && _ref3 !== void 0 ? _ref3 : defaultOptions.weekStartsOn) !== null && _ref2 !== void 0 ? _ref2 : (_defaultOptions$local = defaultOptions.locale) === null || _defaultOptions$local === void 0 ? void 0 : (_defaultOptions$local2 = _defaultOptions$local.options) === null || _defaultOptions$local2 === void 0 ? void 0 : _defaultOptions$local2.weekStartsOn) !== null && _ref !== void 0 ? _ref : 0); // Test if weekStartsOn is between 0 and 6 _and_ is not NaN
 
   if (!(weekStartsOn >= 0 && weekStartsOn <= 6)) {
     throw new RangeError('weekStartsOn must be between 0 and 6 inclusively');
   }
 
-  var date = (0,_toDate_index_js__WEBPACK_IMPORTED_MODULE_2__["default"])(dirtyDate);
+  var date = (0,_toDate_index_js__WEBPACK_IMPORTED_MODULE_3__["default"])(dirtyDate);
   var day = date.getUTCDay();
   var diff = (day < weekStartsOn ? 7 : 0) + day - weekStartsOn;
   date.setUTCDate(date.getUTCDate() - diff);
@@ -22244,28 +22574,27 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony export */ __webpack_require__.d(__webpack_exports__, {
 /* harmony export */   "default": () => (/* binding */ startOfUTCWeekYear)
 /* harmony export */ });
-/* harmony import */ var _getUTCWeekYear_index_js__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! ../getUTCWeekYear/index.js */ "./node_modules/date-fns/esm/_lib/getUTCWeekYear/index.js");
+/* harmony import */ var _getUTCWeekYear_index_js__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__(/*! ../getUTCWeekYear/index.js */ "./node_modules/date-fns/esm/_lib/getUTCWeekYear/index.js");
 /* harmony import */ var _requiredArgs_index_js__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ../requiredArgs/index.js */ "./node_modules/date-fns/esm/_lib/requiredArgs/index.js");
-/* harmony import */ var _startOfUTCWeek_index_js__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__(/*! ../startOfUTCWeek/index.js */ "./node_modules/date-fns/esm/_lib/startOfUTCWeek/index.js");
-/* harmony import */ var _toInteger_index_js__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ../toInteger/index.js */ "./node_modules/date-fns/esm/_lib/toInteger/index.js");
+/* harmony import */ var _startOfUTCWeek_index_js__WEBPACK_IMPORTED_MODULE_4__ = __webpack_require__(/*! ../startOfUTCWeek/index.js */ "./node_modules/date-fns/esm/_lib/startOfUTCWeek/index.js");
+/* harmony import */ var _toInteger_index_js__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! ../toInteger/index.js */ "./node_modules/date-fns/esm/_lib/toInteger/index.js");
+/* harmony import */ var _defaultOptions_index_js__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ../defaultOptions/index.js */ "./node_modules/date-fns/esm/_lib/defaultOptions/index.js");
 
 
 
- // This function will be a part of public API when UTC function will be implemented.
-// See issue: https://github.com/date-fns/date-fns/issues/376
 
-function startOfUTCWeekYear(dirtyDate, dirtyOptions) {
+
+function startOfUTCWeekYear(dirtyDate, options) {
+  var _ref, _ref2, _ref3, _options$firstWeekCon, _options$locale, _options$locale$optio, _defaultOptions$local, _defaultOptions$local2;
+
   (0,_requiredArgs_index_js__WEBPACK_IMPORTED_MODULE_0__["default"])(1, arguments);
-  var options = dirtyOptions || {};
-  var locale = options.locale;
-  var localeFirstWeekContainsDate = locale && locale.options && locale.options.firstWeekContainsDate;
-  var defaultFirstWeekContainsDate = localeFirstWeekContainsDate == null ? 1 : (0,_toInteger_index_js__WEBPACK_IMPORTED_MODULE_1__["default"])(localeFirstWeekContainsDate);
-  var firstWeekContainsDate = options.firstWeekContainsDate == null ? defaultFirstWeekContainsDate : (0,_toInteger_index_js__WEBPACK_IMPORTED_MODULE_1__["default"])(options.firstWeekContainsDate);
-  var year = (0,_getUTCWeekYear_index_js__WEBPACK_IMPORTED_MODULE_2__["default"])(dirtyDate, dirtyOptions);
+  var defaultOptions = (0,_defaultOptions_index_js__WEBPACK_IMPORTED_MODULE_1__.getDefaultOptions)();
+  var firstWeekContainsDate = (0,_toInteger_index_js__WEBPACK_IMPORTED_MODULE_2__["default"])((_ref = (_ref2 = (_ref3 = (_options$firstWeekCon = options === null || options === void 0 ? void 0 : options.firstWeekContainsDate) !== null && _options$firstWeekCon !== void 0 ? _options$firstWeekCon : options === null || options === void 0 ? void 0 : (_options$locale = options.locale) === null || _options$locale === void 0 ? void 0 : (_options$locale$optio = _options$locale.options) === null || _options$locale$optio === void 0 ? void 0 : _options$locale$optio.firstWeekContainsDate) !== null && _ref3 !== void 0 ? _ref3 : defaultOptions.firstWeekContainsDate) !== null && _ref2 !== void 0 ? _ref2 : (_defaultOptions$local = defaultOptions.locale) === null || _defaultOptions$local === void 0 ? void 0 : (_defaultOptions$local2 = _defaultOptions$local.options) === null || _defaultOptions$local2 === void 0 ? void 0 : _defaultOptions$local2.firstWeekContainsDate) !== null && _ref !== void 0 ? _ref : 1);
+  var year = (0,_getUTCWeekYear_index_js__WEBPACK_IMPORTED_MODULE_3__["default"])(dirtyDate, options);
   var firstWeek = new Date(0);
   firstWeek.setUTCFullYear(year, 0, firstWeekContainsDate);
   firstWeek.setUTCHours(0, 0, 0, 0);
-  var date = (0,_startOfUTCWeek_index_js__WEBPACK_IMPORTED_MODULE_3__["default"])(firstWeek, dirtyOptions);
+  var date = (0,_startOfUTCWeek_index_js__WEBPACK_IMPORTED_MODULE_4__["default"])(firstWeek, options);
   return date;
 }
 
@@ -22409,10 +22738,6 @@ __webpack_require__.r(__webpack_exports__);
  * @description
  * Add the specified number of days to the given date.
  *
- * ### v2.0.0 breaking changes:
- *
- * - [Changes that are common for the whole library](https://github.com/date-fns/date-fns/blob/master/docs/upgradeGuide.md#Common-Changes).
- *
  * @param {Date|Number} date - the date to be changed
  * @param {Number} amount - the amount of days to be added. Positive decimals will be rounded using `Math.floor`, decimals less than zero will be rounded using `Math.ceil`.
  * @returns {Date} - the new date with the days added
@@ -22469,10 +22794,6 @@ __webpack_require__.r(__webpack_exports__);
  * @description
  * Add the specified number of milliseconds to the given date.
  *
- * ### v2.0.0 breaking changes:
- *
- * - [Changes that are common for the whole library](https://github.com/date-fns/date-fns/blob/master/docs/upgradeGuide.md#Common-Changes).
- *
  * @param {Date|Number} date - the date to be changed
  * @param {Number} amount - the amount of milliseconds to be added. Positive decimals will be rounded using `Math.floor`, decimals less than zero will be rounded using `Math.ceil`.
  * @returns {Date} the new date with the milliseconds added
@@ -22517,10 +22838,6 @@ __webpack_require__.r(__webpack_exports__);
  *
  * @description
  * Add the specified number of months to the given date.
- *
- * ### v2.0.0 breaking changes:
- *
- * - [Changes that are common for the whole library](https://github.com/date-fns/date-fns/blob/master/docs/upgradeGuide.md#Common-Changes).
  *
  * @param {Date|Number} date - the date to be changed
  * @param {Number} amount - the amount of months to be added. Positive decimals will be rounded using `Math.floor`, decimals less than zero will be rounded using `Math.ceil`.
@@ -22604,10 +22921,6 @@ __webpack_require__.r(__webpack_exports__);
  * @description
  * Add the specified number of years to the given date.
  *
- * ### v2.0.0 breaking changes:
- *
- * - [Changes that are common for the whole library](https://github.com/date-fns/date-fns/blob/master/docs/upgradeGuide.md#Common-Changes).
- *
  * @param {Date|Number} date - the date to be changed
  * @param {Number} amount - the amount of years to be added. Positive decimals will be rounded using `Math.floor`, decimals less than zero will be rounded using `Math.ceil`.
  * @returns {Date} the new date with the years added
@@ -22624,6 +22937,220 @@ function addYears(dirtyDate, dirtyAmount) {
   var amount = (0,_lib_toInteger_index_js__WEBPACK_IMPORTED_MODULE_1__["default"])(dirtyAmount);
   return (0,_addMonths_index_js__WEBPACK_IMPORTED_MODULE_2__["default"])(dirtyDate, amount * 12);
 }
+
+/***/ }),
+
+/***/ "./node_modules/date-fns/esm/constants/index.js":
+/*!******************************************************!*\
+  !*** ./node_modules/date-fns/esm/constants/index.js ***!
+  \******************************************************/
+/***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
+
+"use strict";
+__webpack_require__.r(__webpack_exports__);
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   "daysInWeek": () => (/* binding */ daysInWeek),
+/* harmony export */   "daysInYear": () => (/* binding */ daysInYear),
+/* harmony export */   "maxTime": () => (/* binding */ maxTime),
+/* harmony export */   "millisecondsInHour": () => (/* binding */ millisecondsInHour),
+/* harmony export */   "millisecondsInMinute": () => (/* binding */ millisecondsInMinute),
+/* harmony export */   "millisecondsInSecond": () => (/* binding */ millisecondsInSecond),
+/* harmony export */   "minTime": () => (/* binding */ minTime),
+/* harmony export */   "minutesInHour": () => (/* binding */ minutesInHour),
+/* harmony export */   "monthsInQuarter": () => (/* binding */ monthsInQuarter),
+/* harmony export */   "monthsInYear": () => (/* binding */ monthsInYear),
+/* harmony export */   "quartersInYear": () => (/* binding */ quartersInYear),
+/* harmony export */   "secondsInDay": () => (/* binding */ secondsInDay),
+/* harmony export */   "secondsInHour": () => (/* binding */ secondsInHour),
+/* harmony export */   "secondsInMinute": () => (/* binding */ secondsInMinute),
+/* harmony export */   "secondsInMonth": () => (/* binding */ secondsInMonth),
+/* harmony export */   "secondsInQuarter": () => (/* binding */ secondsInQuarter),
+/* harmony export */   "secondsInWeek": () => (/* binding */ secondsInWeek),
+/* harmony export */   "secondsInYear": () => (/* binding */ secondsInYear)
+/* harmony export */ });
+/**
+ * Days in 1 week.
+ *
+ * @name daysInWeek
+ * @constant
+ * @type {number}
+ * @default
+ */
+var daysInWeek = 7;
+/**
+ * Days in 1 year
+ * One years equals 365.2425 days according to the formula:
+ *
+ * > Leap year occures every 4 years, except for years that are divisable by 100 and not divisable by 400.
+ * > 1 mean year = (365+1/4-1/100+1/400) days = 365.2425 days
+ *
+ * @name daysInYear
+ * @constant
+ * @type {number}
+ * @default
+ */
+
+var daysInYear = 365.2425;
+/**
+ * Maximum allowed time.
+ *
+ * @name maxTime
+ * @constant
+ * @type {number}
+ * @default
+ */
+
+var maxTime = Math.pow(10, 8) * 24 * 60 * 60 * 1000;
+/**
+ * Milliseconds in 1 minute
+ *
+ * @name millisecondsInMinute
+ * @constant
+ * @type {number}
+ * @default
+ */
+
+var millisecondsInMinute = 60000;
+/**
+ * Milliseconds in 1 hour
+ *
+ * @name millisecondsInHour
+ * @constant
+ * @type {number}
+ * @default
+ */
+
+var millisecondsInHour = 3600000;
+/**
+ * Milliseconds in 1 second
+ *
+ * @name millisecondsInSecond
+ * @constant
+ * @type {number}
+ * @default
+ */
+
+var millisecondsInSecond = 1000;
+/**
+ * Minimum allowed time.
+ *
+ * @name minTime
+ * @constant
+ * @type {number}
+ * @default
+ */
+
+var minTime = -maxTime;
+/**
+ * Minutes in 1 hour
+ *
+ * @name minutesInHour
+ * @constant
+ * @type {number}
+ * @default
+ */
+
+var minutesInHour = 60;
+/**
+ * Months in 1 quarter
+ *
+ * @name monthsInQuarter
+ * @constant
+ * @type {number}
+ * @default
+ */
+
+var monthsInQuarter = 3;
+/**
+ * Months in 1 year
+ *
+ * @name monthsInYear
+ * @constant
+ * @type {number}
+ * @default
+ */
+
+var monthsInYear = 12;
+/**
+ * Quarters in 1 year
+ *
+ * @name quartersInYear
+ * @constant
+ * @type {number}
+ * @default
+ */
+
+var quartersInYear = 4;
+/**
+ * Seconds in 1 hour
+ *
+ * @name secondsInHour
+ * @constant
+ * @type {number}
+ * @default
+ */
+
+var secondsInHour = 3600;
+/**
+ * Seconds in 1 minute
+ *
+ * @name secondsInMinute
+ * @constant
+ * @type {number}
+ * @default
+ */
+
+var secondsInMinute = 60;
+/**
+ * Seconds in 1 day
+ *
+ * @name secondsInDay
+ * @constant
+ * @type {number}
+ * @default
+ */
+
+var secondsInDay = secondsInHour * 24;
+/**
+ * Seconds in 1 week
+ *
+ * @name secondsInWeek
+ * @constant
+ * @type {number}
+ * @default
+ */
+
+var secondsInWeek = secondsInDay * 7;
+/**
+ * Seconds in 1 year
+ *
+ * @name secondsInYear
+ * @constant
+ * @type {number}
+ * @default
+ */
+
+var secondsInYear = secondsInDay * daysInYear;
+/**
+ * Seconds in 1 month
+ *
+ * @name secondsInMonth
+ * @constant
+ * @type {number}
+ * @default
+ */
+
+var secondsInMonth = secondsInYear / 12;
+/**
+ * Seconds in 1 quarter
+ *
+ * @name secondsInQuarter
+ * @constant
+ * @type {number}
+ * @default
+ */
+
+var secondsInQuarter = secondsInMonth * 3;
 
 /***/ }),
 
@@ -22653,10 +23180,6 @@ var MILLISECONDS_IN_DAY = 86400000;
  * @description
  * Get the number of calendar days between the given dates. This means that the times are removed
  * from the dates and then the difference in days is calculated.
- *
- * ### v2.0.0 breaking changes:
- *
- * - [Changes that are common for the whole library](https://github.com/date-fns/date-fns/blob/master/docs/upgradeGuide.md#Common-Changes).
  *
  * @param {Date|Number} dateLeft - the later date
  * @param {Date|Number} dateRight - the earlier date
@@ -22717,36 +23240,6 @@ __webpack_require__.r(__webpack_exports__);
  * @description
  * Return the array of dates within the specified time interval.
  *
- * ### v2.0.0 breaking changes:
- *
- * - [Changes that are common for the whole library](https://github.com/date-fns/date-fns/blob/master/docs/upgradeGuide.md#Common-Changes).
- *
- * - The function was renamed from `eachDay` to `eachDayOfInterval`.
- *   This change was made to mirror the use of the word "interval" in standard ISO 8601:2004 terminology:
- *
- *   ```
- *   2.1.3
- *   time interval
- *   part of the time axis limited by two instants
- *   ```
- *
- *   Also, this function now accepts an object with `start` and `end` properties
- *   instead of two arguments as an interval.
- *   This function now throws `RangeError` if the start of the interval is after its end
- *   or if any date in the interval is `Invalid Date`.
- *
- *   ```javascript
- *   // Before v2.0.0
- *
- *   eachDay(new Date(2014, 0, 10), new Date(2014, 0, 20))
- *
- *   // v2.0.0 onward
- *
- *   eachDayOfInterval(
- *     { start: new Date(2014, 0, 10), end: new Date(2014, 0, 20) }
- *   )
- *   ```
- *
  * @param {Interval} interval - the interval. See [Interval]{@link https://date-fns.org/docs/Interval}
  * @param {Object} [options] - an object with options.
  * @param {Number} [options.step=1] - the step to increment by. The value should be more than 1.
@@ -22772,6 +23265,8 @@ __webpack_require__.r(__webpack_exports__);
  */
 
 function eachDayOfInterval(dirtyInterval, options) {
+  var _options$step;
+
   (0,_lib_requiredArgs_index_js__WEBPACK_IMPORTED_MODULE_0__["default"])(1, arguments);
   var interval = dirtyInterval || {};
   var startDate = (0,_toDate_index_js__WEBPACK_IMPORTED_MODULE_1__["default"])(interval.start);
@@ -22785,7 +23280,7 @@ function eachDayOfInterval(dirtyInterval, options) {
   var dates = [];
   var currentDate = startDate;
   currentDate.setHours(0, 0, 0, 0);
-  var step = options && 'step' in options ? Number(options.step) : 1;
+  var step = Number((_options$step = options === null || options === void 0 ? void 0 : options.step) !== null && _options$step !== void 0 ? _options$step : 1);
   if (step < 1 || isNaN(step)) throw new RangeError('`options.step` must be a number greater than 1');
 
   while (currentDate.getTime() <= endTime) {
@@ -22810,9 +23305,11 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony export */ __webpack_require__.d(__webpack_exports__, {
 /* harmony export */   "default": () => (/* binding */ endOfWeek)
 /* harmony export */ });
-/* harmony import */ var _toDate_index_js__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! ../toDate/index.js */ "./node_modules/date-fns/esm/toDate/index.js");
-/* harmony import */ var _lib_toInteger_index_js__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ../_lib/toInteger/index.js */ "./node_modules/date-fns/esm/_lib/toInteger/index.js");
+/* harmony import */ var _lib_defaultOptions_index_js__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ../_lib/defaultOptions/index.js */ "./node_modules/date-fns/esm/_lib/defaultOptions/index.js");
+/* harmony import */ var _toDate_index_js__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__(/*! ../toDate/index.js */ "./node_modules/date-fns/esm/toDate/index.js");
+/* harmony import */ var _lib_toInteger_index_js__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! ../_lib/toInteger/index.js */ "./node_modules/date-fns/esm/_lib/toInteger/index.js");
 /* harmony import */ var _lib_requiredArgs_index_js__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ../_lib/requiredArgs/index.js */ "./node_modules/date-fns/esm/_lib/requiredArgs/index.js");
+
 
 
 
@@ -22825,10 +23322,6 @@ __webpack_require__.r(__webpack_exports__);
  * @description
  * Return the end of a week for the given date.
  * The result will be in the local timezone.
- *
- * ### v2.0.0 breaking changes:
- *
- * - [Changes that are common for the whole library](https://github.com/date-fns/date-fns/blob/master/docs/upgradeGuide.md#Common-Changes).
  *
  * @param {Date|Number} date - the original date
  * @param {Object} [options] - an object with options.
@@ -22848,19 +23341,18 @@ __webpack_require__.r(__webpack_exports__);
  * const result = endOfWeek(new Date(2014, 8, 2, 11, 55, 0), { weekStartsOn: 1 })
  * //=> Sun Sep 07 2014 23:59:59.999
  */
-function endOfWeek(dirtyDate, dirtyOptions) {
+function endOfWeek(dirtyDate, options) {
+  var _ref, _ref2, _ref3, _options$weekStartsOn, _options$locale, _options$locale$optio, _defaultOptions$local, _defaultOptions$local2;
+
   (0,_lib_requiredArgs_index_js__WEBPACK_IMPORTED_MODULE_0__["default"])(1, arguments);
-  var options = dirtyOptions || {};
-  var locale = options.locale;
-  var localeWeekStartsOn = locale && locale.options && locale.options.weekStartsOn;
-  var defaultWeekStartsOn = localeWeekStartsOn == null ? 0 : (0,_lib_toInteger_index_js__WEBPACK_IMPORTED_MODULE_1__["default"])(localeWeekStartsOn);
-  var weekStartsOn = options.weekStartsOn == null ? defaultWeekStartsOn : (0,_lib_toInteger_index_js__WEBPACK_IMPORTED_MODULE_1__["default"])(options.weekStartsOn); // Test if weekStartsOn is between 0 and 6 _and_ is not NaN
+  var defaultOptions = (0,_lib_defaultOptions_index_js__WEBPACK_IMPORTED_MODULE_1__.getDefaultOptions)();
+  var weekStartsOn = (0,_lib_toInteger_index_js__WEBPACK_IMPORTED_MODULE_2__["default"])((_ref = (_ref2 = (_ref3 = (_options$weekStartsOn = options === null || options === void 0 ? void 0 : options.weekStartsOn) !== null && _options$weekStartsOn !== void 0 ? _options$weekStartsOn : options === null || options === void 0 ? void 0 : (_options$locale = options.locale) === null || _options$locale === void 0 ? void 0 : (_options$locale$optio = _options$locale.options) === null || _options$locale$optio === void 0 ? void 0 : _options$locale$optio.weekStartsOn) !== null && _ref3 !== void 0 ? _ref3 : defaultOptions.weekStartsOn) !== null && _ref2 !== void 0 ? _ref2 : (_defaultOptions$local = defaultOptions.locale) === null || _defaultOptions$local === void 0 ? void 0 : (_defaultOptions$local2 = _defaultOptions$local.options) === null || _defaultOptions$local2 === void 0 ? void 0 : _defaultOptions$local2.weekStartsOn) !== null && _ref !== void 0 ? _ref : 0); // Test if weekStartsOn is between 0 and 6 _and_ is not NaN
 
   if (!(weekStartsOn >= 0 && weekStartsOn <= 6)) {
     throw new RangeError('weekStartsOn must be between 0 and 6 inclusively');
   }
 
-  var date = (0,_toDate_index_js__WEBPACK_IMPORTED_MODULE_2__["default"])(dirtyDate);
+  var date = (0,_toDate_index_js__WEBPACK_IMPORTED_MODULE_3__["default"])(dirtyDate);
   var day = date.getDay();
   var diff = (day < weekStartsOn ? -7 : 0) + 6 - (day - weekStartsOn);
   date.setDate(date.getDate() + diff);
@@ -22881,16 +23373,18 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony export */ __webpack_require__.d(__webpack_exports__, {
 /* harmony export */   "default": () => (/* binding */ format)
 /* harmony export */ });
-/* harmony import */ var _isValid_index_js__WEBPACK_IMPORTED_MODULE_4__ = __webpack_require__(/*! ../isValid/index.js */ "./node_modules/date-fns/esm/isValid/index.js");
-/* harmony import */ var _locale_en_US_index_js__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ../locale/en-US/index.js */ "./node_modules/date-fns/esm/locale/en-US/index.js");
-/* harmony import */ var _subMilliseconds_index_js__WEBPACK_IMPORTED_MODULE_6__ = __webpack_require__(/*! ../subMilliseconds/index.js */ "./node_modules/date-fns/esm/subMilliseconds/index.js");
-/* harmony import */ var _toDate_index_js__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__(/*! ../toDate/index.js */ "./node_modules/date-fns/esm/toDate/index.js");
-/* harmony import */ var _lib_format_formatters_index_js__WEBPACK_IMPORTED_MODULE_8__ = __webpack_require__(/*! ../_lib/format/formatters/index.js */ "./node_modules/date-fns/esm/_lib/format/formatters/index.js");
-/* harmony import */ var _lib_format_longFormatters_index_js__WEBPACK_IMPORTED_MODULE_7__ = __webpack_require__(/*! ../_lib/format/longFormatters/index.js */ "./node_modules/date-fns/esm/_lib/format/longFormatters/index.js");
-/* harmony import */ var _lib_getTimezoneOffsetInMilliseconds_index_js__WEBPACK_IMPORTED_MODULE_5__ = __webpack_require__(/*! ../_lib/getTimezoneOffsetInMilliseconds/index.js */ "./node_modules/date-fns/esm/_lib/getTimezoneOffsetInMilliseconds/index.js");
-/* harmony import */ var _lib_protectedTokens_index_js__WEBPACK_IMPORTED_MODULE_9__ = __webpack_require__(/*! ../_lib/protectedTokens/index.js */ "./node_modules/date-fns/esm/_lib/protectedTokens/index.js");
-/* harmony import */ var _lib_toInteger_index_js__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! ../_lib/toInteger/index.js */ "./node_modules/date-fns/esm/_lib/toInteger/index.js");
+/* harmony import */ var _isValid_index_js__WEBPACK_IMPORTED_MODULE_5__ = __webpack_require__(/*! ../isValid/index.js */ "./node_modules/date-fns/esm/isValid/index.js");
+/* harmony import */ var _subMilliseconds_index_js__WEBPACK_IMPORTED_MODULE_7__ = __webpack_require__(/*! ../subMilliseconds/index.js */ "./node_modules/date-fns/esm/subMilliseconds/index.js");
+/* harmony import */ var _toDate_index_js__WEBPACK_IMPORTED_MODULE_4__ = __webpack_require__(/*! ../toDate/index.js */ "./node_modules/date-fns/esm/toDate/index.js");
+/* harmony import */ var _lib_format_formatters_index_js__WEBPACK_IMPORTED_MODULE_9__ = __webpack_require__(/*! ../_lib/format/formatters/index.js */ "./node_modules/date-fns/esm/_lib/format/formatters/index.js");
+/* harmony import */ var _lib_format_longFormatters_index_js__WEBPACK_IMPORTED_MODULE_8__ = __webpack_require__(/*! ../_lib/format/longFormatters/index.js */ "./node_modules/date-fns/esm/_lib/format/longFormatters/index.js");
+/* harmony import */ var _lib_getTimezoneOffsetInMilliseconds_index_js__WEBPACK_IMPORTED_MODULE_6__ = __webpack_require__(/*! ../_lib/getTimezoneOffsetInMilliseconds/index.js */ "./node_modules/date-fns/esm/_lib/getTimezoneOffsetInMilliseconds/index.js");
+/* harmony import */ var _lib_protectedTokens_index_js__WEBPACK_IMPORTED_MODULE_10__ = __webpack_require__(/*! ../_lib/protectedTokens/index.js */ "./node_modules/date-fns/esm/_lib/protectedTokens/index.js");
+/* harmony import */ var _lib_toInteger_index_js__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__(/*! ../_lib/toInteger/index.js */ "./node_modules/date-fns/esm/_lib/toInteger/index.js");
 /* harmony import */ var _lib_requiredArgs_index_js__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ../_lib/requiredArgs/index.js */ "./node_modules/date-fns/esm/_lib/requiredArgs/index.js");
+/* harmony import */ var _lib_defaultOptions_index_js__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ../_lib/defaultOptions/index.js */ "./node_modules/date-fns/esm/_lib/defaultOptions/index.js");
+/* harmony import */ var _lib_defaultLocale_index_js__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! ../_lib/defaultLocale/index.js */ "./node_modules/date-fns/esm/_lib/defaultLocale/index.js");
+
 
 
 
@@ -22928,7 +23422,7 @@ var unescapedLatinCharacterRegExp = /[a-zA-Z]/;
  * Return the formatted date string in the given format. The result may vary by locale.
  *
  * > ⚠️ Please note that the `format` tokens differ from Moment.js and other libraries.
- * > See: https://git.io/fxCyr
+ * > See: https://github.com/date-fns/date-fns/blob/master/docs/unicodeTokens.md
  *
  * The characters wrapped between two single quotes characters (') are escaped.
  * Two single quotes in a row, whether inside or outside a quoted sequence, represent a 'real' single quote.
@@ -23164,30 +23658,10 @@ var unescapedLatinCharacterRegExp = /[a-zA-Z]/;
  *    - `p`: long localized time
  *
  * 8. `YY` and `YYYY` tokens represent week-numbering years but they are often confused with years.
- *    You should enable `options.useAdditionalWeekYearTokens` to use them. See: https://git.io/fxCyr
+ *    You should enable `options.useAdditionalWeekYearTokens` to use them. See: https://github.com/date-fns/date-fns/blob/master/docs/unicodeTokens.md
  *
  * 9. `D` and `DD` tokens represent days of the year but they are often confused with days of the month.
- *    You should enable `options.useAdditionalDayOfYearTokens` to use them. See: https://git.io/fxCyr
- *
- * ### v2.0.0 breaking changes:
- *
- * - [Changes that are common for the whole library](https://github.com/date-fns/date-fns/blob/master/docs/upgradeGuide.md#Common-Changes).
- *
- * - The second argument is now required for the sake of explicitness.
- *
- *   ```javascript
- *   // Before v2.0.0
- *   format(new Date(2016, 0, 1))
- *
- *   // v2.0.0 onward
- *   format(new Date(2016, 0, 1), "yyyy-MM-dd'T'HH:mm:ss.SSSxxx")
- *   ```
- *
- * - New format string API for `format` function
- *   which is based on [Unicode Technical Standard #35](https://www.unicode.org/reports/tr35/tr35-dates.html#Date_Field_Symbol_Table).
- *   See [this post](https://blog.date-fns.org/post/unicode-tokens-in-date-fns-v2-sreatyki91jg) for more details.
- *
- * - Characters are now escaped using single quote symbols (`'`) instead of square brackets.
+ *    You should enable `options.useAdditionalDayOfYearTokens` to use them. See: https://github.com/date-fns/date-fns/blob/master/docs/unicodeTokens.md
  *
  * @param {Date|Number} date - the original date
  * @param {String} format - the string of tokens
@@ -23196,9 +23670,9 @@ var unescapedLatinCharacterRegExp = /[a-zA-Z]/;
  * @param {0|1|2|3|4|5|6} [options.weekStartsOn=0] - the index of the first day of the week (0 - Sunday)
  * @param {Number} [options.firstWeekContainsDate=1] - the day of January, which is
  * @param {Boolean} [options.useAdditionalWeekYearTokens=false] - if true, allows usage of the week-numbering year tokens `YY` and `YYYY`;
- *   see: https://git.io/fxCyr
+ *   see: https://github.com/date-fns/date-fns/blob/master/docs/unicodeTokens.md
  * @param {Boolean} [options.useAdditionalDayOfYearTokens=false] - if true, allows usage of the day of year tokens `D` and `DD`;
- *   see: https://git.io/fxCyr
+ *   see: https://github.com/date-fns/date-fns/blob/master/docs/unicodeTokens.md
  * @returns {String} the formatted date string
  * @throws {TypeError} 2 arguments required
  * @throws {RangeError} `date` must not be Invalid Date
@@ -23206,47 +23680,45 @@ var unescapedLatinCharacterRegExp = /[a-zA-Z]/;
  * @throws {RangeError} `options.locale` must contain `formatLong` property
  * @throws {RangeError} `options.weekStartsOn` must be between 0 and 6
  * @throws {RangeError} `options.firstWeekContainsDate` must be between 1 and 7
- * @throws {RangeError} use `yyyy` instead of `YYYY` for formatting years using [format provided] to the input [input provided]; see: https://git.io/fxCyr
- * @throws {RangeError} use `yy` instead of `YY` for formatting years using [format provided] to the input [input provided]; see: https://git.io/fxCyr
- * @throws {RangeError} use `d` instead of `D` for formatting days of the month using [format provided] to the input [input provided]; see: https://git.io/fxCyr
- * @throws {RangeError} use `dd` instead of `DD` for formatting days of the month using [format provided] to the input [input provided]; see: https://git.io/fxCyr
+ * @throws {RangeError} use `yyyy` instead of `YYYY` for formatting years using [format provided] to the input [input provided]; see: https://github.com/date-fns/date-fns/blob/master/docs/unicodeTokens.md
+ * @throws {RangeError} use `yy` instead of `YY` for formatting years using [format provided] to the input [input provided]; see: https://github.com/date-fns/date-fns/blob/master/docs/unicodeTokens.md
+ * @throws {RangeError} use `d` instead of `D` for formatting days of the month using [format provided] to the input [input provided]; see: https://github.com/date-fns/date-fns/blob/master/docs/unicodeTokens.md
+ * @throws {RangeError} use `dd` instead of `DD` for formatting days of the month using [format provided] to the input [input provided]; see: https://github.com/date-fns/date-fns/blob/master/docs/unicodeTokens.md
  * @throws {RangeError} format string contains an unescaped latin alphabet character
  *
  * @example
  * // Represent 11 February 2014 in middle-endian format:
- * var result = format(new Date(2014, 1, 11), 'MM/dd/yyyy')
+ * const result = format(new Date(2014, 1, 11), 'MM/dd/yyyy')
  * //=> '02/11/2014'
  *
  * @example
  * // Represent 2 July 2014 in Esperanto:
  * import { eoLocale } from 'date-fns/locale/eo'
- * var result = format(new Date(2014, 6, 2), "do 'de' MMMM yyyy", {
+ * const result = format(new Date(2014, 6, 2), "do 'de' MMMM yyyy", {
  *   locale: eoLocale
  * })
  * //=> '2-a de julio 2014'
  *
  * @example
  * // Escape string by single quote characters:
- * var result = format(new Date(2014, 6, 2, 15), "h 'o''clock'")
+ * const result = format(new Date(2014, 6, 2, 15), "h 'o''clock'")
  * //=> "3 o'clock"
  */
 
-function format(dirtyDate, dirtyFormatStr, dirtyOptions) {
+function format(dirtyDate, dirtyFormatStr, options) {
+  var _ref, _options$locale, _ref2, _ref3, _ref4, _options$firstWeekCon, _options$locale2, _options$locale2$opti, _defaultOptions$local, _defaultOptions$local2, _ref5, _ref6, _ref7, _options$weekStartsOn, _options$locale3, _options$locale3$opti, _defaultOptions$local3, _defaultOptions$local4;
+
   (0,_lib_requiredArgs_index_js__WEBPACK_IMPORTED_MODULE_0__["default"])(2, arguments);
   var formatStr = String(dirtyFormatStr);
-  var options = dirtyOptions || {};
-  var locale = options.locale || _locale_en_US_index_js__WEBPACK_IMPORTED_MODULE_1__["default"];
-  var localeFirstWeekContainsDate = locale.options && locale.options.firstWeekContainsDate;
-  var defaultFirstWeekContainsDate = localeFirstWeekContainsDate == null ? 1 : (0,_lib_toInteger_index_js__WEBPACK_IMPORTED_MODULE_2__["default"])(localeFirstWeekContainsDate);
-  var firstWeekContainsDate = options.firstWeekContainsDate == null ? defaultFirstWeekContainsDate : (0,_lib_toInteger_index_js__WEBPACK_IMPORTED_MODULE_2__["default"])(options.firstWeekContainsDate); // Test if weekStartsOn is between 1 and 7 _and_ is not NaN
+  var defaultOptions = (0,_lib_defaultOptions_index_js__WEBPACK_IMPORTED_MODULE_1__.getDefaultOptions)();
+  var locale = (_ref = (_options$locale = options === null || options === void 0 ? void 0 : options.locale) !== null && _options$locale !== void 0 ? _options$locale : defaultOptions.locale) !== null && _ref !== void 0 ? _ref : _lib_defaultLocale_index_js__WEBPACK_IMPORTED_MODULE_2__["default"];
+  var firstWeekContainsDate = (0,_lib_toInteger_index_js__WEBPACK_IMPORTED_MODULE_3__["default"])((_ref2 = (_ref3 = (_ref4 = (_options$firstWeekCon = options === null || options === void 0 ? void 0 : options.firstWeekContainsDate) !== null && _options$firstWeekCon !== void 0 ? _options$firstWeekCon : options === null || options === void 0 ? void 0 : (_options$locale2 = options.locale) === null || _options$locale2 === void 0 ? void 0 : (_options$locale2$opti = _options$locale2.options) === null || _options$locale2$opti === void 0 ? void 0 : _options$locale2$opti.firstWeekContainsDate) !== null && _ref4 !== void 0 ? _ref4 : defaultOptions.firstWeekContainsDate) !== null && _ref3 !== void 0 ? _ref3 : (_defaultOptions$local = defaultOptions.locale) === null || _defaultOptions$local === void 0 ? void 0 : (_defaultOptions$local2 = _defaultOptions$local.options) === null || _defaultOptions$local2 === void 0 ? void 0 : _defaultOptions$local2.firstWeekContainsDate) !== null && _ref2 !== void 0 ? _ref2 : 1); // Test if weekStartsOn is between 1 and 7 _and_ is not NaN
 
   if (!(firstWeekContainsDate >= 1 && firstWeekContainsDate <= 7)) {
     throw new RangeError('firstWeekContainsDate must be between 1 and 7 inclusively');
   }
 
-  var localeWeekStartsOn = locale.options && locale.options.weekStartsOn;
-  var defaultWeekStartsOn = localeWeekStartsOn == null ? 0 : (0,_lib_toInteger_index_js__WEBPACK_IMPORTED_MODULE_2__["default"])(localeWeekStartsOn);
-  var weekStartsOn = options.weekStartsOn == null ? defaultWeekStartsOn : (0,_lib_toInteger_index_js__WEBPACK_IMPORTED_MODULE_2__["default"])(options.weekStartsOn); // Test if weekStartsOn is between 0 and 6 _and_ is not NaN
+  var weekStartsOn = (0,_lib_toInteger_index_js__WEBPACK_IMPORTED_MODULE_3__["default"])((_ref5 = (_ref6 = (_ref7 = (_options$weekStartsOn = options === null || options === void 0 ? void 0 : options.weekStartsOn) !== null && _options$weekStartsOn !== void 0 ? _options$weekStartsOn : options === null || options === void 0 ? void 0 : (_options$locale3 = options.locale) === null || _options$locale3 === void 0 ? void 0 : (_options$locale3$opti = _options$locale3.options) === null || _options$locale3$opti === void 0 ? void 0 : _options$locale3$opti.weekStartsOn) !== null && _ref7 !== void 0 ? _ref7 : defaultOptions.weekStartsOn) !== null && _ref6 !== void 0 ? _ref6 : (_defaultOptions$local3 = defaultOptions.locale) === null || _defaultOptions$local3 === void 0 ? void 0 : (_defaultOptions$local4 = _defaultOptions$local3.options) === null || _defaultOptions$local4 === void 0 ? void 0 : _defaultOptions$local4.weekStartsOn) !== null && _ref5 !== void 0 ? _ref5 : 0); // Test if weekStartsOn is between 0 and 6 _and_ is not NaN
 
   if (!(weekStartsOn >= 0 && weekStartsOn <= 6)) {
     throw new RangeError('weekStartsOn must be between 0 and 6 inclusively');
@@ -23260,17 +23732,17 @@ function format(dirtyDate, dirtyFormatStr, dirtyOptions) {
     throw new RangeError('locale must contain formatLong property');
   }
 
-  var originalDate = (0,_toDate_index_js__WEBPACK_IMPORTED_MODULE_3__["default"])(dirtyDate);
+  var originalDate = (0,_toDate_index_js__WEBPACK_IMPORTED_MODULE_4__["default"])(dirtyDate);
 
-  if (!(0,_isValid_index_js__WEBPACK_IMPORTED_MODULE_4__["default"])(originalDate)) {
+  if (!(0,_isValid_index_js__WEBPACK_IMPORTED_MODULE_5__["default"])(originalDate)) {
     throw new RangeError('Invalid time value');
   } // Convert the date in system timezone to the same date in UTC+00:00 timezone.
   // This ensures that when UTC functions will be implemented, locales will be compatible with them.
   // See an issue about UTC functions: https://github.com/date-fns/date-fns/issues/376
 
 
-  var timezoneOffset = (0,_lib_getTimezoneOffsetInMilliseconds_index_js__WEBPACK_IMPORTED_MODULE_5__["default"])(originalDate);
-  var utcDate = (0,_subMilliseconds_index_js__WEBPACK_IMPORTED_MODULE_6__["default"])(originalDate, timezoneOffset);
+  var timezoneOffset = (0,_lib_getTimezoneOffsetInMilliseconds_index_js__WEBPACK_IMPORTED_MODULE_6__["default"])(originalDate);
+  var utcDate = (0,_subMilliseconds_index_js__WEBPACK_IMPORTED_MODULE_7__["default"])(originalDate, timezoneOffset);
   var formatterOptions = {
     firstWeekContainsDate: firstWeekContainsDate,
     weekStartsOn: weekStartsOn,
@@ -23281,8 +23753,8 @@ function format(dirtyDate, dirtyFormatStr, dirtyOptions) {
     var firstCharacter = substring[0];
 
     if (firstCharacter === 'p' || firstCharacter === 'P') {
-      var longFormatter = _lib_format_longFormatters_index_js__WEBPACK_IMPORTED_MODULE_7__["default"][firstCharacter];
-      return longFormatter(substring, locale.formatLong, formatterOptions);
+      var longFormatter = _lib_format_longFormatters_index_js__WEBPACK_IMPORTED_MODULE_8__["default"][firstCharacter];
+      return longFormatter(substring, locale.formatLong);
     }
 
     return substring;
@@ -23298,15 +23770,15 @@ function format(dirtyDate, dirtyFormatStr, dirtyOptions) {
       return cleanEscapedString(substring);
     }
 
-    var formatter = _lib_format_formatters_index_js__WEBPACK_IMPORTED_MODULE_8__["default"][firstCharacter];
+    var formatter = _lib_format_formatters_index_js__WEBPACK_IMPORTED_MODULE_9__["default"][firstCharacter];
 
     if (formatter) {
-      if (!options.useAdditionalWeekYearTokens && (0,_lib_protectedTokens_index_js__WEBPACK_IMPORTED_MODULE_9__.isProtectedWeekYearToken)(substring)) {
-        (0,_lib_protectedTokens_index_js__WEBPACK_IMPORTED_MODULE_9__.throwProtectedError)(substring, dirtyFormatStr, dirtyDate);
+      if (!(options !== null && options !== void 0 && options.useAdditionalWeekYearTokens) && (0,_lib_protectedTokens_index_js__WEBPACK_IMPORTED_MODULE_10__.isProtectedWeekYearToken)(substring)) {
+        (0,_lib_protectedTokens_index_js__WEBPACK_IMPORTED_MODULE_10__.throwProtectedError)(substring, dirtyFormatStr, String(dirtyDate));
       }
 
-      if (!options.useAdditionalDayOfYearTokens && (0,_lib_protectedTokens_index_js__WEBPACK_IMPORTED_MODULE_9__.isProtectedDayOfYearToken)(substring)) {
-        (0,_lib_protectedTokens_index_js__WEBPACK_IMPORTED_MODULE_9__.throwProtectedError)(substring, dirtyFormatStr, dirtyDate);
+      if (!(options !== null && options !== void 0 && options.useAdditionalDayOfYearTokens) && (0,_lib_protectedTokens_index_js__WEBPACK_IMPORTED_MODULE_10__.isProtectedDayOfYearToken)(substring)) {
+        (0,_lib_protectedTokens_index_js__WEBPACK_IMPORTED_MODULE_10__.throwProtectedError)(substring, dirtyFormatStr, String(dirtyDate));
       }
 
       return formatter(utcDate, substring, locale.localize, formatterOptions);
@@ -23322,7 +23794,13 @@ function format(dirtyDate, dirtyFormatStr, dirtyOptions) {
 }
 
 function cleanEscapedString(input) {
-  return input.match(escapedStringRegExp)[1].replace(doubleQuoteRegExp, "'");
+  var matched = input.match(escapedStringRegExp);
+
+  if (!matched) {
+    return input;
+  }
+
+  return matched[1].replace(doubleQuoteRegExp, "'");
 }
 
 /***/ }),
@@ -23349,10 +23827,6 @@ __webpack_require__.r(__webpack_exports__);
  *
  * @description
  * Get the day of the week of the given date.
- *
- * ### v2.0.0 breaking changes:
- *
- * - [Changes that are common for the whole library](https://github.com/date-fns/date-fns/blob/master/docs/upgradeGuide.md#Common-Changes).
  *
  * @param {Date|Number} date - the given date
  * @returns {0|1|2|3|4|5|6} the day of week, 0 represents Sunday
@@ -23395,10 +23869,6 @@ __webpack_require__.r(__webpack_exports__);
  *
  * @description
  * Get the number of days in a month of the given date.
- *
- * ### v2.0.0 breaking changes:
- *
- * - [Changes that are common for the whole library](https://github.com/date-fns/date-fns/blob/master/docs/upgradeGuide.md#Common-Changes).
  *
  * @param {Date|Number} date - the given date
  * @returns {Number} the number of days in a month
@@ -23445,10 +23915,6 @@ __webpack_require__.r(__webpack_exports__);
  *
  * @description
  * Get the hours of the given date.
- *
- * ### v2.0.0 breaking changes:
- *
- * - [Changes that are common for the whole library](https://github.com/date-fns/date-fns/blob/master/docs/upgradeGuide.md#Common-Changes).
  *
  * @param {Date|Number} date - the given date
  * @returns {Number} the hours
@@ -23499,10 +23965,6 @@ var MILLISECONDS_IN_WEEK = 604800000;
  *
  * ISO week-numbering year: http://en.wikipedia.org/wiki/ISO_week_date
  *
- * ### v2.0.0 breaking changes:
- *
- * - [Changes that are common for the whole library](https://github.com/date-fns/date-fns/blob/master/docs/upgradeGuide.md#Common-Changes).
- *
  * @param {Date|Number} date - the given date
  * @returns {Number} the ISO week
  * @throws {TypeError} 1 argument required
@@ -23552,15 +24014,6 @@ __webpack_require__.r(__webpack_exports__);
  * which always starts 3 days before the year's first Thursday.
  *
  * ISO week-numbering year: http://en.wikipedia.org/wiki/ISO_week_date
- *
- * ### v2.0.0 breaking changes:
- *
- * - [Changes that are common for the whole library](https://github.com/date-fns/date-fns/blob/master/docs/upgradeGuide.md#Common-Changes).
- *
- * - The function was renamed from `getISOYear` to `getISOWeekYear`.
- *   "ISO week year" is short for [ISO week-numbering year](https://en.wikipedia.org/wiki/ISO_week_date).
- *   This change makes the name consistent with
- *   locale-dependent week-numbering year helpers, e.g., `getWeekYear`.
  *
  * @param {Date|Number} date - the given date
  * @returns {Number} the ISO week-numbering year
@@ -23619,10 +24072,6 @@ __webpack_require__.r(__webpack_exports__);
  * @description
  * Get the minutes of the given date.
  *
- * ### v2.0.0 breaking changes:
- *
- * - [Changes that are common for the whole library](https://github.com/date-fns/date-fns/blob/master/docs/upgradeGuide.md#Common-Changes).
- *
  * @param {Date|Number} date - the given date
  * @returns {Number} the minutes
  * @throws {TypeError} 1 argument required
@@ -23664,10 +24113,6 @@ __webpack_require__.r(__webpack_exports__);
  *
  * @description
  * Get the month of the given date.
- *
- * ### v2.0.0 breaking changes:
- *
- * - [Changes that are common for the whole library](https://github.com/date-fns/date-fns/blob/master/docs/upgradeGuide.md#Common-Changes).
  *
  * @param {Date|Number} date - the given date
  * @returns {Number} the month
@@ -23711,10 +24156,6 @@ __webpack_require__.r(__webpack_exports__);
  * @description
  * Get the seconds of the given date.
  *
- * ### v2.0.0 breaking changes:
- *
- * - [Changes that are common for the whole library](https://github.com/date-fns/date-fns/blob/master/docs/upgradeGuide.md#Common-Changes).
- *
  * @param {Date|Number} date - the given date
  * @returns {Number} the seconds
  * @throws {TypeError} 1 argument required
@@ -23757,10 +24198,6 @@ __webpack_require__.r(__webpack_exports__);
  * @description
  * Get the year of the given date.
  *
- * ### v2.0.0 breaking changes:
- *
- * - [Changes that are common for the whole library](https://github.com/date-fns/date-fns/blob/master/docs/upgradeGuide.md#Common-Changes).
- *
  * @param {Date|Number} date - the given date
  * @returns {Number} the year
  * @throws {TypeError} 1 argument required
@@ -23801,10 +24238,6 @@ __webpack_require__.r(__webpack_exports__);
  * @description
  * Is the first date after the second one?
  *
- * ### v2.0.0 breaking changes:
- *
- * - [Changes that are common for the whole library](https://github.com/date-fns/date-fns/blob/master/docs/upgradeGuide.md#Common-Changes).
- *
  * @param {Date|Number} date - the date that should be after the other one to return true
  * @param {Date|Number} dateToCompare - the date to compare with
  * @returns {Boolean} the first date is after the second date
@@ -23812,7 +24245,7 @@ __webpack_require__.r(__webpack_exports__);
  *
  * @example
  * // Is 10 July 1989 after 11 February 1987?
- * var result = isAfter(new Date(1989, 6, 10), new Date(1987, 1, 11))
+ * const result = isAfter(new Date(1989, 6, 10), new Date(1987, 1, 11))
  * //=> true
  */
 
@@ -23848,10 +24281,6 @@ __webpack_require__.r(__webpack_exports__);
  * @description
  * Is the first date before the second one?
  *
- * ### v2.0.0 breaking changes:
- *
- * - [Changes that are common for the whole library](https://github.com/date-fns/date-fns/blob/master/docs/upgradeGuide.md#Common-Changes).
- *
  * @param {Date|Number} date - the date that should be before the other one to return true
  * @param {Date|Number} dateToCompare - the date to compare with
  * @returns {Boolean} the first date is before the second date
@@ -23859,7 +24288,7 @@ __webpack_require__.r(__webpack_exports__);
  *
  * @example
  * // Is 10 July 1989 before 11 February 1987?
- * var result = isBefore(new Date(1989, 6, 10), new Date(1987, 1, 11))
+ * const result = isBefore(new Date(1989, 6, 10), new Date(1987, 1, 11))
  * //=> false
  */
 
@@ -23892,10 +24321,6 @@ __webpack_require__.r(__webpack_exports__);
  *
  * @description
  * Returns true if the given value is an instance of Date. The function works for dates transferred across iframes.
- *
- * ### v2.0.0 breaking changes:
- *
- * - [Changes that are common for the whole library](https://github.com/date-fns/date-fns/blob/master/docs/upgradeGuide.md#Common-Changes).
  *
  * @param {*} value - the value to check
  * @returns {boolean} true if the given value is a date
@@ -23952,10 +24377,6 @@ __webpack_require__.r(__webpack_exports__);
  * @description
  * Are the given dates equal?
  *
- * ### v2.0.0 breaking changes:
- *
- * - [Changes that are common for the whole library](https://github.com/date-fns/date-fns/blob/master/docs/upgradeGuide.md#Common-Changes).
- *
  * @param {Date|Number} dateLeft - the first date to compare
  * @param {Date|Number} dateRight - the second date to compare
  * @returns {Boolean} the dates are equal
@@ -23963,7 +24384,7 @@ __webpack_require__.r(__webpack_exports__);
  *
  * @example
  * // Are 2 July 2014 06:30:45.000 and 2 July 2014 06:30:45.500 equal?
- * var result = isEqual(
+ * const result = isEqual(
  *   new Date(2014, 6, 2, 6, 30, 45, 0),
  *   new Date(2014, 6, 2, 6, 30, 45, 500)
  * )
@@ -24007,32 +24428,6 @@ __webpack_require__.r(__webpack_exports__);
  * Invalid Date is a Date, whose time value is NaN.
  *
  * Time value of Date: http://es5.github.io/#x15.9.1.1
- *
- * ### v2.0.0 breaking changes:
- *
- * - [Changes that are common for the whole library](https://github.com/date-fns/date-fns/blob/master/docs/upgradeGuide.md#Common-Changes).
- *
- * - Now `isValid` doesn't throw an exception
- *   if the first argument is not an instance of Date.
- *   Instead, argument is converted beforehand using `toDate`.
- *
- *   Examples:
- *
- *   | `isValid` argument        | Before v2.0.0 | v2.0.0 onward |
- *   |---------------------------|---------------|---------------|
- *   | `new Date()`              | `true`        | `true`        |
- *   | `new Date('2016-01-01')`  | `true`        | `true`        |
- *   | `new Date('')`            | `false`       | `false`       |
- *   | `new Date(1488370835081)` | `true`        | `true`        |
- *   | `new Date(NaN)`           | `false`       | `false`       |
- *   | `'2016-01-01'`            | `TypeError`   | `false`       |
- *   | `''`                      | `TypeError`   | `false`       |
- *   | `1488370835081`           | `TypeError`   | `true`        |
- *   | `NaN`                     | `TypeError`   | `false`       |
- *
- *   We introduce this change to make *date-fns* consistent with ECMAScript behavior
- *   that try to coerce arguments to the expected type
- *   (which is also the case with other *date-fns* functions).
  *
  * @param {*} date - the date to check
  * @returns {Boolean} the date is valid
@@ -24102,19 +24497,18 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony export */   "default": () => (/* binding */ buildLocalizeFn)
 /* harmony export */ });
 function buildLocalizeFn(args) {
-  return function (dirtyIndex, dirtyOptions) {
-    var options = dirtyOptions || {};
-    var context = options.context ? String(options.context) : 'standalone';
+  return function (dirtyIndex, options) {
+    var context = options !== null && options !== void 0 && options.context ? String(options.context) : 'standalone';
     var valuesArray;
 
     if (context === 'formatting' && args.formattingValues) {
       var defaultWidth = args.defaultFormattingWidth || args.defaultWidth;
-      var width = options.width ? String(options.width) : defaultWidth;
+      var width = options !== null && options !== void 0 && options.width ? String(options.width) : defaultWidth;
       valuesArray = args.formattingValues[width] || args.formattingValues[defaultWidth];
     } else {
       var _defaultWidth = args.defaultWidth;
 
-      var _width = options.width ? String(options.width) : args.defaultWidth;
+      var _width = options !== null && options !== void 0 && options.width ? String(options.width) : args.defaultWidth;
 
       valuesArray = args.values[_width] || args.values[_defaultWidth];
     }
@@ -24723,34 +25117,137 @@ var locale = {
 
 /***/ }),
 
-/***/ "./node_modules/date-fns/esm/parse/_lib/parsers/index.js":
-/*!***************************************************************!*\
-  !*** ./node_modules/date-fns/esm/parse/_lib/parsers/index.js ***!
-  \***************************************************************/
+/***/ "./node_modules/date-fns/esm/parse/_lib/Parser.js":
+/*!********************************************************!*\
+  !*** ./node_modules/date-fns/esm/parse/_lib/Parser.js ***!
+  \********************************************************/
 /***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
 
 "use strict";
 __webpack_require__.r(__webpack_exports__);
 /* harmony export */ __webpack_require__.d(__webpack_exports__, {
-/* harmony export */   "default": () => (__WEBPACK_DEFAULT_EXPORT__)
+/* harmony export */   "Parser": () => (/* binding */ Parser)
 /* harmony export */ });
-/* harmony import */ var _lib_getUTCWeekYear_index_js__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ../../../_lib/getUTCWeekYear/index.js */ "./node_modules/date-fns/esm/_lib/getUTCWeekYear/index.js");
-/* harmony import */ var _lib_setUTCDay_index_js__WEBPACK_IMPORTED_MODULE_5__ = __webpack_require__(/*! ../../../_lib/setUTCDay/index.js */ "./node_modules/date-fns/esm/_lib/setUTCDay/index.js");
-/* harmony import */ var _lib_setUTCISODay_index_js__WEBPACK_IMPORTED_MODULE_6__ = __webpack_require__(/*! ../../../_lib/setUTCISODay/index.js */ "./node_modules/date-fns/esm/_lib/setUTCISODay/index.js");
-/* harmony import */ var _lib_setUTCISOWeek_index_js__WEBPACK_IMPORTED_MODULE_4__ = __webpack_require__(/*! ../../../_lib/setUTCISOWeek/index.js */ "./node_modules/date-fns/esm/_lib/setUTCISOWeek/index.js");
-/* harmony import */ var _lib_setUTCWeek_index_js__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__(/*! ../../../_lib/setUTCWeek/index.js */ "./node_modules/date-fns/esm/_lib/setUTCWeek/index.js");
-/* harmony import */ var _lib_startOfUTCISOWeek_index_js__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! ../../../_lib/startOfUTCISOWeek/index.js */ "./node_modules/date-fns/esm/_lib/startOfUTCISOWeek/index.js");
-/* harmony import */ var _lib_startOfUTCWeek_index_js__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ../../../_lib/startOfUTCWeek/index.js */ "./node_modules/date-fns/esm/_lib/startOfUTCWeek/index.js");
+/* harmony import */ var _Setter_js__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ./Setter.js */ "./node_modules/date-fns/esm/parse/_lib/Setter.js");
+function _defineProperty(obj, key, value) { if (key in obj) { Object.defineProperty(obj, key, { value: value, enumerable: true, configurable: true, writable: true }); } else { obj[key] = value; } return obj; }
 
 
+class Parser {
+  constructor() {
+    _defineProperty(this, "incompatibleTokens", void 0);
 
+    _defineProperty(this, "priority", void 0);
 
+    _defineProperty(this, "subPriority", void 0);
+  }
 
+  run(dateString, token, match, options) {
+    var result = this.parse(dateString, token, match, options);
 
+    if (!result) {
+      return null;
+    }
 
-var MILLISECONDS_IN_HOUR = 3600000;
-var MILLISECONDS_IN_MINUTE = 60000;
-var MILLISECONDS_IN_SECOND = 1000;
+    return {
+      setter: new _Setter_js__WEBPACK_IMPORTED_MODULE_0__.ValueSetter(result.value, this.validate, this.set, this.priority, this.subPriority),
+      rest: result.rest
+    };
+  }
+
+  validate(_utcDate, _value, _options) {
+    return true;
+  }
+
+}
+
+/***/ }),
+
+/***/ "./node_modules/date-fns/esm/parse/_lib/Setter.js":
+/*!********************************************************!*\
+  !*** ./node_modules/date-fns/esm/parse/_lib/Setter.js ***!
+  \********************************************************/
+/***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
+
+"use strict";
+__webpack_require__.r(__webpack_exports__);
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   "DateToSystemTimezoneSetter": () => (/* binding */ DateToSystemTimezoneSetter),
+/* harmony export */   "Setter": () => (/* binding */ Setter),
+/* harmony export */   "ValueSetter": () => (/* binding */ ValueSetter)
+/* harmony export */ });
+function _defineProperty(obj, key, value) { if (key in obj) { Object.defineProperty(obj, key, { value: value, enumerable: true, configurable: true, writable: true }); } else { obj[key] = value; } return obj; }
+
+var TIMEZONE_UNIT_PRIORITY = 10;
+class Setter {
+  constructor() {
+    _defineProperty(this, "priority", void 0);
+
+    _defineProperty(this, "subPriority", 0);
+  }
+
+  validate(_utcDate, _options) {
+    return true;
+  }
+
+}
+class ValueSetter extends Setter {
+  constructor(value, validateValue, setValue, priority, subPriority) {
+    super();
+    this.value = value;
+    this.validateValue = validateValue;
+    this.setValue = setValue;
+    this.priority = priority;
+
+    if (subPriority) {
+      this.subPriority = subPriority;
+    }
+  }
+
+  validate(utcDate, options) {
+    return this.validateValue(utcDate, this.value, options);
+  }
+
+  set(utcDate, flags, options) {
+    return this.setValue(utcDate, flags, this.value, options);
+  }
+
+}
+class DateToSystemTimezoneSetter extends Setter {
+  constructor() {
+    super(...arguments);
+
+    _defineProperty(this, "priority", TIMEZONE_UNIT_PRIORITY);
+
+    _defineProperty(this, "subPriority", -1);
+  }
+
+  set(date, flags) {
+    if (flags.timestampIsSet) {
+      return date;
+    }
+
+    var convertedDate = new Date(0);
+    convertedDate.setFullYear(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate());
+    convertedDate.setHours(date.getUTCHours(), date.getUTCMinutes(), date.getUTCSeconds(), date.getUTCMilliseconds());
+    return convertedDate;
+  }
+
+}
+
+/***/ }),
+
+/***/ "./node_modules/date-fns/esm/parse/_lib/constants.js":
+/*!***********************************************************!*\
+  !*** ./node_modules/date-fns/esm/parse/_lib/constants.js ***!
+  \***********************************************************/
+/***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
+
+"use strict";
+__webpack_require__.r(__webpack_exports__);
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   "numericPatterns": () => (/* binding */ numericPatterns),
+/* harmony export */   "timezonePatterns": () => (/* binding */ timezonePatterns)
+/* harmony export */ });
 var numericPatterns = {
   month: /^(1[0-2]|0?\d)/,
   // 0 to 12
@@ -24798,135 +25295,2253 @@ var timezonePatterns = {
   extendedOptionalSeconds: /^([+-])(\d{2}):(\d{2})(:(\d{2}))?|Z/
 };
 
-function parseNumericPattern(pattern, string, valueCallback) {
-  var matchResult = string.match(pattern);
+/***/ }),
 
-  if (!matchResult) {
-    return null;
+/***/ "./node_modules/date-fns/esm/parse/_lib/parsers/AMPMMidnightParser.js":
+/*!****************************************************************************!*\
+  !*** ./node_modules/date-fns/esm/parse/_lib/parsers/AMPMMidnightParser.js ***!
+  \****************************************************************************/
+/***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
+
+"use strict";
+__webpack_require__.r(__webpack_exports__);
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   "AMPMMidnightParser": () => (/* binding */ AMPMMidnightParser)
+/* harmony export */ });
+/* harmony import */ var _Parser_js__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ../Parser.js */ "./node_modules/date-fns/esm/parse/_lib/Parser.js");
+/* harmony import */ var _utils_js__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ../utils.js */ "./node_modules/date-fns/esm/parse/_lib/utils.js");
+function _defineProperty(obj, key, value) { if (key in obj) { Object.defineProperty(obj, key, { value: value, enumerable: true, configurable: true, writable: true }); } else { obj[key] = value; } return obj; }
+
+
+
+class AMPMMidnightParser extends _Parser_js__WEBPACK_IMPORTED_MODULE_0__.Parser {
+  constructor() {
+    super(...arguments);
+
+    _defineProperty(this, "priority", 80);
+
+    _defineProperty(this, "incompatibleTokens", ['a', 'B', 'H', 'k', 't', 'T']);
   }
 
-  var value = parseInt(matchResult[0], 10);
-  return {
-    value: valueCallback ? valueCallback(value) : value,
-    rest: string.slice(matchResult[0].length)
-  };
-}
+  parse(dateString, token, match) {
+    switch (token) {
+      case 'b':
+      case 'bb':
+      case 'bbb':
+        return match.dayPeriod(dateString, {
+          width: 'abbreviated',
+          context: 'formatting'
+        }) || match.dayPeriod(dateString, {
+          width: 'narrow',
+          context: 'formatting'
+        });
 
-function parseTimezonePattern(pattern, string) {
-  var matchResult = string.match(pattern);
+      case 'bbbbb':
+        return match.dayPeriod(dateString, {
+          width: 'narrow',
+          context: 'formatting'
+        });
 
-  if (!matchResult) {
-    return null;
-  } // Input is 'Z'
-
-
-  if (matchResult[0] === 'Z') {
-    return {
-      value: 0,
-      rest: string.slice(1)
-    };
+      case 'bbbb':
+      default:
+        return match.dayPeriod(dateString, {
+          width: 'wide',
+          context: 'formatting'
+        }) || match.dayPeriod(dateString, {
+          width: 'abbreviated',
+          context: 'formatting'
+        }) || match.dayPeriod(dateString, {
+          width: 'narrow',
+          context: 'formatting'
+        });
+    }
   }
 
-  var sign = matchResult[1] === '+' ? 1 : -1;
-  var hours = matchResult[2] ? parseInt(matchResult[2], 10) : 0;
-  var minutes = matchResult[3] ? parseInt(matchResult[3], 10) : 0;
-  var seconds = matchResult[5] ? parseInt(matchResult[5], 10) : 0;
-  return {
-    value: sign * (hours * MILLISECONDS_IN_HOUR + minutes * MILLISECONDS_IN_MINUTE + seconds * MILLISECONDS_IN_SECOND),
-    rest: string.slice(matchResult[0].length)
-  };
-}
-
-function parseAnyDigitsSigned(string, valueCallback) {
-  return parseNumericPattern(numericPatterns.anyDigitsSigned, string, valueCallback);
-}
-
-function parseNDigits(n, string, valueCallback) {
-  switch (n) {
-    case 1:
-      return parseNumericPattern(numericPatterns.singleDigit, string, valueCallback);
-
-    case 2:
-      return parseNumericPattern(numericPatterns.twoDigits, string, valueCallback);
-
-    case 3:
-      return parseNumericPattern(numericPatterns.threeDigits, string, valueCallback);
-
-    case 4:
-      return parseNumericPattern(numericPatterns.fourDigits, string, valueCallback);
-
-    default:
-      return parseNumericPattern(new RegExp('^\\d{1,' + n + '}'), string, valueCallback);
-  }
-}
-
-function parseNDigitsSigned(n, string, valueCallback) {
-  switch (n) {
-    case 1:
-      return parseNumericPattern(numericPatterns.singleDigitSigned, string, valueCallback);
-
-    case 2:
-      return parseNumericPattern(numericPatterns.twoDigitsSigned, string, valueCallback);
-
-    case 3:
-      return parseNumericPattern(numericPatterns.threeDigitsSigned, string, valueCallback);
-
-    case 4:
-      return parseNumericPattern(numericPatterns.fourDigitsSigned, string, valueCallback);
-
-    default:
-      return parseNumericPattern(new RegExp('^-?\\d{1,' + n + '}'), string, valueCallback);
-  }
-}
-
-function dayPeriodEnumToHours(enumValue) {
-  switch (enumValue) {
-    case 'morning':
-      return 4;
-
-    case 'evening':
-      return 17;
-
-    case 'pm':
-    case 'noon':
-    case 'afternoon':
-      return 12;
-
-    case 'am':
-    case 'midnight':
-    case 'night':
-    default:
-      return 0;
-  }
-}
-
-function normalizeTwoDigitYear(twoDigitYear, currentYear) {
-  var isCommonEra = currentYear > 0; // Absolute number of the current year:
-  // 1 -> 1 AC
-  // 0 -> 1 BC
-  // -1 -> 2 BC
-
-  var absCurrentYear = isCommonEra ? currentYear : 1 - currentYear;
-  var result;
-
-  if (absCurrentYear <= 50) {
-    result = twoDigitYear || 100;
-  } else {
-    var rangeEnd = absCurrentYear + 50;
-    var rangeEndCentury = Math.floor(rangeEnd / 100) * 100;
-    var isPreviousCentury = twoDigitYear >= rangeEnd % 100;
-    result = twoDigitYear + rangeEndCentury - (isPreviousCentury ? 100 : 0);
+  set(date, _flags, value) {
+    date.setUTCHours((0,_utils_js__WEBPACK_IMPORTED_MODULE_1__.dayPeriodEnumToHours)(value), 0, 0, 0);
+    return date;
   }
 
-  return isCommonEra ? result : 1 - result;
 }
+
+/***/ }),
+
+/***/ "./node_modules/date-fns/esm/parse/_lib/parsers/AMPMParser.js":
+/*!********************************************************************!*\
+  !*** ./node_modules/date-fns/esm/parse/_lib/parsers/AMPMParser.js ***!
+  \********************************************************************/
+/***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
+
+"use strict";
+__webpack_require__.r(__webpack_exports__);
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   "AMPMParser": () => (/* binding */ AMPMParser)
+/* harmony export */ });
+/* harmony import */ var _Parser_js__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ../Parser.js */ "./node_modules/date-fns/esm/parse/_lib/Parser.js");
+/* harmony import */ var _utils_js__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ../utils.js */ "./node_modules/date-fns/esm/parse/_lib/utils.js");
+function _defineProperty(obj, key, value) { if (key in obj) { Object.defineProperty(obj, key, { value: value, enumerable: true, configurable: true, writable: true }); } else { obj[key] = value; } return obj; }
+
+
+
+class AMPMParser extends _Parser_js__WEBPACK_IMPORTED_MODULE_0__.Parser {
+  constructor() {
+    super(...arguments);
+
+    _defineProperty(this, "priority", 80);
+
+    _defineProperty(this, "incompatibleTokens", ['b', 'B', 'H', 'k', 't', 'T']);
+  }
+
+  parse(dateString, token, match) {
+    switch (token) {
+      case 'a':
+      case 'aa':
+      case 'aaa':
+        return match.dayPeriod(dateString, {
+          width: 'abbreviated',
+          context: 'formatting'
+        }) || match.dayPeriod(dateString, {
+          width: 'narrow',
+          context: 'formatting'
+        });
+
+      case 'aaaaa':
+        return match.dayPeriod(dateString, {
+          width: 'narrow',
+          context: 'formatting'
+        });
+
+      case 'aaaa':
+      default:
+        return match.dayPeriod(dateString, {
+          width: 'wide',
+          context: 'formatting'
+        }) || match.dayPeriod(dateString, {
+          width: 'abbreviated',
+          context: 'formatting'
+        }) || match.dayPeriod(dateString, {
+          width: 'narrow',
+          context: 'formatting'
+        });
+    }
+  }
+
+  set(date, _flags, value) {
+    date.setUTCHours((0,_utils_js__WEBPACK_IMPORTED_MODULE_1__.dayPeriodEnumToHours)(value), 0, 0, 0);
+    return date;
+  }
+
+}
+
+/***/ }),
+
+/***/ "./node_modules/date-fns/esm/parse/_lib/parsers/DateParser.js":
+/*!********************************************************************!*\
+  !*** ./node_modules/date-fns/esm/parse/_lib/parsers/DateParser.js ***!
+  \********************************************************************/
+/***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
+
+"use strict";
+__webpack_require__.r(__webpack_exports__);
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   "DateParser": () => (/* binding */ DateParser)
+/* harmony export */ });
+/* harmony import */ var _utils_js__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ../utils.js */ "./node_modules/date-fns/esm/parse/_lib/utils.js");
+/* harmony import */ var _Parser_js__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ../Parser.js */ "./node_modules/date-fns/esm/parse/_lib/Parser.js");
+/* harmony import */ var _constants_js__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! ../constants.js */ "./node_modules/date-fns/esm/parse/_lib/constants.js");
+function _defineProperty(obj, key, value) { if (key in obj) { Object.defineProperty(obj, key, { value: value, enumerable: true, configurable: true, writable: true }); } else { obj[key] = value; } return obj; }
+
+
+
 
 var DAYS_IN_MONTH = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
-var DAYS_IN_MONTH_LEAP_YEAR = [31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]; // User for validation
+var DAYS_IN_MONTH_LEAP_YEAR = [31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]; // Day of the month
 
-function isLeapYearIndex(year) {
-  return year % 400 === 0 || year % 4 === 0 && year % 100 !== 0;
+class DateParser extends _Parser_js__WEBPACK_IMPORTED_MODULE_0__.Parser {
+  constructor() {
+    super(...arguments);
+
+    _defineProperty(this, "priority", 90);
+
+    _defineProperty(this, "subPriority", 1);
+
+    _defineProperty(this, "incompatibleTokens", ['Y', 'R', 'q', 'Q', 'w', 'I', 'D', 'i', 'e', 'c', 't', 'T']);
+  }
+
+  parse(dateString, token, match) {
+    switch (token) {
+      case 'd':
+        return (0,_utils_js__WEBPACK_IMPORTED_MODULE_1__.parseNumericPattern)(_constants_js__WEBPACK_IMPORTED_MODULE_2__.numericPatterns.date, dateString);
+
+      case 'do':
+        return match.ordinalNumber(dateString, {
+          unit: 'date'
+        });
+
+      default:
+        return (0,_utils_js__WEBPACK_IMPORTED_MODULE_1__.parseNDigits)(token.length, dateString);
+    }
+  }
+
+  validate(date, value) {
+    var year = date.getUTCFullYear();
+    var isLeapYear = (0,_utils_js__WEBPACK_IMPORTED_MODULE_1__.isLeapYearIndex)(year);
+    var month = date.getUTCMonth();
+
+    if (isLeapYear) {
+      return value >= 1 && value <= DAYS_IN_MONTH_LEAP_YEAR[month];
+    } else {
+      return value >= 1 && value <= DAYS_IN_MONTH[month];
+    }
+  }
+
+  set(date, _flags, value) {
+    date.setUTCDate(value);
+    date.setUTCHours(0, 0, 0, 0);
+    return date;
+  }
+
 }
+
+/***/ }),
+
+/***/ "./node_modules/date-fns/esm/parse/_lib/parsers/DayOfYearParser.js":
+/*!*************************************************************************!*\
+  !*** ./node_modules/date-fns/esm/parse/_lib/parsers/DayOfYearParser.js ***!
+  \*************************************************************************/
+/***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
+
+"use strict";
+__webpack_require__.r(__webpack_exports__);
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   "DayOfYearParser": () => (/* binding */ DayOfYearParser)
+/* harmony export */ });
+/* harmony import */ var _Parser_js__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ../Parser.js */ "./node_modules/date-fns/esm/parse/_lib/Parser.js");
+/* harmony import */ var _constants_js__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! ../constants.js */ "./node_modules/date-fns/esm/parse/_lib/constants.js");
+/* harmony import */ var _utils_js__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ../utils.js */ "./node_modules/date-fns/esm/parse/_lib/utils.js");
+function _defineProperty(obj, key, value) { if (key in obj) { Object.defineProperty(obj, key, { value: value, enumerable: true, configurable: true, writable: true }); } else { obj[key] = value; } return obj; }
+
+
+
+
+class DayOfYearParser extends _Parser_js__WEBPACK_IMPORTED_MODULE_0__.Parser {
+  constructor() {
+    super(...arguments);
+
+    _defineProperty(this, "priority", 90);
+
+    _defineProperty(this, "subpriority", 1);
+
+    _defineProperty(this, "incompatibleTokens", ['Y', 'R', 'q', 'Q', 'M', 'L', 'w', 'I', 'd', 'E', 'i', 'e', 'c', 't', 'T']);
+  }
+
+  parse(dateString, token, match) {
+    switch (token) {
+      case 'D':
+      case 'DD':
+        return (0,_utils_js__WEBPACK_IMPORTED_MODULE_1__.parseNumericPattern)(_constants_js__WEBPACK_IMPORTED_MODULE_2__.numericPatterns.dayOfYear, dateString);
+
+      case 'Do':
+        return match.ordinalNumber(dateString, {
+          unit: 'date'
+        });
+
+      default:
+        return (0,_utils_js__WEBPACK_IMPORTED_MODULE_1__.parseNDigits)(token.length, dateString);
+    }
+  }
+
+  validate(date, value) {
+    var year = date.getUTCFullYear();
+    var isLeapYear = (0,_utils_js__WEBPACK_IMPORTED_MODULE_1__.isLeapYearIndex)(year);
+
+    if (isLeapYear) {
+      return value >= 1 && value <= 366;
+    } else {
+      return value >= 1 && value <= 365;
+    }
+  }
+
+  set(date, _flags, value) {
+    date.setUTCMonth(0, value);
+    date.setUTCHours(0, 0, 0, 0);
+    return date;
+  }
+
+}
+
+/***/ }),
+
+/***/ "./node_modules/date-fns/esm/parse/_lib/parsers/DayParser.js":
+/*!*******************************************************************!*\
+  !*** ./node_modules/date-fns/esm/parse/_lib/parsers/DayParser.js ***!
+  \*******************************************************************/
+/***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
+
+"use strict";
+__webpack_require__.r(__webpack_exports__);
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   "DayParser": () => (/* binding */ DayParser)
+/* harmony export */ });
+/* harmony import */ var _Parser_js__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ../Parser.js */ "./node_modules/date-fns/esm/parse/_lib/Parser.js");
+/* harmony import */ var _lib_setUTCDay_index_js__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ../../../_lib/setUTCDay/index.js */ "./node_modules/date-fns/esm/_lib/setUTCDay/index.js");
+function _defineProperty(obj, key, value) { if (key in obj) { Object.defineProperty(obj, key, { value: value, enumerable: true, configurable: true, writable: true }); } else { obj[key] = value; } return obj; }
+
+
+ // Day of week
+
+class DayParser extends _Parser_js__WEBPACK_IMPORTED_MODULE_0__.Parser {
+  constructor() {
+    super(...arguments);
+
+    _defineProperty(this, "priority", 90);
+
+    _defineProperty(this, "incompatibleTokens", ['D', 'i', 'e', 'c', 't', 'T']);
+  }
+
+  parse(dateString, token, match) {
+    switch (token) {
+      // Tue
+      case 'E':
+      case 'EE':
+      case 'EEE':
+        return match.day(dateString, {
+          width: 'abbreviated',
+          context: 'formatting'
+        }) || match.day(dateString, {
+          width: 'short',
+          context: 'formatting'
+        }) || match.day(dateString, {
+          width: 'narrow',
+          context: 'formatting'
+        });
+      // T
+
+      case 'EEEEE':
+        return match.day(dateString, {
+          width: 'narrow',
+          context: 'formatting'
+        });
+      // Tu
+
+      case 'EEEEEE':
+        return match.day(dateString, {
+          width: 'short',
+          context: 'formatting'
+        }) || match.day(dateString, {
+          width: 'narrow',
+          context: 'formatting'
+        });
+      // Tuesday
+
+      case 'EEEE':
+      default:
+        return match.day(dateString, {
+          width: 'wide',
+          context: 'formatting'
+        }) || match.day(dateString, {
+          width: 'abbreviated',
+          context: 'formatting'
+        }) || match.day(dateString, {
+          width: 'short',
+          context: 'formatting'
+        }) || match.day(dateString, {
+          width: 'narrow',
+          context: 'formatting'
+        });
+    }
+  }
+
+  validate(_date, value) {
+    return value >= 0 && value <= 6;
+  }
+
+  set(date, _flags, value, options) {
+    date = (0,_lib_setUTCDay_index_js__WEBPACK_IMPORTED_MODULE_1__["default"])(date, value, options);
+    date.setUTCHours(0, 0, 0, 0);
+    return date;
+  }
+
+}
+
+/***/ }),
+
+/***/ "./node_modules/date-fns/esm/parse/_lib/parsers/DayPeriodParser.js":
+/*!*************************************************************************!*\
+  !*** ./node_modules/date-fns/esm/parse/_lib/parsers/DayPeriodParser.js ***!
+  \*************************************************************************/
+/***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
+
+"use strict";
+__webpack_require__.r(__webpack_exports__);
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   "DayPeriodParser": () => (/* binding */ DayPeriodParser)
+/* harmony export */ });
+/* harmony import */ var _Parser_js__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ../Parser.js */ "./node_modules/date-fns/esm/parse/_lib/Parser.js");
+/* harmony import */ var _utils_js__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ../utils.js */ "./node_modules/date-fns/esm/parse/_lib/utils.js");
+function _defineProperty(obj, key, value) { if (key in obj) { Object.defineProperty(obj, key, { value: value, enumerable: true, configurable: true, writable: true }); } else { obj[key] = value; } return obj; }
+
+
+ // in the morning, in the afternoon, in the evening, at night
+
+class DayPeriodParser extends _Parser_js__WEBPACK_IMPORTED_MODULE_0__.Parser {
+  constructor() {
+    super(...arguments);
+
+    _defineProperty(this, "priority", 80);
+
+    _defineProperty(this, "incompatibleTokens", ['a', 'b', 't', 'T']);
+  }
+
+  parse(dateString, token, match) {
+    switch (token) {
+      case 'B':
+      case 'BB':
+      case 'BBB':
+        return match.dayPeriod(dateString, {
+          width: 'abbreviated',
+          context: 'formatting'
+        }) || match.dayPeriod(dateString, {
+          width: 'narrow',
+          context: 'formatting'
+        });
+
+      case 'BBBBB':
+        return match.dayPeriod(dateString, {
+          width: 'narrow',
+          context: 'formatting'
+        });
+
+      case 'BBBB':
+      default:
+        return match.dayPeriod(dateString, {
+          width: 'wide',
+          context: 'formatting'
+        }) || match.dayPeriod(dateString, {
+          width: 'abbreviated',
+          context: 'formatting'
+        }) || match.dayPeriod(dateString, {
+          width: 'narrow',
+          context: 'formatting'
+        });
+    }
+  }
+
+  set(date, _flags, value) {
+    date.setUTCHours((0,_utils_js__WEBPACK_IMPORTED_MODULE_1__.dayPeriodEnumToHours)(value), 0, 0, 0);
+    return date;
+  }
+
+}
+
+/***/ }),
+
+/***/ "./node_modules/date-fns/esm/parse/_lib/parsers/EraParser.js":
+/*!*******************************************************************!*\
+  !*** ./node_modules/date-fns/esm/parse/_lib/parsers/EraParser.js ***!
+  \*******************************************************************/
+/***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
+
+"use strict";
+__webpack_require__.r(__webpack_exports__);
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   "EraParser": () => (/* binding */ EraParser)
+/* harmony export */ });
+/* harmony import */ var _Parser_js__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ../Parser.js */ "./node_modules/date-fns/esm/parse/_lib/Parser.js");
+function _defineProperty(obj, key, value) { if (key in obj) { Object.defineProperty(obj, key, { value: value, enumerable: true, configurable: true, writable: true }); } else { obj[key] = value; } return obj; }
+
+
+class EraParser extends _Parser_js__WEBPACK_IMPORTED_MODULE_0__.Parser {
+  constructor() {
+    super(...arguments);
+
+    _defineProperty(this, "priority", 140);
+
+    _defineProperty(this, "incompatibleTokens", ['R', 'u', 't', 'T']);
+  }
+
+  parse(dateString, token, match) {
+    switch (token) {
+      // AD, BC
+      case 'G':
+      case 'GG':
+      case 'GGG':
+        return match.era(dateString, {
+          width: 'abbreviated'
+        }) || match.era(dateString, {
+          width: 'narrow'
+        });
+      // A, B
+
+      case 'GGGGG':
+        return match.era(dateString, {
+          width: 'narrow'
+        });
+      // Anno Domini, Before Christ
+
+      case 'GGGG':
+      default:
+        return match.era(dateString, {
+          width: 'wide'
+        }) || match.era(dateString, {
+          width: 'abbreviated'
+        }) || match.era(dateString, {
+          width: 'narrow'
+        });
+    }
+  }
+
+  set(date, flags, value) {
+    flags.era = value;
+    date.setUTCFullYear(value, 0, 1);
+    date.setUTCHours(0, 0, 0, 0);
+    return date;
+  }
+
+}
+
+/***/ }),
+
+/***/ "./node_modules/date-fns/esm/parse/_lib/parsers/ExtendedYearParser.js":
+/*!****************************************************************************!*\
+  !*** ./node_modules/date-fns/esm/parse/_lib/parsers/ExtendedYearParser.js ***!
+  \****************************************************************************/
+/***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
+
+"use strict";
+__webpack_require__.r(__webpack_exports__);
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   "ExtendedYearParser": () => (/* binding */ ExtendedYearParser)
+/* harmony export */ });
+/* harmony import */ var _Parser_js__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ../Parser.js */ "./node_modules/date-fns/esm/parse/_lib/Parser.js");
+/* harmony import */ var _utils_js__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ../utils.js */ "./node_modules/date-fns/esm/parse/_lib/utils.js");
+function _defineProperty(obj, key, value) { if (key in obj) { Object.defineProperty(obj, key, { value: value, enumerable: true, configurable: true, writable: true }); } else { obj[key] = value; } return obj; }
+
+
+
+class ExtendedYearParser extends _Parser_js__WEBPACK_IMPORTED_MODULE_0__.Parser {
+  constructor() {
+    super(...arguments);
+
+    _defineProperty(this, "priority", 130);
+
+    _defineProperty(this, "incompatibleTokens", ['G', 'y', 'Y', 'R', 'w', 'I', 'i', 'e', 'c', 't', 'T']);
+  }
+
+  parse(dateString, token) {
+    if (token === 'u') {
+      return (0,_utils_js__WEBPACK_IMPORTED_MODULE_1__.parseNDigitsSigned)(4, dateString);
+    }
+
+    return (0,_utils_js__WEBPACK_IMPORTED_MODULE_1__.parseNDigitsSigned)(token.length, dateString);
+  }
+
+  set(date, _flags, value) {
+    date.setUTCFullYear(value, 0, 1);
+    date.setUTCHours(0, 0, 0, 0);
+    return date;
+  }
+
+}
+
+/***/ }),
+
+/***/ "./node_modules/date-fns/esm/parse/_lib/parsers/FractionOfSecondParser.js":
+/*!********************************************************************************!*\
+  !*** ./node_modules/date-fns/esm/parse/_lib/parsers/FractionOfSecondParser.js ***!
+  \********************************************************************************/
+/***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
+
+"use strict";
+__webpack_require__.r(__webpack_exports__);
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   "FractionOfSecondParser": () => (/* binding */ FractionOfSecondParser)
+/* harmony export */ });
+/* harmony import */ var _Parser_js__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ../Parser.js */ "./node_modules/date-fns/esm/parse/_lib/Parser.js");
+/* harmony import */ var _utils_js__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ../utils.js */ "./node_modules/date-fns/esm/parse/_lib/utils.js");
+function _defineProperty(obj, key, value) { if (key in obj) { Object.defineProperty(obj, key, { value: value, enumerable: true, configurable: true, writable: true }); } else { obj[key] = value; } return obj; }
+
+
+
+class FractionOfSecondParser extends _Parser_js__WEBPACK_IMPORTED_MODULE_0__.Parser {
+  constructor() {
+    super(...arguments);
+
+    _defineProperty(this, "priority", 30);
+
+    _defineProperty(this, "incompatibleTokens", ['t', 'T']);
+  }
+
+  parse(dateString, token) {
+    var valueCallback = function (value) {
+      return Math.floor(value * Math.pow(10, -token.length + 3));
+    };
+
+    return (0,_utils_js__WEBPACK_IMPORTED_MODULE_1__.mapValue)((0,_utils_js__WEBPACK_IMPORTED_MODULE_1__.parseNDigits)(token.length, dateString), valueCallback);
+  }
+
+  set(date, _flags, value) {
+    date.setUTCMilliseconds(value);
+    return date;
+  }
+
+}
+
+/***/ }),
+
+/***/ "./node_modules/date-fns/esm/parse/_lib/parsers/Hour0To11Parser.js":
+/*!*************************************************************************!*\
+  !*** ./node_modules/date-fns/esm/parse/_lib/parsers/Hour0To11Parser.js ***!
+  \*************************************************************************/
+/***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
+
+"use strict";
+__webpack_require__.r(__webpack_exports__);
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   "Hour0To11Parser": () => (/* binding */ Hour0To11Parser)
+/* harmony export */ });
+/* harmony import */ var _Parser_js__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ../Parser.js */ "./node_modules/date-fns/esm/parse/_lib/Parser.js");
+/* harmony import */ var _constants_js__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! ../constants.js */ "./node_modules/date-fns/esm/parse/_lib/constants.js");
+/* harmony import */ var _utils_js__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ../utils.js */ "./node_modules/date-fns/esm/parse/_lib/utils.js");
+function _defineProperty(obj, key, value) { if (key in obj) { Object.defineProperty(obj, key, { value: value, enumerable: true, configurable: true, writable: true }); } else { obj[key] = value; } return obj; }
+
+
+
+
+class Hour0To11Parser extends _Parser_js__WEBPACK_IMPORTED_MODULE_0__.Parser {
+  constructor() {
+    super(...arguments);
+
+    _defineProperty(this, "priority", 70);
+
+    _defineProperty(this, "incompatibleTokens", ['h', 'H', 'k', 't', 'T']);
+  }
+
+  parse(dateString, token, match) {
+    switch (token) {
+      case 'K':
+        return (0,_utils_js__WEBPACK_IMPORTED_MODULE_1__.parseNumericPattern)(_constants_js__WEBPACK_IMPORTED_MODULE_2__.numericPatterns.hour11h, dateString);
+
+      case 'Ko':
+        return match.ordinalNumber(dateString, {
+          unit: 'hour'
+        });
+
+      default:
+        return (0,_utils_js__WEBPACK_IMPORTED_MODULE_1__.parseNDigits)(token.length, dateString);
+    }
+  }
+
+  validate(_date, value) {
+    return value >= 0 && value <= 11;
+  }
+
+  set(date, _flags, value) {
+    var isPM = date.getUTCHours() >= 12;
+
+    if (isPM && value < 12) {
+      date.setUTCHours(value + 12, 0, 0, 0);
+    } else {
+      date.setUTCHours(value, 0, 0, 0);
+    }
+
+    return date;
+  }
+
+}
+
+/***/ }),
+
+/***/ "./node_modules/date-fns/esm/parse/_lib/parsers/Hour0to23Parser.js":
+/*!*************************************************************************!*\
+  !*** ./node_modules/date-fns/esm/parse/_lib/parsers/Hour0to23Parser.js ***!
+  \*************************************************************************/
+/***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
+
+"use strict";
+__webpack_require__.r(__webpack_exports__);
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   "Hour0to23Parser": () => (/* binding */ Hour0to23Parser)
+/* harmony export */ });
+/* harmony import */ var _Parser_js__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ../Parser.js */ "./node_modules/date-fns/esm/parse/_lib/Parser.js");
+/* harmony import */ var _constants_js__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! ../constants.js */ "./node_modules/date-fns/esm/parse/_lib/constants.js");
+/* harmony import */ var _utils_js__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ../utils.js */ "./node_modules/date-fns/esm/parse/_lib/utils.js");
+function _defineProperty(obj, key, value) { if (key in obj) { Object.defineProperty(obj, key, { value: value, enumerable: true, configurable: true, writable: true }); } else { obj[key] = value; } return obj; }
+
+
+
+
+class Hour0to23Parser extends _Parser_js__WEBPACK_IMPORTED_MODULE_0__.Parser {
+  constructor() {
+    super(...arguments);
+
+    _defineProperty(this, "priority", 70);
+
+    _defineProperty(this, "incompatibleTokens", ['a', 'b', 'h', 'K', 'k', 't', 'T']);
+  }
+
+  parse(dateString, token, match) {
+    switch (token) {
+      case 'H':
+        return (0,_utils_js__WEBPACK_IMPORTED_MODULE_1__.parseNumericPattern)(_constants_js__WEBPACK_IMPORTED_MODULE_2__.numericPatterns.hour23h, dateString);
+
+      case 'Ho':
+        return match.ordinalNumber(dateString, {
+          unit: 'hour'
+        });
+
+      default:
+        return (0,_utils_js__WEBPACK_IMPORTED_MODULE_1__.parseNDigits)(token.length, dateString);
+    }
+  }
+
+  validate(_date, value) {
+    return value >= 0 && value <= 23;
+  }
+
+  set(date, _flags, value) {
+    date.setUTCHours(value, 0, 0, 0);
+    return date;
+  }
+
+}
+
+/***/ }),
+
+/***/ "./node_modules/date-fns/esm/parse/_lib/parsers/Hour1To24Parser.js":
+/*!*************************************************************************!*\
+  !*** ./node_modules/date-fns/esm/parse/_lib/parsers/Hour1To24Parser.js ***!
+  \*************************************************************************/
+/***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
+
+"use strict";
+__webpack_require__.r(__webpack_exports__);
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   "Hour1To24Parser": () => (/* binding */ Hour1To24Parser)
+/* harmony export */ });
+/* harmony import */ var _Parser_js__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ../Parser.js */ "./node_modules/date-fns/esm/parse/_lib/Parser.js");
+/* harmony import */ var _constants_js__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! ../constants.js */ "./node_modules/date-fns/esm/parse/_lib/constants.js");
+/* harmony import */ var _utils_js__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ../utils.js */ "./node_modules/date-fns/esm/parse/_lib/utils.js");
+function _defineProperty(obj, key, value) { if (key in obj) { Object.defineProperty(obj, key, { value: value, enumerable: true, configurable: true, writable: true }); } else { obj[key] = value; } return obj; }
+
+
+
+
+class Hour1To24Parser extends _Parser_js__WEBPACK_IMPORTED_MODULE_0__.Parser {
+  constructor() {
+    super(...arguments);
+
+    _defineProperty(this, "priority", 70);
+
+    _defineProperty(this, "incompatibleTokens", ['a', 'b', 'h', 'H', 'K', 't', 'T']);
+  }
+
+  parse(dateString, token, match) {
+    switch (token) {
+      case 'k':
+        return (0,_utils_js__WEBPACK_IMPORTED_MODULE_1__.parseNumericPattern)(_constants_js__WEBPACK_IMPORTED_MODULE_2__.numericPatterns.hour24h, dateString);
+
+      case 'ko':
+        return match.ordinalNumber(dateString, {
+          unit: 'hour'
+        });
+
+      default:
+        return (0,_utils_js__WEBPACK_IMPORTED_MODULE_1__.parseNDigits)(token.length, dateString);
+    }
+  }
+
+  validate(_date, value) {
+    return value >= 1 && value <= 24;
+  }
+
+  set(date, _flags, value) {
+    var hours = value <= 24 ? value % 24 : value;
+    date.setUTCHours(hours, 0, 0, 0);
+    return date;
+  }
+
+}
+
+/***/ }),
+
+/***/ "./node_modules/date-fns/esm/parse/_lib/parsers/Hour1to12Parser.js":
+/*!*************************************************************************!*\
+  !*** ./node_modules/date-fns/esm/parse/_lib/parsers/Hour1to12Parser.js ***!
+  \*************************************************************************/
+/***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
+
+"use strict";
+__webpack_require__.r(__webpack_exports__);
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   "Hour1to12Parser": () => (/* binding */ Hour1to12Parser)
+/* harmony export */ });
+/* harmony import */ var _Parser_js__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ../Parser.js */ "./node_modules/date-fns/esm/parse/_lib/Parser.js");
+/* harmony import */ var _constants_js__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! ../constants.js */ "./node_modules/date-fns/esm/parse/_lib/constants.js");
+/* harmony import */ var _utils_js__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ../utils.js */ "./node_modules/date-fns/esm/parse/_lib/utils.js");
+function _defineProperty(obj, key, value) { if (key in obj) { Object.defineProperty(obj, key, { value: value, enumerable: true, configurable: true, writable: true }); } else { obj[key] = value; } return obj; }
+
+
+
+
+class Hour1to12Parser extends _Parser_js__WEBPACK_IMPORTED_MODULE_0__.Parser {
+  constructor() {
+    super(...arguments);
+
+    _defineProperty(this, "priority", 70);
+
+    _defineProperty(this, "incompatibleTokens", ['H', 'K', 'k', 't', 'T']);
+  }
+
+  parse(dateString, token, match) {
+    switch (token) {
+      case 'h':
+        return (0,_utils_js__WEBPACK_IMPORTED_MODULE_1__.parseNumericPattern)(_constants_js__WEBPACK_IMPORTED_MODULE_2__.numericPatterns.hour12h, dateString);
+
+      case 'ho':
+        return match.ordinalNumber(dateString, {
+          unit: 'hour'
+        });
+
+      default:
+        return (0,_utils_js__WEBPACK_IMPORTED_MODULE_1__.parseNDigits)(token.length, dateString);
+    }
+  }
+
+  validate(_date, value) {
+    return value >= 1 && value <= 12;
+  }
+
+  set(date, _flags, value) {
+    var isPM = date.getUTCHours() >= 12;
+
+    if (isPM && value < 12) {
+      date.setUTCHours(value + 12, 0, 0, 0);
+    } else if (!isPM && value === 12) {
+      date.setUTCHours(0, 0, 0, 0);
+    } else {
+      date.setUTCHours(value, 0, 0, 0);
+    }
+
+    return date;
+  }
+
+}
+
+/***/ }),
+
+/***/ "./node_modules/date-fns/esm/parse/_lib/parsers/ISODayParser.js":
+/*!**********************************************************************!*\
+  !*** ./node_modules/date-fns/esm/parse/_lib/parsers/ISODayParser.js ***!
+  \**********************************************************************/
+/***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
+
+"use strict";
+__webpack_require__.r(__webpack_exports__);
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   "ISODayParser": () => (/* binding */ ISODayParser)
+/* harmony export */ });
+/* harmony import */ var _Parser_js__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ../Parser.js */ "./node_modules/date-fns/esm/parse/_lib/Parser.js");
+/* harmony import */ var _utils_js__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ../utils.js */ "./node_modules/date-fns/esm/parse/_lib/utils.js");
+/* harmony import */ var _lib_setUTCISODay_index_js__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! ../../../_lib/setUTCISODay/index.js */ "./node_modules/date-fns/esm/_lib/setUTCISODay/index.js");
+function _defineProperty(obj, key, value) { if (key in obj) { Object.defineProperty(obj, key, { value: value, enumerable: true, configurable: true, writable: true }); } else { obj[key] = value; } return obj; }
+
+
+
+ // ISO day of week
+
+class ISODayParser extends _Parser_js__WEBPACK_IMPORTED_MODULE_0__.Parser {
+  constructor() {
+    super(...arguments);
+
+    _defineProperty(this, "priority", 90);
+
+    _defineProperty(this, "incompatibleTokens", ['y', 'Y', 'u', 'q', 'Q', 'M', 'L', 'w', 'd', 'D', 'E', 'e', 'c', 't', 'T']);
+  }
+
+  parse(dateString, token, match) {
+    var valueCallback = function (value) {
+      if (value === 0) {
+        return 7;
+      }
+
+      return value;
+    };
+
+    switch (token) {
+      // 2
+      case 'i':
+      case 'ii':
+        // 02
+        return (0,_utils_js__WEBPACK_IMPORTED_MODULE_1__.parseNDigits)(token.length, dateString);
+      // 2nd
+
+      case 'io':
+        return match.ordinalNumber(dateString, {
+          unit: 'day'
+        });
+      // Tue
+
+      case 'iii':
+        return (0,_utils_js__WEBPACK_IMPORTED_MODULE_1__.mapValue)(match.day(dateString, {
+          width: 'abbreviated',
+          context: 'formatting'
+        }) || match.day(dateString, {
+          width: 'short',
+          context: 'formatting'
+        }) || match.day(dateString, {
+          width: 'narrow',
+          context: 'formatting'
+        }), valueCallback);
+      // T
+
+      case 'iiiii':
+        return (0,_utils_js__WEBPACK_IMPORTED_MODULE_1__.mapValue)(match.day(dateString, {
+          width: 'narrow',
+          context: 'formatting'
+        }), valueCallback);
+      // Tu
+
+      case 'iiiiii':
+        return (0,_utils_js__WEBPACK_IMPORTED_MODULE_1__.mapValue)(match.day(dateString, {
+          width: 'short',
+          context: 'formatting'
+        }) || match.day(dateString, {
+          width: 'narrow',
+          context: 'formatting'
+        }), valueCallback);
+      // Tuesday
+
+      case 'iiii':
+      default:
+        return (0,_utils_js__WEBPACK_IMPORTED_MODULE_1__.mapValue)(match.day(dateString, {
+          width: 'wide',
+          context: 'formatting'
+        }) || match.day(dateString, {
+          width: 'abbreviated',
+          context: 'formatting'
+        }) || match.day(dateString, {
+          width: 'short',
+          context: 'formatting'
+        }) || match.day(dateString, {
+          width: 'narrow',
+          context: 'formatting'
+        }), valueCallback);
+    }
+  }
+
+  validate(_date, value) {
+    return value >= 1 && value <= 7;
+  }
+
+  set(date, _flags, value) {
+    date = (0,_lib_setUTCISODay_index_js__WEBPACK_IMPORTED_MODULE_2__["default"])(date, value);
+    date.setUTCHours(0, 0, 0, 0);
+    return date;
+  }
+
+}
+
+/***/ }),
+
+/***/ "./node_modules/date-fns/esm/parse/_lib/parsers/ISOTimezoneParser.js":
+/*!***************************************************************************!*\
+  !*** ./node_modules/date-fns/esm/parse/_lib/parsers/ISOTimezoneParser.js ***!
+  \***************************************************************************/
+/***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
+
+"use strict";
+__webpack_require__.r(__webpack_exports__);
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   "ISOTimezoneParser": () => (/* binding */ ISOTimezoneParser)
+/* harmony export */ });
+/* harmony import */ var _Parser_js__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ../Parser.js */ "./node_modules/date-fns/esm/parse/_lib/Parser.js");
+/* harmony import */ var _constants_js__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! ../constants.js */ "./node_modules/date-fns/esm/parse/_lib/constants.js");
+/* harmony import */ var _utils_js__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ../utils.js */ "./node_modules/date-fns/esm/parse/_lib/utils.js");
+function _defineProperty(obj, key, value) { if (key in obj) { Object.defineProperty(obj, key, { value: value, enumerable: true, configurable: true, writable: true }); } else { obj[key] = value; } return obj; }
+
+
+
+ // Timezone (ISO-8601)
+
+class ISOTimezoneParser extends _Parser_js__WEBPACK_IMPORTED_MODULE_0__.Parser {
+  constructor() {
+    super(...arguments);
+
+    _defineProperty(this, "priority", 10);
+
+    _defineProperty(this, "incompatibleTokens", ['t', 'T', 'X']);
+  }
+
+  parse(dateString, token) {
+    switch (token) {
+      case 'x':
+        return (0,_utils_js__WEBPACK_IMPORTED_MODULE_1__.parseTimezonePattern)(_constants_js__WEBPACK_IMPORTED_MODULE_2__.timezonePatterns.basicOptionalMinutes, dateString);
+
+      case 'xx':
+        return (0,_utils_js__WEBPACK_IMPORTED_MODULE_1__.parseTimezonePattern)(_constants_js__WEBPACK_IMPORTED_MODULE_2__.timezonePatterns.basic, dateString);
+
+      case 'xxxx':
+        return (0,_utils_js__WEBPACK_IMPORTED_MODULE_1__.parseTimezonePattern)(_constants_js__WEBPACK_IMPORTED_MODULE_2__.timezonePatterns.basicOptionalSeconds, dateString);
+
+      case 'xxxxx':
+        return (0,_utils_js__WEBPACK_IMPORTED_MODULE_1__.parseTimezonePattern)(_constants_js__WEBPACK_IMPORTED_MODULE_2__.timezonePatterns.extendedOptionalSeconds, dateString);
+
+      case 'xxx':
+      default:
+        return (0,_utils_js__WEBPACK_IMPORTED_MODULE_1__.parseTimezonePattern)(_constants_js__WEBPACK_IMPORTED_MODULE_2__.timezonePatterns.extended, dateString);
+    }
+  }
+
+  set(date, flags, value) {
+    if (flags.timestampIsSet) {
+      return date;
+    }
+
+    return new Date(date.getTime() - value);
+  }
+
+}
+
+/***/ }),
+
+/***/ "./node_modules/date-fns/esm/parse/_lib/parsers/ISOTimezoneWithZParser.js":
+/*!********************************************************************************!*\
+  !*** ./node_modules/date-fns/esm/parse/_lib/parsers/ISOTimezoneWithZParser.js ***!
+  \********************************************************************************/
+/***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
+
+"use strict";
+__webpack_require__.r(__webpack_exports__);
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   "ISOTimezoneWithZParser": () => (/* binding */ ISOTimezoneWithZParser)
+/* harmony export */ });
+/* harmony import */ var _Parser_js__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ../Parser.js */ "./node_modules/date-fns/esm/parse/_lib/Parser.js");
+/* harmony import */ var _constants_js__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! ../constants.js */ "./node_modules/date-fns/esm/parse/_lib/constants.js");
+/* harmony import */ var _utils_js__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ../utils.js */ "./node_modules/date-fns/esm/parse/_lib/utils.js");
+function _defineProperty(obj, key, value) { if (key in obj) { Object.defineProperty(obj, key, { value: value, enumerable: true, configurable: true, writable: true }); } else { obj[key] = value; } return obj; }
+
+
+
+ // Timezone (ISO-8601. +00:00 is `'Z'`)
+
+class ISOTimezoneWithZParser extends _Parser_js__WEBPACK_IMPORTED_MODULE_0__.Parser {
+  constructor() {
+    super(...arguments);
+
+    _defineProperty(this, "priority", 10);
+
+    _defineProperty(this, "incompatibleTokens", ['t', 'T', 'x']);
+  }
+
+  parse(dateString, token) {
+    switch (token) {
+      case 'X':
+        return (0,_utils_js__WEBPACK_IMPORTED_MODULE_1__.parseTimezonePattern)(_constants_js__WEBPACK_IMPORTED_MODULE_2__.timezonePatterns.basicOptionalMinutes, dateString);
+
+      case 'XX':
+        return (0,_utils_js__WEBPACK_IMPORTED_MODULE_1__.parseTimezonePattern)(_constants_js__WEBPACK_IMPORTED_MODULE_2__.timezonePatterns.basic, dateString);
+
+      case 'XXXX':
+        return (0,_utils_js__WEBPACK_IMPORTED_MODULE_1__.parseTimezonePattern)(_constants_js__WEBPACK_IMPORTED_MODULE_2__.timezonePatterns.basicOptionalSeconds, dateString);
+
+      case 'XXXXX':
+        return (0,_utils_js__WEBPACK_IMPORTED_MODULE_1__.parseTimezonePattern)(_constants_js__WEBPACK_IMPORTED_MODULE_2__.timezonePatterns.extendedOptionalSeconds, dateString);
+
+      case 'XXX':
+      default:
+        return (0,_utils_js__WEBPACK_IMPORTED_MODULE_1__.parseTimezonePattern)(_constants_js__WEBPACK_IMPORTED_MODULE_2__.timezonePatterns.extended, dateString);
+    }
+  }
+
+  set(date, flags, value) {
+    if (flags.timestampIsSet) {
+      return date;
+    }
+
+    return new Date(date.getTime() - value);
+  }
+
+}
+
+/***/ }),
+
+/***/ "./node_modules/date-fns/esm/parse/_lib/parsers/ISOWeekParser.js":
+/*!***********************************************************************!*\
+  !*** ./node_modules/date-fns/esm/parse/_lib/parsers/ISOWeekParser.js ***!
+  \***********************************************************************/
+/***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
+
+"use strict";
+__webpack_require__.r(__webpack_exports__);
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   "ISOWeekParser": () => (/* binding */ ISOWeekParser)
+/* harmony export */ });
+/* harmony import */ var _Parser_js__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ../Parser.js */ "./node_modules/date-fns/esm/parse/_lib/Parser.js");
+/* harmony import */ var _constants_js__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! ../constants.js */ "./node_modules/date-fns/esm/parse/_lib/constants.js");
+/* harmony import */ var _utils_js__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ../utils.js */ "./node_modules/date-fns/esm/parse/_lib/utils.js");
+/* harmony import */ var _lib_setUTCISOWeek_index_js__WEBPACK_IMPORTED_MODULE_4__ = __webpack_require__(/*! ../../../_lib/setUTCISOWeek/index.js */ "./node_modules/date-fns/esm/_lib/setUTCISOWeek/index.js");
+/* harmony import */ var _lib_startOfUTCISOWeek_index_js__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__(/*! ../../../_lib/startOfUTCISOWeek/index.js */ "./node_modules/date-fns/esm/_lib/startOfUTCISOWeek/index.js");
+function _defineProperty(obj, key, value) { if (key in obj) { Object.defineProperty(obj, key, { value: value, enumerable: true, configurable: true, writable: true }); } else { obj[key] = value; } return obj; }
+
+
+
+
+
+ // ISO week of year
+
+class ISOWeekParser extends _Parser_js__WEBPACK_IMPORTED_MODULE_0__.Parser {
+  constructor() {
+    super(...arguments);
+
+    _defineProperty(this, "priority", 100);
+
+    _defineProperty(this, "incompatibleTokens", ['y', 'Y', 'u', 'q', 'Q', 'M', 'L', 'w', 'd', 'D', 'e', 'c', 't', 'T']);
+  }
+
+  parse(dateString, token, match) {
+    switch (token) {
+      case 'I':
+        return (0,_utils_js__WEBPACK_IMPORTED_MODULE_1__.parseNumericPattern)(_constants_js__WEBPACK_IMPORTED_MODULE_2__.numericPatterns.week, dateString);
+
+      case 'Io':
+        return match.ordinalNumber(dateString, {
+          unit: 'week'
+        });
+
+      default:
+        return (0,_utils_js__WEBPACK_IMPORTED_MODULE_1__.parseNDigits)(token.length, dateString);
+    }
+  }
+
+  validate(_date, value) {
+    return value >= 1 && value <= 53;
+  }
+
+  set(date, _flags, value) {
+    return (0,_lib_startOfUTCISOWeek_index_js__WEBPACK_IMPORTED_MODULE_3__["default"])((0,_lib_setUTCISOWeek_index_js__WEBPACK_IMPORTED_MODULE_4__["default"])(date, value));
+  }
+
+}
+
+/***/ }),
+
+/***/ "./node_modules/date-fns/esm/parse/_lib/parsers/ISOWeekYearParser.js":
+/*!***************************************************************************!*\
+  !*** ./node_modules/date-fns/esm/parse/_lib/parsers/ISOWeekYearParser.js ***!
+  \***************************************************************************/
+/***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
+
+"use strict";
+__webpack_require__.r(__webpack_exports__);
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   "ISOWeekYearParser": () => (/* binding */ ISOWeekYearParser)
+/* harmony export */ });
+/* harmony import */ var _Parser_js__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ../Parser.js */ "./node_modules/date-fns/esm/parse/_lib/Parser.js");
+/* harmony import */ var _utils_js__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ../utils.js */ "./node_modules/date-fns/esm/parse/_lib/utils.js");
+/* harmony import */ var _lib_startOfUTCISOWeek_index_js__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! ../../../_lib/startOfUTCISOWeek/index.js */ "./node_modules/date-fns/esm/_lib/startOfUTCISOWeek/index.js");
+function _defineProperty(obj, key, value) { if (key in obj) { Object.defineProperty(obj, key, { value: value, enumerable: true, configurable: true, writable: true }); } else { obj[key] = value; } return obj; }
+
+
+
+ // ISO week-numbering year
+
+class ISOWeekYearParser extends _Parser_js__WEBPACK_IMPORTED_MODULE_0__.Parser {
+  constructor() {
+    super(...arguments);
+
+    _defineProperty(this, "priority", 130);
+
+    _defineProperty(this, "incompatibleTokens", ['G', 'y', 'Y', 'u', 'Q', 'q', 'M', 'L', 'w', 'd', 'D', 'e', 'c', 't', 'T']);
+  }
+
+  parse(dateString, token) {
+    if (token === 'R') {
+      return (0,_utils_js__WEBPACK_IMPORTED_MODULE_1__.parseNDigitsSigned)(4, dateString);
+    }
+
+    return (0,_utils_js__WEBPACK_IMPORTED_MODULE_1__.parseNDigitsSigned)(token.length, dateString);
+  }
+
+  set(_date, _flags, value) {
+    var firstWeekOfYear = new Date(0);
+    firstWeekOfYear.setUTCFullYear(value, 0, 4);
+    firstWeekOfYear.setUTCHours(0, 0, 0, 0);
+    return (0,_lib_startOfUTCISOWeek_index_js__WEBPACK_IMPORTED_MODULE_2__["default"])(firstWeekOfYear);
+  }
+
+}
+
+/***/ }),
+
+/***/ "./node_modules/date-fns/esm/parse/_lib/parsers/LocalDayParser.js":
+/*!************************************************************************!*\
+  !*** ./node_modules/date-fns/esm/parse/_lib/parsers/LocalDayParser.js ***!
+  \************************************************************************/
+/***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
+
+"use strict";
+__webpack_require__.r(__webpack_exports__);
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   "LocalDayParser": () => (/* binding */ LocalDayParser)
+/* harmony export */ });
+/* harmony import */ var _Parser_js__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ../Parser.js */ "./node_modules/date-fns/esm/parse/_lib/Parser.js");
+/* harmony import */ var _utils_js__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ../utils.js */ "./node_modules/date-fns/esm/parse/_lib/utils.js");
+/* harmony import */ var _lib_setUTCDay_index_js__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! ../../../_lib/setUTCDay/index.js */ "./node_modules/date-fns/esm/_lib/setUTCDay/index.js");
+function _defineProperty(obj, key, value) { if (key in obj) { Object.defineProperty(obj, key, { value: value, enumerable: true, configurable: true, writable: true }); } else { obj[key] = value; } return obj; }
+
+
+
+ // Local day of week
+
+class LocalDayParser extends _Parser_js__WEBPACK_IMPORTED_MODULE_0__.Parser {
+  constructor() {
+    super(...arguments);
+
+    _defineProperty(this, "priority", 90);
+
+    _defineProperty(this, "incompatibleTokens", ['y', 'R', 'u', 'q', 'Q', 'M', 'L', 'I', 'd', 'D', 'E', 'i', 'c', 't', 'T']);
+  }
+
+  parse(dateString, token, match, options) {
+    var valueCallback = function (value) {
+      var wholeWeekDays = Math.floor((value - 1) / 7) * 7;
+      return (value + options.weekStartsOn + 6) % 7 + wholeWeekDays;
+    };
+
+    switch (token) {
+      // 3
+      case 'e':
+      case 'ee':
+        // 03
+        return (0,_utils_js__WEBPACK_IMPORTED_MODULE_1__.mapValue)((0,_utils_js__WEBPACK_IMPORTED_MODULE_1__.parseNDigits)(token.length, dateString), valueCallback);
+      // 3rd
+
+      case 'eo':
+        return (0,_utils_js__WEBPACK_IMPORTED_MODULE_1__.mapValue)(match.ordinalNumber(dateString, {
+          unit: 'day'
+        }), valueCallback);
+      // Tue
+
+      case 'eee':
+        return match.day(dateString, {
+          width: 'abbreviated',
+          context: 'formatting'
+        }) || match.day(dateString, {
+          width: 'short',
+          context: 'formatting'
+        }) || match.day(dateString, {
+          width: 'narrow',
+          context: 'formatting'
+        });
+      // T
+
+      case 'eeeee':
+        return match.day(dateString, {
+          width: 'narrow',
+          context: 'formatting'
+        });
+      // Tu
+
+      case 'eeeeee':
+        return match.day(dateString, {
+          width: 'short',
+          context: 'formatting'
+        }) || match.day(dateString, {
+          width: 'narrow',
+          context: 'formatting'
+        });
+      // Tuesday
+
+      case 'eeee':
+      default:
+        return match.day(dateString, {
+          width: 'wide',
+          context: 'formatting'
+        }) || match.day(dateString, {
+          width: 'abbreviated',
+          context: 'formatting'
+        }) || match.day(dateString, {
+          width: 'short',
+          context: 'formatting'
+        }) || match.day(dateString, {
+          width: 'narrow',
+          context: 'formatting'
+        });
+    }
+  }
+
+  validate(_date, value) {
+    return value >= 0 && value <= 6;
+  }
+
+  set(date, _flags, value, options) {
+    date = (0,_lib_setUTCDay_index_js__WEBPACK_IMPORTED_MODULE_2__["default"])(date, value, options);
+    date.setUTCHours(0, 0, 0, 0);
+    return date;
+  }
+
+}
+
+/***/ }),
+
+/***/ "./node_modules/date-fns/esm/parse/_lib/parsers/LocalWeekParser.js":
+/*!*************************************************************************!*\
+  !*** ./node_modules/date-fns/esm/parse/_lib/parsers/LocalWeekParser.js ***!
+  \*************************************************************************/
+/***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
+
+"use strict";
+__webpack_require__.r(__webpack_exports__);
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   "LocalWeekParser": () => (/* binding */ LocalWeekParser)
+/* harmony export */ });
+/* harmony import */ var _Parser_js__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ../Parser.js */ "./node_modules/date-fns/esm/parse/_lib/Parser.js");
+/* harmony import */ var _constants_js__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! ../constants.js */ "./node_modules/date-fns/esm/parse/_lib/constants.js");
+/* harmony import */ var _utils_js__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ../utils.js */ "./node_modules/date-fns/esm/parse/_lib/utils.js");
+/* harmony import */ var _lib_setUTCWeek_index_js__WEBPACK_IMPORTED_MODULE_4__ = __webpack_require__(/*! ../../../_lib/setUTCWeek/index.js */ "./node_modules/date-fns/esm/_lib/setUTCWeek/index.js");
+/* harmony import */ var _lib_startOfUTCWeek_index_js__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__(/*! ../../../_lib/startOfUTCWeek/index.js */ "./node_modules/date-fns/esm/_lib/startOfUTCWeek/index.js");
+function _defineProperty(obj, key, value) { if (key in obj) { Object.defineProperty(obj, key, { value: value, enumerable: true, configurable: true, writable: true }); } else { obj[key] = value; } return obj; }
+
+
+
+
+
+ // Local week of year
+
+class LocalWeekParser extends _Parser_js__WEBPACK_IMPORTED_MODULE_0__.Parser {
+  constructor() {
+    super(...arguments);
+
+    _defineProperty(this, "priority", 100);
+
+    _defineProperty(this, "incompatibleTokens", ['y', 'R', 'u', 'q', 'Q', 'M', 'L', 'I', 'd', 'D', 'i', 't', 'T']);
+  }
+
+  parse(dateString, token, match) {
+    switch (token) {
+      case 'w':
+        return (0,_utils_js__WEBPACK_IMPORTED_MODULE_1__.parseNumericPattern)(_constants_js__WEBPACK_IMPORTED_MODULE_2__.numericPatterns.week, dateString);
+
+      case 'wo':
+        return match.ordinalNumber(dateString, {
+          unit: 'week'
+        });
+
+      default:
+        return (0,_utils_js__WEBPACK_IMPORTED_MODULE_1__.parseNDigits)(token.length, dateString);
+    }
+  }
+
+  validate(_date, value) {
+    return value >= 1 && value <= 53;
+  }
+
+  set(date, _flags, value, options) {
+    return (0,_lib_startOfUTCWeek_index_js__WEBPACK_IMPORTED_MODULE_3__["default"])((0,_lib_setUTCWeek_index_js__WEBPACK_IMPORTED_MODULE_4__["default"])(date, value, options), options);
+  }
+
+}
+
+/***/ }),
+
+/***/ "./node_modules/date-fns/esm/parse/_lib/parsers/LocalWeekYearParser.js":
+/*!*****************************************************************************!*\
+  !*** ./node_modules/date-fns/esm/parse/_lib/parsers/LocalWeekYearParser.js ***!
+  \*****************************************************************************/
+/***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
+
+"use strict";
+__webpack_require__.r(__webpack_exports__);
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   "LocalWeekYearParser": () => (/* binding */ LocalWeekYearParser)
+/* harmony export */ });
+/* harmony import */ var _Parser_js__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ../Parser.js */ "./node_modules/date-fns/esm/parse/_lib/Parser.js");
+/* harmony import */ var _utils_js__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ../utils.js */ "./node_modules/date-fns/esm/parse/_lib/utils.js");
+/* harmony import */ var _lib_getUTCWeekYear_index_js__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! ../../../_lib/getUTCWeekYear/index.js */ "./node_modules/date-fns/esm/_lib/getUTCWeekYear/index.js");
+/* harmony import */ var _lib_startOfUTCWeek_index_js__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__(/*! ../../../_lib/startOfUTCWeek/index.js */ "./node_modules/date-fns/esm/_lib/startOfUTCWeek/index.js");
+function _defineProperty(obj, key, value) { if (key in obj) { Object.defineProperty(obj, key, { value: value, enumerable: true, configurable: true, writable: true }); } else { obj[key] = value; } return obj; }
+
+
+
+
+
+// Local week-numbering year
+class LocalWeekYearParser extends _Parser_js__WEBPACK_IMPORTED_MODULE_0__.Parser {
+  constructor() {
+    super(...arguments);
+
+    _defineProperty(this, "priority", 130);
+
+    _defineProperty(this, "incompatibleTokens", ['y', 'R', 'u', 'Q', 'q', 'M', 'L', 'I', 'd', 'D', 'i', 't', 'T']);
+  }
+
+  parse(dateString, token, match) {
+    var valueCallback = function (year) {
+      return {
+        year: year,
+        isTwoDigitYear: token === 'YY'
+      };
+    };
+
+    switch (token) {
+      case 'Y':
+        return (0,_utils_js__WEBPACK_IMPORTED_MODULE_1__.mapValue)((0,_utils_js__WEBPACK_IMPORTED_MODULE_1__.parseNDigits)(4, dateString), valueCallback);
+
+      case 'Yo':
+        return (0,_utils_js__WEBPACK_IMPORTED_MODULE_1__.mapValue)(match.ordinalNumber(dateString, {
+          unit: 'year'
+        }), valueCallback);
+
+      default:
+        return (0,_utils_js__WEBPACK_IMPORTED_MODULE_1__.mapValue)((0,_utils_js__WEBPACK_IMPORTED_MODULE_1__.parseNDigits)(token.length, dateString), valueCallback);
+    }
+  }
+
+  validate(_date, value) {
+    return value.isTwoDigitYear || value.year > 0;
+  }
+
+  set(date, flags, value, options) {
+    var currentYear = (0,_lib_getUTCWeekYear_index_js__WEBPACK_IMPORTED_MODULE_2__["default"])(date, options);
+
+    if (value.isTwoDigitYear) {
+      var normalizedTwoDigitYear = (0,_utils_js__WEBPACK_IMPORTED_MODULE_1__.normalizeTwoDigitYear)(value.year, currentYear);
+      date.setUTCFullYear(normalizedTwoDigitYear, 0, options.firstWeekContainsDate);
+      date.setUTCHours(0, 0, 0, 0);
+      return (0,_lib_startOfUTCWeek_index_js__WEBPACK_IMPORTED_MODULE_3__["default"])(date, options);
+    }
+
+    var year = !('era' in flags) || flags.era === 1 ? value.year : 1 - value.year;
+    date.setUTCFullYear(year, 0, options.firstWeekContainsDate);
+    date.setUTCHours(0, 0, 0, 0);
+    return (0,_lib_startOfUTCWeek_index_js__WEBPACK_IMPORTED_MODULE_3__["default"])(date, options);
+  }
+
+}
+
+/***/ }),
+
+/***/ "./node_modules/date-fns/esm/parse/_lib/parsers/MinuteParser.js":
+/*!**********************************************************************!*\
+  !*** ./node_modules/date-fns/esm/parse/_lib/parsers/MinuteParser.js ***!
+  \**********************************************************************/
+/***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
+
+"use strict";
+__webpack_require__.r(__webpack_exports__);
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   "MinuteParser": () => (/* binding */ MinuteParser)
+/* harmony export */ });
+/* harmony import */ var _Parser_js__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ../Parser.js */ "./node_modules/date-fns/esm/parse/_lib/Parser.js");
+/* harmony import */ var _constants_js__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! ../constants.js */ "./node_modules/date-fns/esm/parse/_lib/constants.js");
+/* harmony import */ var _utils_js__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ../utils.js */ "./node_modules/date-fns/esm/parse/_lib/utils.js");
+function _defineProperty(obj, key, value) { if (key in obj) { Object.defineProperty(obj, key, { value: value, enumerable: true, configurable: true, writable: true }); } else { obj[key] = value; } return obj; }
+
+
+
+
+class MinuteParser extends _Parser_js__WEBPACK_IMPORTED_MODULE_0__.Parser {
+  constructor() {
+    super(...arguments);
+
+    _defineProperty(this, "priority", 60);
+
+    _defineProperty(this, "incompatibleTokens", ['t', 'T']);
+  }
+
+  parse(dateString, token, match) {
+    switch (token) {
+      case 'm':
+        return (0,_utils_js__WEBPACK_IMPORTED_MODULE_1__.parseNumericPattern)(_constants_js__WEBPACK_IMPORTED_MODULE_2__.numericPatterns.minute, dateString);
+
+      case 'mo':
+        return match.ordinalNumber(dateString, {
+          unit: 'minute'
+        });
+
+      default:
+        return (0,_utils_js__WEBPACK_IMPORTED_MODULE_1__.parseNDigits)(token.length, dateString);
+    }
+  }
+
+  validate(_date, value) {
+    return value >= 0 && value <= 59;
+  }
+
+  set(date, _flags, value) {
+    date.setUTCMinutes(value, 0, 0);
+    return date;
+  }
+
+}
+
+/***/ }),
+
+/***/ "./node_modules/date-fns/esm/parse/_lib/parsers/MonthParser.js":
+/*!*********************************************************************!*\
+  !*** ./node_modules/date-fns/esm/parse/_lib/parsers/MonthParser.js ***!
+  \*********************************************************************/
+/***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
+
+"use strict";
+__webpack_require__.r(__webpack_exports__);
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   "MonthParser": () => (/* binding */ MonthParser)
+/* harmony export */ });
+/* harmony import */ var _utils_js__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ../utils.js */ "./node_modules/date-fns/esm/parse/_lib/utils.js");
+/* harmony import */ var _Parser_js__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ../Parser.js */ "./node_modules/date-fns/esm/parse/_lib/Parser.js");
+/* harmony import */ var _constants_js__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! ../constants.js */ "./node_modules/date-fns/esm/parse/_lib/constants.js");
+function _defineProperty(obj, key, value) { if (key in obj) { Object.defineProperty(obj, key, { value: value, enumerable: true, configurable: true, writable: true }); } else { obj[key] = value; } return obj; }
+
+
+
+
+class MonthParser extends _Parser_js__WEBPACK_IMPORTED_MODULE_0__.Parser {
+  constructor() {
+    super(...arguments);
+
+    _defineProperty(this, "incompatibleTokens", ['Y', 'R', 'q', 'Q', 'L', 'w', 'I', 'D', 'i', 'e', 'c', 't', 'T']);
+
+    _defineProperty(this, "priority", 110);
+  }
+
+  parse(dateString, token, match) {
+    var valueCallback = function (value) {
+      return value - 1;
+    };
+
+    switch (token) {
+      // 1, 2, ..., 12
+      case 'M':
+        return (0,_utils_js__WEBPACK_IMPORTED_MODULE_1__.mapValue)((0,_utils_js__WEBPACK_IMPORTED_MODULE_1__.parseNumericPattern)(_constants_js__WEBPACK_IMPORTED_MODULE_2__.numericPatterns.month, dateString), valueCallback);
+      // 01, 02, ..., 12
+
+      case 'MM':
+        return (0,_utils_js__WEBPACK_IMPORTED_MODULE_1__.mapValue)((0,_utils_js__WEBPACK_IMPORTED_MODULE_1__.parseNDigits)(2, dateString), valueCallback);
+      // 1st, 2nd, ..., 12th
+
+      case 'Mo':
+        return (0,_utils_js__WEBPACK_IMPORTED_MODULE_1__.mapValue)(match.ordinalNumber(dateString, {
+          unit: 'month'
+        }), valueCallback);
+      // Jan, Feb, ..., Dec
+
+      case 'MMM':
+        return match.month(dateString, {
+          width: 'abbreviated',
+          context: 'formatting'
+        }) || match.month(dateString, {
+          width: 'narrow',
+          context: 'formatting'
+        });
+      // J, F, ..., D
+
+      case 'MMMMM':
+        return match.month(dateString, {
+          width: 'narrow',
+          context: 'formatting'
+        });
+      // January, February, ..., December
+
+      case 'MMMM':
+      default:
+        return match.month(dateString, {
+          width: 'wide',
+          context: 'formatting'
+        }) || match.month(dateString, {
+          width: 'abbreviated',
+          context: 'formatting'
+        }) || match.month(dateString, {
+          width: 'narrow',
+          context: 'formatting'
+        });
+    }
+  }
+
+  validate(_date, value) {
+    return value >= 0 && value <= 11;
+  }
+
+  set(date, _flags, value) {
+    date.setUTCMonth(value, 1);
+    date.setUTCHours(0, 0, 0, 0);
+    return date;
+  }
+
+}
+
+/***/ }),
+
+/***/ "./node_modules/date-fns/esm/parse/_lib/parsers/QuarterParser.js":
+/*!***********************************************************************!*\
+  !*** ./node_modules/date-fns/esm/parse/_lib/parsers/QuarterParser.js ***!
+  \***********************************************************************/
+/***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
+
+"use strict";
+__webpack_require__.r(__webpack_exports__);
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   "QuarterParser": () => (/* binding */ QuarterParser)
+/* harmony export */ });
+/* harmony import */ var _Parser_js__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ../Parser.js */ "./node_modules/date-fns/esm/parse/_lib/Parser.js");
+/* harmony import */ var _utils_js__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ../utils.js */ "./node_modules/date-fns/esm/parse/_lib/utils.js");
+function _defineProperty(obj, key, value) { if (key in obj) { Object.defineProperty(obj, key, { value: value, enumerable: true, configurable: true, writable: true }); } else { obj[key] = value; } return obj; }
+
+
+
+class QuarterParser extends _Parser_js__WEBPACK_IMPORTED_MODULE_0__.Parser {
+  constructor() {
+    super(...arguments);
+
+    _defineProperty(this, "priority", 120);
+
+    _defineProperty(this, "incompatibleTokens", ['Y', 'R', 'q', 'M', 'L', 'w', 'I', 'd', 'D', 'i', 'e', 'c', 't', 'T']);
+  }
+
+  parse(dateString, token, match) {
+    switch (token) {
+      // 1, 2, 3, 4
+      case 'Q':
+      case 'QQ':
+        // 01, 02, 03, 04
+        return (0,_utils_js__WEBPACK_IMPORTED_MODULE_1__.parseNDigits)(token.length, dateString);
+      // 1st, 2nd, 3rd, 4th
+
+      case 'Qo':
+        return match.ordinalNumber(dateString, {
+          unit: 'quarter'
+        });
+      // Q1, Q2, Q3, Q4
+
+      case 'QQQ':
+        return match.quarter(dateString, {
+          width: 'abbreviated',
+          context: 'formatting'
+        }) || match.quarter(dateString, {
+          width: 'narrow',
+          context: 'formatting'
+        });
+      // 1, 2, 3, 4 (narrow quarter; could be not numerical)
+
+      case 'QQQQQ':
+        return match.quarter(dateString, {
+          width: 'narrow',
+          context: 'formatting'
+        });
+      // 1st quarter, 2nd quarter, ...
+
+      case 'QQQQ':
+      default:
+        return match.quarter(dateString, {
+          width: 'wide',
+          context: 'formatting'
+        }) || match.quarter(dateString, {
+          width: 'abbreviated',
+          context: 'formatting'
+        }) || match.quarter(dateString, {
+          width: 'narrow',
+          context: 'formatting'
+        });
+    }
+  }
+
+  validate(_date, value) {
+    return value >= 1 && value <= 4;
+  }
+
+  set(date, _flags, value) {
+    date.setUTCMonth((value - 1) * 3, 1);
+    date.setUTCHours(0, 0, 0, 0);
+    return date;
+  }
+
+}
+
+/***/ }),
+
+/***/ "./node_modules/date-fns/esm/parse/_lib/parsers/SecondParser.js":
+/*!**********************************************************************!*\
+  !*** ./node_modules/date-fns/esm/parse/_lib/parsers/SecondParser.js ***!
+  \**********************************************************************/
+/***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
+
+"use strict";
+__webpack_require__.r(__webpack_exports__);
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   "SecondParser": () => (/* binding */ SecondParser)
+/* harmony export */ });
+/* harmony import */ var _Parser_js__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ../Parser.js */ "./node_modules/date-fns/esm/parse/_lib/Parser.js");
+/* harmony import */ var _constants_js__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! ../constants.js */ "./node_modules/date-fns/esm/parse/_lib/constants.js");
+/* harmony import */ var _utils_js__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ../utils.js */ "./node_modules/date-fns/esm/parse/_lib/utils.js");
+function _defineProperty(obj, key, value) { if (key in obj) { Object.defineProperty(obj, key, { value: value, enumerable: true, configurable: true, writable: true }); } else { obj[key] = value; } return obj; }
+
+
+
+
+class SecondParser extends _Parser_js__WEBPACK_IMPORTED_MODULE_0__.Parser {
+  constructor() {
+    super(...arguments);
+
+    _defineProperty(this, "priority", 50);
+
+    _defineProperty(this, "incompatibleTokens", ['t', 'T']);
+  }
+
+  parse(dateString, token, match) {
+    switch (token) {
+      case 's':
+        return (0,_utils_js__WEBPACK_IMPORTED_MODULE_1__.parseNumericPattern)(_constants_js__WEBPACK_IMPORTED_MODULE_2__.numericPatterns.second, dateString);
+
+      case 'so':
+        return match.ordinalNumber(dateString, {
+          unit: 'second'
+        });
+
+      default:
+        return (0,_utils_js__WEBPACK_IMPORTED_MODULE_1__.parseNDigits)(token.length, dateString);
+    }
+  }
+
+  validate(_date, value) {
+    return value >= 0 && value <= 59;
+  }
+
+  set(date, _flags, value) {
+    date.setUTCSeconds(value, 0);
+    return date;
+  }
+
+}
+
+/***/ }),
+
+/***/ "./node_modules/date-fns/esm/parse/_lib/parsers/StandAloneLocalDayParser.js":
+/*!**********************************************************************************!*\
+  !*** ./node_modules/date-fns/esm/parse/_lib/parsers/StandAloneLocalDayParser.js ***!
+  \**********************************************************************************/
+/***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
+
+"use strict";
+__webpack_require__.r(__webpack_exports__);
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   "StandAloneLocalDayParser": () => (/* binding */ StandAloneLocalDayParser)
+/* harmony export */ });
+/* harmony import */ var _Parser_js__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ../Parser.js */ "./node_modules/date-fns/esm/parse/_lib/Parser.js");
+/* harmony import */ var _utils_js__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ../utils.js */ "./node_modules/date-fns/esm/parse/_lib/utils.js");
+/* harmony import */ var _lib_setUTCDay_index_js__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! ../../../_lib/setUTCDay/index.js */ "./node_modules/date-fns/esm/_lib/setUTCDay/index.js");
+function _defineProperty(obj, key, value) { if (key in obj) { Object.defineProperty(obj, key, { value: value, enumerable: true, configurable: true, writable: true }); } else { obj[key] = value; } return obj; }
+
+
+
+ // Stand-alone local day of week
+
+class StandAloneLocalDayParser extends _Parser_js__WEBPACK_IMPORTED_MODULE_0__.Parser {
+  constructor() {
+    super(...arguments);
+
+    _defineProperty(this, "priority", 90);
+
+    _defineProperty(this, "incompatibleTokens", ['y', 'R', 'u', 'q', 'Q', 'M', 'L', 'I', 'd', 'D', 'E', 'i', 'e', 't', 'T']);
+  }
+
+  parse(dateString, token, match, options) {
+    var valueCallback = function (value) {
+      var wholeWeekDays = Math.floor((value - 1) / 7) * 7;
+      return (value + options.weekStartsOn + 6) % 7 + wholeWeekDays;
+    };
+
+    switch (token) {
+      // 3
+      case 'c':
+      case 'cc':
+        // 03
+        return (0,_utils_js__WEBPACK_IMPORTED_MODULE_1__.mapValue)((0,_utils_js__WEBPACK_IMPORTED_MODULE_1__.parseNDigits)(token.length, dateString), valueCallback);
+      // 3rd
+
+      case 'co':
+        return (0,_utils_js__WEBPACK_IMPORTED_MODULE_1__.mapValue)(match.ordinalNumber(dateString, {
+          unit: 'day'
+        }), valueCallback);
+      // Tue
+
+      case 'ccc':
+        return match.day(dateString, {
+          width: 'abbreviated',
+          context: 'standalone'
+        }) || match.day(dateString, {
+          width: 'short',
+          context: 'standalone'
+        }) || match.day(dateString, {
+          width: 'narrow',
+          context: 'standalone'
+        });
+      // T
+
+      case 'ccccc':
+        return match.day(dateString, {
+          width: 'narrow',
+          context: 'standalone'
+        });
+      // Tu
+
+      case 'cccccc':
+        return match.day(dateString, {
+          width: 'short',
+          context: 'standalone'
+        }) || match.day(dateString, {
+          width: 'narrow',
+          context: 'standalone'
+        });
+      // Tuesday
+
+      case 'cccc':
+      default:
+        return match.day(dateString, {
+          width: 'wide',
+          context: 'standalone'
+        }) || match.day(dateString, {
+          width: 'abbreviated',
+          context: 'standalone'
+        }) || match.day(dateString, {
+          width: 'short',
+          context: 'standalone'
+        }) || match.day(dateString, {
+          width: 'narrow',
+          context: 'standalone'
+        });
+    }
+  }
+
+  validate(_date, value) {
+    return value >= 0 && value <= 6;
+  }
+
+  set(date, _flags, value, options) {
+    date = (0,_lib_setUTCDay_index_js__WEBPACK_IMPORTED_MODULE_2__["default"])(date, value, options);
+    date.setUTCHours(0, 0, 0, 0);
+    return date;
+  }
+
+}
+
+/***/ }),
+
+/***/ "./node_modules/date-fns/esm/parse/_lib/parsers/StandAloneMonthParser.js":
+/*!*******************************************************************************!*\
+  !*** ./node_modules/date-fns/esm/parse/_lib/parsers/StandAloneMonthParser.js ***!
+  \*******************************************************************************/
+/***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
+
+"use strict";
+__webpack_require__.r(__webpack_exports__);
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   "StandAloneMonthParser": () => (/* binding */ StandAloneMonthParser)
+/* harmony export */ });
+/* harmony import */ var _Parser_js__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ../Parser.js */ "./node_modules/date-fns/esm/parse/_lib/Parser.js");
+/* harmony import */ var _constants_js__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! ../constants.js */ "./node_modules/date-fns/esm/parse/_lib/constants.js");
+/* harmony import */ var _utils_js__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ../utils.js */ "./node_modules/date-fns/esm/parse/_lib/utils.js");
+function _defineProperty(obj, key, value) { if (key in obj) { Object.defineProperty(obj, key, { value: value, enumerable: true, configurable: true, writable: true }); } else { obj[key] = value; } return obj; }
+
+
+
+
+class StandAloneMonthParser extends _Parser_js__WEBPACK_IMPORTED_MODULE_0__.Parser {
+  constructor() {
+    super(...arguments);
+
+    _defineProperty(this, "priority", 110);
+
+    _defineProperty(this, "incompatibleTokens", ['Y', 'R', 'q', 'Q', 'M', 'w', 'I', 'D', 'i', 'e', 'c', 't', 'T']);
+  }
+
+  parse(dateString, token, match) {
+    var valueCallback = function (value) {
+      return value - 1;
+    };
+
+    switch (token) {
+      // 1, 2, ..., 12
+      case 'L':
+        return (0,_utils_js__WEBPACK_IMPORTED_MODULE_1__.mapValue)((0,_utils_js__WEBPACK_IMPORTED_MODULE_1__.parseNumericPattern)(_constants_js__WEBPACK_IMPORTED_MODULE_2__.numericPatterns.month, dateString), valueCallback);
+      // 01, 02, ..., 12
+
+      case 'LL':
+        return (0,_utils_js__WEBPACK_IMPORTED_MODULE_1__.mapValue)((0,_utils_js__WEBPACK_IMPORTED_MODULE_1__.parseNDigits)(2, dateString), valueCallback);
+      // 1st, 2nd, ..., 12th
+
+      case 'Lo':
+        return (0,_utils_js__WEBPACK_IMPORTED_MODULE_1__.mapValue)(match.ordinalNumber(dateString, {
+          unit: 'month'
+        }), valueCallback);
+      // Jan, Feb, ..., Dec
+
+      case 'LLL':
+        return match.month(dateString, {
+          width: 'abbreviated',
+          context: 'standalone'
+        }) || match.month(dateString, {
+          width: 'narrow',
+          context: 'standalone'
+        });
+      // J, F, ..., D
+
+      case 'LLLLL':
+        return match.month(dateString, {
+          width: 'narrow',
+          context: 'standalone'
+        });
+      // January, February, ..., December
+
+      case 'LLLL':
+      default:
+        return match.month(dateString, {
+          width: 'wide',
+          context: 'standalone'
+        }) || match.month(dateString, {
+          width: 'abbreviated',
+          context: 'standalone'
+        }) || match.month(dateString, {
+          width: 'narrow',
+          context: 'standalone'
+        });
+    }
+  }
+
+  validate(_date, value) {
+    return value >= 0 && value <= 11;
+  }
+
+  set(date, _flags, value) {
+    date.setUTCMonth(value, 1);
+    date.setUTCHours(0, 0, 0, 0);
+    return date;
+  }
+
+}
+
+/***/ }),
+
+/***/ "./node_modules/date-fns/esm/parse/_lib/parsers/StandAloneQuarterParser.js":
+/*!*********************************************************************************!*\
+  !*** ./node_modules/date-fns/esm/parse/_lib/parsers/StandAloneQuarterParser.js ***!
+  \*********************************************************************************/
+/***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
+
+"use strict";
+__webpack_require__.r(__webpack_exports__);
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   "StandAloneQuarterParser": () => (/* binding */ StandAloneQuarterParser)
+/* harmony export */ });
+/* harmony import */ var _Parser_js__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ../Parser.js */ "./node_modules/date-fns/esm/parse/_lib/Parser.js");
+/* harmony import */ var _utils_js__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ../utils.js */ "./node_modules/date-fns/esm/parse/_lib/utils.js");
+function _defineProperty(obj, key, value) { if (key in obj) { Object.defineProperty(obj, key, { value: value, enumerable: true, configurable: true, writable: true }); } else { obj[key] = value; } return obj; }
+
+
+
+class StandAloneQuarterParser extends _Parser_js__WEBPACK_IMPORTED_MODULE_0__.Parser {
+  constructor() {
+    super(...arguments);
+
+    _defineProperty(this, "priority", 120);
+
+    _defineProperty(this, "incompatibleTokens", ['Y', 'R', 'Q', 'M', 'L', 'w', 'I', 'd', 'D', 'i', 'e', 'c', 't', 'T']);
+  }
+
+  parse(dateString, token, match) {
+    switch (token) {
+      // 1, 2, 3, 4
+      case 'q':
+      case 'qq':
+        // 01, 02, 03, 04
+        return (0,_utils_js__WEBPACK_IMPORTED_MODULE_1__.parseNDigits)(token.length, dateString);
+      // 1st, 2nd, 3rd, 4th
+
+      case 'qo':
+        return match.ordinalNumber(dateString, {
+          unit: 'quarter'
+        });
+      // Q1, Q2, Q3, Q4
+
+      case 'qqq':
+        return match.quarter(dateString, {
+          width: 'abbreviated',
+          context: 'standalone'
+        }) || match.quarter(dateString, {
+          width: 'narrow',
+          context: 'standalone'
+        });
+      // 1, 2, 3, 4 (narrow quarter; could be not numerical)
+
+      case 'qqqqq':
+        return match.quarter(dateString, {
+          width: 'narrow',
+          context: 'standalone'
+        });
+      // 1st quarter, 2nd quarter, ...
+
+      case 'qqqq':
+      default:
+        return match.quarter(dateString, {
+          width: 'wide',
+          context: 'standalone'
+        }) || match.quarter(dateString, {
+          width: 'abbreviated',
+          context: 'standalone'
+        }) || match.quarter(dateString, {
+          width: 'narrow',
+          context: 'standalone'
+        });
+    }
+  }
+
+  validate(_date, value) {
+    return value >= 1 && value <= 4;
+  }
+
+  set(date, _flags, value) {
+    date.setUTCMonth((value - 1) * 3, 1);
+    date.setUTCHours(0, 0, 0, 0);
+    return date;
+  }
+
+}
+
+/***/ }),
+
+/***/ "./node_modules/date-fns/esm/parse/_lib/parsers/TimestampMillisecondsParser.js":
+/*!*************************************************************************************!*\
+  !*** ./node_modules/date-fns/esm/parse/_lib/parsers/TimestampMillisecondsParser.js ***!
+  \*************************************************************************************/
+/***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
+
+"use strict";
+__webpack_require__.r(__webpack_exports__);
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   "TimestampMillisecondsParser": () => (/* binding */ TimestampMillisecondsParser)
+/* harmony export */ });
+/* harmony import */ var _Parser_js__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ../Parser.js */ "./node_modules/date-fns/esm/parse/_lib/Parser.js");
+/* harmony import */ var _utils_js__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ../utils.js */ "./node_modules/date-fns/esm/parse/_lib/utils.js");
+function _defineProperty(obj, key, value) { if (key in obj) { Object.defineProperty(obj, key, { value: value, enumerable: true, configurable: true, writable: true }); } else { obj[key] = value; } return obj; }
+
+
+
+class TimestampMillisecondsParser extends _Parser_js__WEBPACK_IMPORTED_MODULE_0__.Parser {
+  constructor() {
+    super(...arguments);
+
+    _defineProperty(this, "priority", 20);
+
+    _defineProperty(this, "incompatibleTokens", '*');
+  }
+
+  parse(dateString) {
+    return (0,_utils_js__WEBPACK_IMPORTED_MODULE_1__.parseAnyDigitsSigned)(dateString);
+  }
+
+  set(_date, _flags, value) {
+    return [new Date(value), {
+      timestampIsSet: true
+    }];
+  }
+
+}
+
+/***/ }),
+
+/***/ "./node_modules/date-fns/esm/parse/_lib/parsers/TimestampSecondsParser.js":
+/*!********************************************************************************!*\
+  !*** ./node_modules/date-fns/esm/parse/_lib/parsers/TimestampSecondsParser.js ***!
+  \********************************************************************************/
+/***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
+
+"use strict";
+__webpack_require__.r(__webpack_exports__);
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   "TimestampSecondsParser": () => (/* binding */ TimestampSecondsParser)
+/* harmony export */ });
+/* harmony import */ var _Parser_js__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ../Parser.js */ "./node_modules/date-fns/esm/parse/_lib/Parser.js");
+/* harmony import */ var _utils_js__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ../utils.js */ "./node_modules/date-fns/esm/parse/_lib/utils.js");
+function _defineProperty(obj, key, value) { if (key in obj) { Object.defineProperty(obj, key, { value: value, enumerable: true, configurable: true, writable: true }); } else { obj[key] = value; } return obj; }
+
+
+
+class TimestampSecondsParser extends _Parser_js__WEBPACK_IMPORTED_MODULE_0__.Parser {
+  constructor() {
+    super(...arguments);
+
+    _defineProperty(this, "priority", 40);
+
+    _defineProperty(this, "incompatibleTokens", '*');
+  }
+
+  parse(dateString) {
+    return (0,_utils_js__WEBPACK_IMPORTED_MODULE_1__.parseAnyDigitsSigned)(dateString);
+  }
+
+  set(_date, _flags, value) {
+    return [new Date(value * 1000), {
+      timestampIsSet: true
+    }];
+  }
+
+}
+
+/***/ }),
+
+/***/ "./node_modules/date-fns/esm/parse/_lib/parsers/YearParser.js":
+/*!********************************************************************!*\
+  !*** ./node_modules/date-fns/esm/parse/_lib/parsers/YearParser.js ***!
+  \********************************************************************/
+/***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
+
+"use strict";
+__webpack_require__.r(__webpack_exports__);
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   "YearParser": () => (/* binding */ YearParser)
+/* harmony export */ });
+/* harmony import */ var _Parser_js__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ../Parser.js */ "./node_modules/date-fns/esm/parse/_lib/Parser.js");
+/* harmony import */ var _utils_js__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ../utils.js */ "./node_modules/date-fns/esm/parse/_lib/utils.js");
+function _defineProperty(obj, key, value) { if (key in obj) { Object.defineProperty(obj, key, { value: value, enumerable: true, configurable: true, writable: true }); } else { obj[key] = value; } return obj; }
+
+
+
+// From http://www.unicode.org/reports/tr35/tr35-31/tr35-dates.html#Date_Format_Patterns
+// | Year     |     y | yy |   yyy |  yyyy | yyyyy |
+// |----------|-------|----|-------|-------|-------|
+// | AD 1     |     1 | 01 |   001 |  0001 | 00001 |
+// | AD 12    |    12 | 12 |   012 |  0012 | 00012 |
+// | AD 123   |   123 | 23 |   123 |  0123 | 00123 |
+// | AD 1234  |  1234 | 34 |  1234 |  1234 | 01234 |
+// | AD 12345 | 12345 | 45 | 12345 | 12345 | 12345 |
+class YearParser extends _Parser_js__WEBPACK_IMPORTED_MODULE_0__.Parser {
+  constructor() {
+    super(...arguments);
+
+    _defineProperty(this, "priority", 130);
+
+    _defineProperty(this, "incompatibleTokens", ['Y', 'R', 'u', 'w', 'I', 'i', 'e', 'c', 't', 'T']);
+  }
+
+  parse(dateString, token, match) {
+    var valueCallback = function (year) {
+      return {
+        year: year,
+        isTwoDigitYear: token === 'yy'
+      };
+    };
+
+    switch (token) {
+      case 'y':
+        return (0,_utils_js__WEBPACK_IMPORTED_MODULE_1__.mapValue)((0,_utils_js__WEBPACK_IMPORTED_MODULE_1__.parseNDigits)(4, dateString), valueCallback);
+
+      case 'yo':
+        return (0,_utils_js__WEBPACK_IMPORTED_MODULE_1__.mapValue)(match.ordinalNumber(dateString, {
+          unit: 'year'
+        }), valueCallback);
+
+      default:
+        return (0,_utils_js__WEBPACK_IMPORTED_MODULE_1__.mapValue)((0,_utils_js__WEBPACK_IMPORTED_MODULE_1__.parseNDigits)(token.length, dateString), valueCallback);
+    }
+  }
+
+  validate(_date, value) {
+    return value.isTwoDigitYear || value.year > 0;
+  }
+
+  set(date, flags, value) {
+    var currentYear = date.getUTCFullYear();
+
+    if (value.isTwoDigitYear) {
+      var normalizedTwoDigitYear = (0,_utils_js__WEBPACK_IMPORTED_MODULE_1__.normalizeTwoDigitYear)(value.year, currentYear);
+      date.setUTCFullYear(normalizedTwoDigitYear, 0, 1);
+      date.setUTCHours(0, 0, 0, 0);
+      return date;
+    }
+
+    var year = !('era' in flags) || flags.era === 1 ? value.year : 1 - value.year;
+    date.setUTCFullYear(year, 0, 1);
+    date.setUTCHours(0, 0, 0, 0);
+    return date;
+  }
+
+}
+
+/***/ }),
+
+/***/ "./node_modules/date-fns/esm/parse/_lib/parsers/index.js":
+/*!***************************************************************!*\
+  !*** ./node_modules/date-fns/esm/parse/_lib/parsers/index.js ***!
+  \***************************************************************/
+/***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
+
+"use strict";
+__webpack_require__.r(__webpack_exports__);
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   "parsers": () => (/* binding */ parsers)
+/* harmony export */ });
+/* harmony import */ var _EraParser_js__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ./EraParser.js */ "./node_modules/date-fns/esm/parse/_lib/parsers/EraParser.js");
+/* harmony import */ var _YearParser_js__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ./YearParser.js */ "./node_modules/date-fns/esm/parse/_lib/parsers/YearParser.js");
+/* harmony import */ var _LocalWeekYearParser_js__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! ./LocalWeekYearParser.js */ "./node_modules/date-fns/esm/parse/_lib/parsers/LocalWeekYearParser.js");
+/* harmony import */ var _ISOWeekYearParser_js__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__(/*! ./ISOWeekYearParser.js */ "./node_modules/date-fns/esm/parse/_lib/parsers/ISOWeekYearParser.js");
+/* harmony import */ var _ExtendedYearParser_js__WEBPACK_IMPORTED_MODULE_4__ = __webpack_require__(/*! ./ExtendedYearParser.js */ "./node_modules/date-fns/esm/parse/_lib/parsers/ExtendedYearParser.js");
+/* harmony import */ var _QuarterParser_js__WEBPACK_IMPORTED_MODULE_5__ = __webpack_require__(/*! ./QuarterParser.js */ "./node_modules/date-fns/esm/parse/_lib/parsers/QuarterParser.js");
+/* harmony import */ var _StandAloneQuarterParser_js__WEBPACK_IMPORTED_MODULE_6__ = __webpack_require__(/*! ./StandAloneQuarterParser.js */ "./node_modules/date-fns/esm/parse/_lib/parsers/StandAloneQuarterParser.js");
+/* harmony import */ var _MonthParser_js__WEBPACK_IMPORTED_MODULE_7__ = __webpack_require__(/*! ./MonthParser.js */ "./node_modules/date-fns/esm/parse/_lib/parsers/MonthParser.js");
+/* harmony import */ var _StandAloneMonthParser_js__WEBPACK_IMPORTED_MODULE_8__ = __webpack_require__(/*! ./StandAloneMonthParser.js */ "./node_modules/date-fns/esm/parse/_lib/parsers/StandAloneMonthParser.js");
+/* harmony import */ var _LocalWeekParser_js__WEBPACK_IMPORTED_MODULE_9__ = __webpack_require__(/*! ./LocalWeekParser.js */ "./node_modules/date-fns/esm/parse/_lib/parsers/LocalWeekParser.js");
+/* harmony import */ var _ISOWeekParser_js__WEBPACK_IMPORTED_MODULE_10__ = __webpack_require__(/*! ./ISOWeekParser.js */ "./node_modules/date-fns/esm/parse/_lib/parsers/ISOWeekParser.js");
+/* harmony import */ var _DateParser_js__WEBPACK_IMPORTED_MODULE_11__ = __webpack_require__(/*! ./DateParser.js */ "./node_modules/date-fns/esm/parse/_lib/parsers/DateParser.js");
+/* harmony import */ var _DayOfYearParser_js__WEBPACK_IMPORTED_MODULE_12__ = __webpack_require__(/*! ./DayOfYearParser.js */ "./node_modules/date-fns/esm/parse/_lib/parsers/DayOfYearParser.js");
+/* harmony import */ var _DayParser_js__WEBPACK_IMPORTED_MODULE_13__ = __webpack_require__(/*! ./DayParser.js */ "./node_modules/date-fns/esm/parse/_lib/parsers/DayParser.js");
+/* harmony import */ var _LocalDayParser_js__WEBPACK_IMPORTED_MODULE_14__ = __webpack_require__(/*! ./LocalDayParser.js */ "./node_modules/date-fns/esm/parse/_lib/parsers/LocalDayParser.js");
+/* harmony import */ var _StandAloneLocalDayParser_js__WEBPACK_IMPORTED_MODULE_15__ = __webpack_require__(/*! ./StandAloneLocalDayParser.js */ "./node_modules/date-fns/esm/parse/_lib/parsers/StandAloneLocalDayParser.js");
+/* harmony import */ var _ISODayParser_js__WEBPACK_IMPORTED_MODULE_16__ = __webpack_require__(/*! ./ISODayParser.js */ "./node_modules/date-fns/esm/parse/_lib/parsers/ISODayParser.js");
+/* harmony import */ var _AMPMParser_js__WEBPACK_IMPORTED_MODULE_17__ = __webpack_require__(/*! ./AMPMParser.js */ "./node_modules/date-fns/esm/parse/_lib/parsers/AMPMParser.js");
+/* harmony import */ var _AMPMMidnightParser_js__WEBPACK_IMPORTED_MODULE_18__ = __webpack_require__(/*! ./AMPMMidnightParser.js */ "./node_modules/date-fns/esm/parse/_lib/parsers/AMPMMidnightParser.js");
+/* harmony import */ var _DayPeriodParser_js__WEBPACK_IMPORTED_MODULE_19__ = __webpack_require__(/*! ./DayPeriodParser.js */ "./node_modules/date-fns/esm/parse/_lib/parsers/DayPeriodParser.js");
+/* harmony import */ var _Hour1to12Parser_js__WEBPACK_IMPORTED_MODULE_20__ = __webpack_require__(/*! ./Hour1to12Parser.js */ "./node_modules/date-fns/esm/parse/_lib/parsers/Hour1to12Parser.js");
+/* harmony import */ var _Hour0to23Parser_js__WEBPACK_IMPORTED_MODULE_21__ = __webpack_require__(/*! ./Hour0to23Parser.js */ "./node_modules/date-fns/esm/parse/_lib/parsers/Hour0to23Parser.js");
+/* harmony import */ var _Hour0To11Parser_js__WEBPACK_IMPORTED_MODULE_22__ = __webpack_require__(/*! ./Hour0To11Parser.js */ "./node_modules/date-fns/esm/parse/_lib/parsers/Hour0To11Parser.js");
+/* harmony import */ var _Hour1To24Parser_js__WEBPACK_IMPORTED_MODULE_23__ = __webpack_require__(/*! ./Hour1To24Parser.js */ "./node_modules/date-fns/esm/parse/_lib/parsers/Hour1To24Parser.js");
+/* harmony import */ var _MinuteParser_js__WEBPACK_IMPORTED_MODULE_24__ = __webpack_require__(/*! ./MinuteParser.js */ "./node_modules/date-fns/esm/parse/_lib/parsers/MinuteParser.js");
+/* harmony import */ var _SecondParser_js__WEBPACK_IMPORTED_MODULE_25__ = __webpack_require__(/*! ./SecondParser.js */ "./node_modules/date-fns/esm/parse/_lib/parsers/SecondParser.js");
+/* harmony import */ var _FractionOfSecondParser_js__WEBPACK_IMPORTED_MODULE_26__ = __webpack_require__(/*! ./FractionOfSecondParser.js */ "./node_modules/date-fns/esm/parse/_lib/parsers/FractionOfSecondParser.js");
+/* harmony import */ var _ISOTimezoneWithZParser_js__WEBPACK_IMPORTED_MODULE_27__ = __webpack_require__(/*! ./ISOTimezoneWithZParser.js */ "./node_modules/date-fns/esm/parse/_lib/parsers/ISOTimezoneWithZParser.js");
+/* harmony import */ var _ISOTimezoneParser_js__WEBPACK_IMPORTED_MODULE_28__ = __webpack_require__(/*! ./ISOTimezoneParser.js */ "./node_modules/date-fns/esm/parse/_lib/parsers/ISOTimezoneParser.js");
+/* harmony import */ var _TimestampSecondsParser_js__WEBPACK_IMPORTED_MODULE_29__ = __webpack_require__(/*! ./TimestampSecondsParser.js */ "./node_modules/date-fns/esm/parse/_lib/parsers/TimestampSecondsParser.js");
+/* harmony import */ var _TimestampMillisecondsParser_js__WEBPACK_IMPORTED_MODULE_30__ = __webpack_require__(/*! ./TimestampMillisecondsParser.js */ "./node_modules/date-fns/esm/parse/_lib/parsers/TimestampMillisecondsParser.js");
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 /*
  * |     | Unit                           |     | Unit                           |
  * |-----|--------------------------------|-----|--------------------------------|
@@ -24971,1279 +27586,193 @@ function isLeapYearIndex(year) {
  *   for week-numbering date specific to the locale.
  */
 
-
 var parsers = {
-  // Era
-  G: {
-    priority: 140,
-    parse: function (string, token, match, _options) {
-      switch (token) {
-        // AD, BC
-        case 'G':
-        case 'GG':
-        case 'GGG':
-          return match.era(string, {
-            width: 'abbreviated'
-          }) || match.era(string, {
-            width: 'narrow'
-          });
-        // A, B
-
-        case 'GGGGG':
-          return match.era(string, {
-            width: 'narrow'
-          });
-        // Anno Domini, Before Christ
-
-        case 'GGGG':
-        default:
-          return match.era(string, {
-            width: 'wide'
-          }) || match.era(string, {
-            width: 'abbreviated'
-          }) || match.era(string, {
-            width: 'narrow'
-          });
-      }
-    },
-    set: function (date, flags, value, _options) {
-      flags.era = value;
-      date.setUTCFullYear(value, 0, 1);
-      date.setUTCHours(0, 0, 0, 0);
-      return date;
-    },
-    incompatibleTokens: ['R', 'u', 't', 'T']
-  },
-  // Year
-  y: {
-    // From http://www.unicode.org/reports/tr35/tr35-31/tr35-dates.html#Date_Format_Patterns
-    // | Year     |     y | yy |   yyy |  yyyy | yyyyy |
-    // |----------|-------|----|-------|-------|-------|
-    // | AD 1     |     1 | 01 |   001 |  0001 | 00001 |
-    // | AD 12    |    12 | 12 |   012 |  0012 | 00012 |
-    // | AD 123   |   123 | 23 |   123 |  0123 | 00123 |
-    // | AD 1234  |  1234 | 34 |  1234 |  1234 | 01234 |
-    // | AD 12345 | 12345 | 45 | 12345 | 12345 | 12345 |
-    priority: 130,
-    parse: function (string, token, match, _options) {
-      var valueCallback = function (year) {
-        return {
-          year: year,
-          isTwoDigitYear: token === 'yy'
-        };
-      };
-
-      switch (token) {
-        case 'y':
-          return parseNDigits(4, string, valueCallback);
-
-        case 'yo':
-          return match.ordinalNumber(string, {
-            unit: 'year',
-            valueCallback: valueCallback
-          });
-
-        default:
-          return parseNDigits(token.length, string, valueCallback);
-      }
-    },
-    validate: function (_date, value, _options) {
-      return value.isTwoDigitYear || value.year > 0;
-    },
-    set: function (date, flags, value, _options) {
-      var currentYear = date.getUTCFullYear();
-
-      if (value.isTwoDigitYear) {
-        var normalizedTwoDigitYear = normalizeTwoDigitYear(value.year, currentYear);
-        date.setUTCFullYear(normalizedTwoDigitYear, 0, 1);
-        date.setUTCHours(0, 0, 0, 0);
-        return date;
-      }
-
-      var year = !('era' in flags) || flags.era === 1 ? value.year : 1 - value.year;
-      date.setUTCFullYear(year, 0, 1);
-      date.setUTCHours(0, 0, 0, 0);
-      return date;
-    },
-    incompatibleTokens: ['Y', 'R', 'u', 'w', 'I', 'i', 'e', 'c', 't', 'T']
-  },
-  // Local week-numbering year
-  Y: {
-    priority: 130,
-    parse: function (string, token, match, _options) {
-      var valueCallback = function (year) {
-        return {
-          year: year,
-          isTwoDigitYear: token === 'YY'
-        };
-      };
-
-      switch (token) {
-        case 'Y':
-          return parseNDigits(4, string, valueCallback);
-
-        case 'Yo':
-          return match.ordinalNumber(string, {
-            unit: 'year',
-            valueCallback: valueCallback
-          });
-
-        default:
-          return parseNDigits(token.length, string, valueCallback);
-      }
-    },
-    validate: function (_date, value, _options) {
-      return value.isTwoDigitYear || value.year > 0;
-    },
-    set: function (date, flags, value, options) {
-      var currentYear = (0,_lib_getUTCWeekYear_index_js__WEBPACK_IMPORTED_MODULE_0__["default"])(date, options);
-
-      if (value.isTwoDigitYear) {
-        var normalizedTwoDigitYear = normalizeTwoDigitYear(value.year, currentYear);
-        date.setUTCFullYear(normalizedTwoDigitYear, 0, options.firstWeekContainsDate);
-        date.setUTCHours(0, 0, 0, 0);
-        return (0,_lib_startOfUTCWeek_index_js__WEBPACK_IMPORTED_MODULE_1__["default"])(date, options);
-      }
-
-      var year = !('era' in flags) || flags.era === 1 ? value.year : 1 - value.year;
-      date.setUTCFullYear(year, 0, options.firstWeekContainsDate);
-      date.setUTCHours(0, 0, 0, 0);
-      return (0,_lib_startOfUTCWeek_index_js__WEBPACK_IMPORTED_MODULE_1__["default"])(date, options);
-    },
-    incompatibleTokens: ['y', 'R', 'u', 'Q', 'q', 'M', 'L', 'I', 'd', 'D', 'i', 't', 'T']
-  },
-  // ISO week-numbering year
-  R: {
-    priority: 130,
-    parse: function (string, token, _match, _options) {
-      if (token === 'R') {
-        return parseNDigitsSigned(4, string);
-      }
-
-      return parseNDigitsSigned(token.length, string);
-    },
-    set: function (_date, _flags, value, _options) {
-      var firstWeekOfYear = new Date(0);
-      firstWeekOfYear.setUTCFullYear(value, 0, 4);
-      firstWeekOfYear.setUTCHours(0, 0, 0, 0);
-      return (0,_lib_startOfUTCISOWeek_index_js__WEBPACK_IMPORTED_MODULE_2__["default"])(firstWeekOfYear);
-    },
-    incompatibleTokens: ['G', 'y', 'Y', 'u', 'Q', 'q', 'M', 'L', 'w', 'd', 'D', 'e', 'c', 't', 'T']
-  },
-  // Extended year
-  u: {
-    priority: 130,
-    parse: function (string, token, _match, _options) {
-      if (token === 'u') {
-        return parseNDigitsSigned(4, string);
-      }
-
-      return parseNDigitsSigned(token.length, string);
-    },
-    set: function (date, _flags, value, _options) {
-      date.setUTCFullYear(value, 0, 1);
-      date.setUTCHours(0, 0, 0, 0);
-      return date;
-    },
-    incompatibleTokens: ['G', 'y', 'Y', 'R', 'w', 'I', 'i', 'e', 'c', 't', 'T']
-  },
-  // Quarter
-  Q: {
-    priority: 120,
-    parse: function (string, token, match, _options) {
-      switch (token) {
-        // 1, 2, 3, 4
-        case 'Q':
-        case 'QQ':
-          // 01, 02, 03, 04
-          return parseNDigits(token.length, string);
-        // 1st, 2nd, 3rd, 4th
-
-        case 'Qo':
-          return match.ordinalNumber(string, {
-            unit: 'quarter'
-          });
-        // Q1, Q2, Q3, Q4
-
-        case 'QQQ':
-          return match.quarter(string, {
-            width: 'abbreviated',
-            context: 'formatting'
-          }) || match.quarter(string, {
-            width: 'narrow',
-            context: 'formatting'
-          });
-        // 1, 2, 3, 4 (narrow quarter; could be not numerical)
-
-        case 'QQQQQ':
-          return match.quarter(string, {
-            width: 'narrow',
-            context: 'formatting'
-          });
-        // 1st quarter, 2nd quarter, ...
-
-        case 'QQQQ':
-        default:
-          return match.quarter(string, {
-            width: 'wide',
-            context: 'formatting'
-          }) || match.quarter(string, {
-            width: 'abbreviated',
-            context: 'formatting'
-          }) || match.quarter(string, {
-            width: 'narrow',
-            context: 'formatting'
-          });
-      }
-    },
-    validate: function (_date, value, _options) {
-      return value >= 1 && value <= 4;
-    },
-    set: function (date, _flags, value, _options) {
-      date.setUTCMonth((value - 1) * 3, 1);
-      date.setUTCHours(0, 0, 0, 0);
-      return date;
-    },
-    incompatibleTokens: ['Y', 'R', 'q', 'M', 'L', 'w', 'I', 'd', 'D', 'i', 'e', 'c', 't', 'T']
-  },
-  // Stand-alone quarter
-  q: {
-    priority: 120,
-    parse: function (string, token, match, _options) {
-      switch (token) {
-        // 1, 2, 3, 4
-        case 'q':
-        case 'qq':
-          // 01, 02, 03, 04
-          return parseNDigits(token.length, string);
-        // 1st, 2nd, 3rd, 4th
-
-        case 'qo':
-          return match.ordinalNumber(string, {
-            unit: 'quarter'
-          });
-        // Q1, Q2, Q3, Q4
-
-        case 'qqq':
-          return match.quarter(string, {
-            width: 'abbreviated',
-            context: 'standalone'
-          }) || match.quarter(string, {
-            width: 'narrow',
-            context: 'standalone'
-          });
-        // 1, 2, 3, 4 (narrow quarter; could be not numerical)
-
-        case 'qqqqq':
-          return match.quarter(string, {
-            width: 'narrow',
-            context: 'standalone'
-          });
-        // 1st quarter, 2nd quarter, ...
-
-        case 'qqqq':
-        default:
-          return match.quarter(string, {
-            width: 'wide',
-            context: 'standalone'
-          }) || match.quarter(string, {
-            width: 'abbreviated',
-            context: 'standalone'
-          }) || match.quarter(string, {
-            width: 'narrow',
-            context: 'standalone'
-          });
-      }
-    },
-    validate: function (_date, value, _options) {
-      return value >= 1 && value <= 4;
-    },
-    set: function (date, _flags, value, _options) {
-      date.setUTCMonth((value - 1) * 3, 1);
-      date.setUTCHours(0, 0, 0, 0);
-      return date;
-    },
-    incompatibleTokens: ['Y', 'R', 'Q', 'M', 'L', 'w', 'I', 'd', 'D', 'i', 'e', 'c', 't', 'T']
-  },
-  // Month
-  M: {
-    priority: 110,
-    parse: function (string, token, match, _options) {
-      var valueCallback = function (value) {
-        return value - 1;
-      };
-
-      switch (token) {
-        // 1, 2, ..., 12
-        case 'M':
-          return parseNumericPattern(numericPatterns.month, string, valueCallback);
-        // 01, 02, ..., 12
-
-        case 'MM':
-          return parseNDigits(2, string, valueCallback);
-        // 1st, 2nd, ..., 12th
-
-        case 'Mo':
-          return match.ordinalNumber(string, {
-            unit: 'month',
-            valueCallback: valueCallback
-          });
-        // Jan, Feb, ..., Dec
-
-        case 'MMM':
-          return match.month(string, {
-            width: 'abbreviated',
-            context: 'formatting'
-          }) || match.month(string, {
-            width: 'narrow',
-            context: 'formatting'
-          });
-        // J, F, ..., D
-
-        case 'MMMMM':
-          return match.month(string, {
-            width: 'narrow',
-            context: 'formatting'
-          });
-        // January, February, ..., December
-
-        case 'MMMM':
-        default:
-          return match.month(string, {
-            width: 'wide',
-            context: 'formatting'
-          }) || match.month(string, {
-            width: 'abbreviated',
-            context: 'formatting'
-          }) || match.month(string, {
-            width: 'narrow',
-            context: 'formatting'
-          });
-      }
-    },
-    validate: function (_date, value, _options) {
-      return value >= 0 && value <= 11;
-    },
-    set: function (date, _flags, value, _options) {
-      date.setUTCMonth(value, 1);
-      date.setUTCHours(0, 0, 0, 0);
-      return date;
-    },
-    incompatibleTokens: ['Y', 'R', 'q', 'Q', 'L', 'w', 'I', 'D', 'i', 'e', 'c', 't', 'T']
-  },
-  // Stand-alone month
-  L: {
-    priority: 110,
-    parse: function (string, token, match, _options) {
-      var valueCallback = function (value) {
-        return value - 1;
-      };
-
-      switch (token) {
-        // 1, 2, ..., 12
-        case 'L':
-          return parseNumericPattern(numericPatterns.month, string, valueCallback);
-        // 01, 02, ..., 12
-
-        case 'LL':
-          return parseNDigits(2, string, valueCallback);
-        // 1st, 2nd, ..., 12th
-
-        case 'Lo':
-          return match.ordinalNumber(string, {
-            unit: 'month',
-            valueCallback: valueCallback
-          });
-        // Jan, Feb, ..., Dec
-
-        case 'LLL':
-          return match.month(string, {
-            width: 'abbreviated',
-            context: 'standalone'
-          }) || match.month(string, {
-            width: 'narrow',
-            context: 'standalone'
-          });
-        // J, F, ..., D
-
-        case 'LLLLL':
-          return match.month(string, {
-            width: 'narrow',
-            context: 'standalone'
-          });
-        // January, February, ..., December
-
-        case 'LLLL':
-        default:
-          return match.month(string, {
-            width: 'wide',
-            context: 'standalone'
-          }) || match.month(string, {
-            width: 'abbreviated',
-            context: 'standalone'
-          }) || match.month(string, {
-            width: 'narrow',
-            context: 'standalone'
-          });
-      }
-    },
-    validate: function (_date, value, _options) {
-      return value >= 0 && value <= 11;
-    },
-    set: function (date, _flags, value, _options) {
-      date.setUTCMonth(value, 1);
-      date.setUTCHours(0, 0, 0, 0);
-      return date;
-    },
-    incompatibleTokens: ['Y', 'R', 'q', 'Q', 'M', 'w', 'I', 'D', 'i', 'e', 'c', 't', 'T']
-  },
-  // Local week of year
-  w: {
-    priority: 100,
-    parse: function (string, token, match, _options) {
-      switch (token) {
-        case 'w':
-          return parseNumericPattern(numericPatterns.week, string);
-
-        case 'wo':
-          return match.ordinalNumber(string, {
-            unit: 'week'
-          });
-
-        default:
-          return parseNDigits(token.length, string);
-      }
-    },
-    validate: function (_date, value, _options) {
-      return value >= 1 && value <= 53;
-    },
-    set: function (date, _flags, value, options) {
-      return (0,_lib_startOfUTCWeek_index_js__WEBPACK_IMPORTED_MODULE_1__["default"])((0,_lib_setUTCWeek_index_js__WEBPACK_IMPORTED_MODULE_3__["default"])(date, value, options), options);
-    },
-    incompatibleTokens: ['y', 'R', 'u', 'q', 'Q', 'M', 'L', 'I', 'd', 'D', 'i', 't', 'T']
-  },
-  // ISO week of year
-  I: {
-    priority: 100,
-    parse: function (string, token, match, _options) {
-      switch (token) {
-        case 'I':
-          return parseNumericPattern(numericPatterns.week, string);
-
-        case 'Io':
-          return match.ordinalNumber(string, {
-            unit: 'week'
-          });
-
-        default:
-          return parseNDigits(token.length, string);
-      }
-    },
-    validate: function (_date, value, _options) {
-      return value >= 1 && value <= 53;
-    },
-    set: function (date, _flags, value, options) {
-      return (0,_lib_startOfUTCISOWeek_index_js__WEBPACK_IMPORTED_MODULE_2__["default"])((0,_lib_setUTCISOWeek_index_js__WEBPACK_IMPORTED_MODULE_4__["default"])(date, value, options), options);
-    },
-    incompatibleTokens: ['y', 'Y', 'u', 'q', 'Q', 'M', 'L', 'w', 'd', 'D', 'e', 'c', 't', 'T']
-  },
-  // Day of the month
-  d: {
-    priority: 90,
-    subPriority: 1,
-    parse: function (string, token, match, _options) {
-      switch (token) {
-        case 'd':
-          return parseNumericPattern(numericPatterns.date, string);
-
-        case 'do':
-          return match.ordinalNumber(string, {
-            unit: 'date'
-          });
-
-        default:
-          return parseNDigits(token.length, string);
-      }
-    },
-    validate: function (date, value, _options) {
-      var year = date.getUTCFullYear();
-      var isLeapYear = isLeapYearIndex(year);
-      var month = date.getUTCMonth();
-
-      if (isLeapYear) {
-        return value >= 1 && value <= DAYS_IN_MONTH_LEAP_YEAR[month];
-      } else {
-        return value >= 1 && value <= DAYS_IN_MONTH[month];
-      }
-    },
-    set: function (date, _flags, value, _options) {
-      date.setUTCDate(value);
-      date.setUTCHours(0, 0, 0, 0);
-      return date;
-    },
-    incompatibleTokens: ['Y', 'R', 'q', 'Q', 'w', 'I', 'D', 'i', 'e', 'c', 't', 'T']
-  },
-  // Day of year
-  D: {
-    priority: 90,
-    subPriority: 1,
-    parse: function (string, token, match, _options) {
-      switch (token) {
-        case 'D':
-        case 'DD':
-          return parseNumericPattern(numericPatterns.dayOfYear, string);
-
-        case 'Do':
-          return match.ordinalNumber(string, {
-            unit: 'date'
-          });
-
-        default:
-          return parseNDigits(token.length, string);
-      }
-    },
-    validate: function (date, value, _options) {
-      var year = date.getUTCFullYear();
-      var isLeapYear = isLeapYearIndex(year);
-
-      if (isLeapYear) {
-        return value >= 1 && value <= 366;
-      } else {
-        return value >= 1 && value <= 365;
-      }
-    },
-    set: function (date, _flags, value, _options) {
-      date.setUTCMonth(0, value);
-      date.setUTCHours(0, 0, 0, 0);
-      return date;
-    },
-    incompatibleTokens: ['Y', 'R', 'q', 'Q', 'M', 'L', 'w', 'I', 'd', 'E', 'i', 'e', 'c', 't', 'T']
-  },
-  // Day of week
-  E: {
-    priority: 90,
-    parse: function (string, token, match, _options) {
-      switch (token) {
-        // Tue
-        case 'E':
-        case 'EE':
-        case 'EEE':
-          return match.day(string, {
-            width: 'abbreviated',
-            context: 'formatting'
-          }) || match.day(string, {
-            width: 'short',
-            context: 'formatting'
-          }) || match.day(string, {
-            width: 'narrow',
-            context: 'formatting'
-          });
-        // T
-
-        case 'EEEEE':
-          return match.day(string, {
-            width: 'narrow',
-            context: 'formatting'
-          });
-        // Tu
-
-        case 'EEEEEE':
-          return match.day(string, {
-            width: 'short',
-            context: 'formatting'
-          }) || match.day(string, {
-            width: 'narrow',
-            context: 'formatting'
-          });
-        // Tuesday
-
-        case 'EEEE':
-        default:
-          return match.day(string, {
-            width: 'wide',
-            context: 'formatting'
-          }) || match.day(string, {
-            width: 'abbreviated',
-            context: 'formatting'
-          }) || match.day(string, {
-            width: 'short',
-            context: 'formatting'
-          }) || match.day(string, {
-            width: 'narrow',
-            context: 'formatting'
-          });
-      }
-    },
-    validate: function (_date, value, _options) {
-      return value >= 0 && value <= 6;
-    },
-    set: function (date, _flags, value, options) {
-      date = (0,_lib_setUTCDay_index_js__WEBPACK_IMPORTED_MODULE_5__["default"])(date, value, options);
-      date.setUTCHours(0, 0, 0, 0);
-      return date;
-    },
-    incompatibleTokens: ['D', 'i', 'e', 'c', 't', 'T']
-  },
-  // Local day of week
-  e: {
-    priority: 90,
-    parse: function (string, token, match, options) {
-      var valueCallback = function (value) {
-        var wholeWeekDays = Math.floor((value - 1) / 7) * 7;
-        return (value + options.weekStartsOn + 6) % 7 + wholeWeekDays;
-      };
-
-      switch (token) {
-        // 3
-        case 'e':
-        case 'ee':
-          // 03
-          return parseNDigits(token.length, string, valueCallback);
-        // 3rd
-
-        case 'eo':
-          return match.ordinalNumber(string, {
-            unit: 'day',
-            valueCallback: valueCallback
-          });
-        // Tue
-
-        case 'eee':
-          return match.day(string, {
-            width: 'abbreviated',
-            context: 'formatting'
-          }) || match.day(string, {
-            width: 'short',
-            context: 'formatting'
-          }) || match.day(string, {
-            width: 'narrow',
-            context: 'formatting'
-          });
-        // T
-
-        case 'eeeee':
-          return match.day(string, {
-            width: 'narrow',
-            context: 'formatting'
-          });
-        // Tu
-
-        case 'eeeeee':
-          return match.day(string, {
-            width: 'short',
-            context: 'formatting'
-          }) || match.day(string, {
-            width: 'narrow',
-            context: 'formatting'
-          });
-        // Tuesday
-
-        case 'eeee':
-        default:
-          return match.day(string, {
-            width: 'wide',
-            context: 'formatting'
-          }) || match.day(string, {
-            width: 'abbreviated',
-            context: 'formatting'
-          }) || match.day(string, {
-            width: 'short',
-            context: 'formatting'
-          }) || match.day(string, {
-            width: 'narrow',
-            context: 'formatting'
-          });
-      }
-    },
-    validate: function (_date, value, _options) {
-      return value >= 0 && value <= 6;
-    },
-    set: function (date, _flags, value, options) {
-      date = (0,_lib_setUTCDay_index_js__WEBPACK_IMPORTED_MODULE_5__["default"])(date, value, options);
-      date.setUTCHours(0, 0, 0, 0);
-      return date;
-    },
-    incompatibleTokens: ['y', 'R', 'u', 'q', 'Q', 'M', 'L', 'I', 'd', 'D', 'E', 'i', 'c', 't', 'T']
-  },
-  // Stand-alone local day of week
-  c: {
-    priority: 90,
-    parse: function (string, token, match, options) {
-      var valueCallback = function (value) {
-        var wholeWeekDays = Math.floor((value - 1) / 7) * 7;
-        return (value + options.weekStartsOn + 6) % 7 + wholeWeekDays;
-      };
-
-      switch (token) {
-        // 3
-        case 'c':
-        case 'cc':
-          // 03
-          return parseNDigits(token.length, string, valueCallback);
-        // 3rd
-
-        case 'co':
-          return match.ordinalNumber(string, {
-            unit: 'day',
-            valueCallback: valueCallback
-          });
-        // Tue
-
-        case 'ccc':
-          return match.day(string, {
-            width: 'abbreviated',
-            context: 'standalone'
-          }) || match.day(string, {
-            width: 'short',
-            context: 'standalone'
-          }) || match.day(string, {
-            width: 'narrow',
-            context: 'standalone'
-          });
-        // T
-
-        case 'ccccc':
-          return match.day(string, {
-            width: 'narrow',
-            context: 'standalone'
-          });
-        // Tu
-
-        case 'cccccc':
-          return match.day(string, {
-            width: 'short',
-            context: 'standalone'
-          }) || match.day(string, {
-            width: 'narrow',
-            context: 'standalone'
-          });
-        // Tuesday
-
-        case 'cccc':
-        default:
-          return match.day(string, {
-            width: 'wide',
-            context: 'standalone'
-          }) || match.day(string, {
-            width: 'abbreviated',
-            context: 'standalone'
-          }) || match.day(string, {
-            width: 'short',
-            context: 'standalone'
-          }) || match.day(string, {
-            width: 'narrow',
-            context: 'standalone'
-          });
-      }
-    },
-    validate: function (_date, value, _options) {
-      return value >= 0 && value <= 6;
-    },
-    set: function (date, _flags, value, options) {
-      date = (0,_lib_setUTCDay_index_js__WEBPACK_IMPORTED_MODULE_5__["default"])(date, value, options);
-      date.setUTCHours(0, 0, 0, 0);
-      return date;
-    },
-    incompatibleTokens: ['y', 'R', 'u', 'q', 'Q', 'M', 'L', 'I', 'd', 'D', 'E', 'i', 'e', 't', 'T']
-  },
-  // ISO day of week
-  i: {
-    priority: 90,
-    parse: function (string, token, match, _options) {
-      var valueCallback = function (value) {
-        if (value === 0) {
-          return 7;
-        }
-
-        return value;
-      };
-
-      switch (token) {
-        // 2
-        case 'i':
-        case 'ii':
-          // 02
-          return parseNDigits(token.length, string);
-        // 2nd
-
-        case 'io':
-          return match.ordinalNumber(string, {
-            unit: 'day'
-          });
-        // Tue
-
-        case 'iii':
-          return match.day(string, {
-            width: 'abbreviated',
-            context: 'formatting',
-            valueCallback: valueCallback
-          }) || match.day(string, {
-            width: 'short',
-            context: 'formatting',
-            valueCallback: valueCallback
-          }) || match.day(string, {
-            width: 'narrow',
-            context: 'formatting',
-            valueCallback: valueCallback
-          });
-        // T
-
-        case 'iiiii':
-          return match.day(string, {
-            width: 'narrow',
-            context: 'formatting',
-            valueCallback: valueCallback
-          });
-        // Tu
-
-        case 'iiiiii':
-          return match.day(string, {
-            width: 'short',
-            context: 'formatting',
-            valueCallback: valueCallback
-          }) || match.day(string, {
-            width: 'narrow',
-            context: 'formatting',
-            valueCallback: valueCallback
-          });
-        // Tuesday
-
-        case 'iiii':
-        default:
-          return match.day(string, {
-            width: 'wide',
-            context: 'formatting',
-            valueCallback: valueCallback
-          }) || match.day(string, {
-            width: 'abbreviated',
-            context: 'formatting',
-            valueCallback: valueCallback
-          }) || match.day(string, {
-            width: 'short',
-            context: 'formatting',
-            valueCallback: valueCallback
-          }) || match.day(string, {
-            width: 'narrow',
-            context: 'formatting',
-            valueCallback: valueCallback
-          });
-      }
-    },
-    validate: function (_date, value, _options) {
-      return value >= 1 && value <= 7;
-    },
-    set: function (date, _flags, value, options) {
-      date = (0,_lib_setUTCISODay_index_js__WEBPACK_IMPORTED_MODULE_6__["default"])(date, value, options);
-      date.setUTCHours(0, 0, 0, 0);
-      return date;
-    },
-    incompatibleTokens: ['y', 'Y', 'u', 'q', 'Q', 'M', 'L', 'w', 'd', 'D', 'E', 'e', 'c', 't', 'T']
-  },
-  // AM or PM
-  a: {
-    priority: 80,
-    parse: function (string, token, match, _options) {
-      switch (token) {
-        case 'a':
-        case 'aa':
-        case 'aaa':
-          return match.dayPeriod(string, {
-            width: 'abbreviated',
-            context: 'formatting'
-          }) || match.dayPeriod(string, {
-            width: 'narrow',
-            context: 'formatting'
-          });
-
-        case 'aaaaa':
-          return match.dayPeriod(string, {
-            width: 'narrow',
-            context: 'formatting'
-          });
-
-        case 'aaaa':
-        default:
-          return match.dayPeriod(string, {
-            width: 'wide',
-            context: 'formatting'
-          }) || match.dayPeriod(string, {
-            width: 'abbreviated',
-            context: 'formatting'
-          }) || match.dayPeriod(string, {
-            width: 'narrow',
-            context: 'formatting'
-          });
-      }
-    },
-    set: function (date, _flags, value, _options) {
-      date.setUTCHours(dayPeriodEnumToHours(value), 0, 0, 0);
-      return date;
-    },
-    incompatibleTokens: ['b', 'B', 'H', 'k', 't', 'T']
-  },
-  // AM, PM, midnight
-  b: {
-    priority: 80,
-    parse: function (string, token, match, _options) {
-      switch (token) {
-        case 'b':
-        case 'bb':
-        case 'bbb':
-          return match.dayPeriod(string, {
-            width: 'abbreviated',
-            context: 'formatting'
-          }) || match.dayPeriod(string, {
-            width: 'narrow',
-            context: 'formatting'
-          });
-
-        case 'bbbbb':
-          return match.dayPeriod(string, {
-            width: 'narrow',
-            context: 'formatting'
-          });
-
-        case 'bbbb':
-        default:
-          return match.dayPeriod(string, {
-            width: 'wide',
-            context: 'formatting'
-          }) || match.dayPeriod(string, {
-            width: 'abbreviated',
-            context: 'formatting'
-          }) || match.dayPeriod(string, {
-            width: 'narrow',
-            context: 'formatting'
-          });
-      }
-    },
-    set: function (date, _flags, value, _options) {
-      date.setUTCHours(dayPeriodEnumToHours(value), 0, 0, 0);
-      return date;
-    },
-    incompatibleTokens: ['a', 'B', 'H', 'k', 't', 'T']
-  },
-  // in the morning, in the afternoon, in the evening, at night
-  B: {
-    priority: 80,
-    parse: function (string, token, match, _options) {
-      switch (token) {
-        case 'B':
-        case 'BB':
-        case 'BBB':
-          return match.dayPeriod(string, {
-            width: 'abbreviated',
-            context: 'formatting'
-          }) || match.dayPeriod(string, {
-            width: 'narrow',
-            context: 'formatting'
-          });
-
-        case 'BBBBB':
-          return match.dayPeriod(string, {
-            width: 'narrow',
-            context: 'formatting'
-          });
-
-        case 'BBBB':
-        default:
-          return match.dayPeriod(string, {
-            width: 'wide',
-            context: 'formatting'
-          }) || match.dayPeriod(string, {
-            width: 'abbreviated',
-            context: 'formatting'
-          }) || match.dayPeriod(string, {
-            width: 'narrow',
-            context: 'formatting'
-          });
-      }
-    },
-    set: function (date, _flags, value, _options) {
-      date.setUTCHours(dayPeriodEnumToHours(value), 0, 0, 0);
-      return date;
-    },
-    incompatibleTokens: ['a', 'b', 't', 'T']
-  },
-  // Hour [1-12]
-  h: {
-    priority: 70,
-    parse: function (string, token, match, _options) {
-      switch (token) {
-        case 'h':
-          return parseNumericPattern(numericPatterns.hour12h, string);
-
-        case 'ho':
-          return match.ordinalNumber(string, {
-            unit: 'hour'
-          });
-
-        default:
-          return parseNDigits(token.length, string);
-      }
-    },
-    validate: function (_date, value, _options) {
-      return value >= 1 && value <= 12;
-    },
-    set: function (date, _flags, value, _options) {
-      var isPM = date.getUTCHours() >= 12;
-
-      if (isPM && value < 12) {
-        date.setUTCHours(value + 12, 0, 0, 0);
-      } else if (!isPM && value === 12) {
-        date.setUTCHours(0, 0, 0, 0);
-      } else {
-        date.setUTCHours(value, 0, 0, 0);
-      }
-
-      return date;
-    },
-    incompatibleTokens: ['H', 'K', 'k', 't', 'T']
-  },
-  // Hour [0-23]
-  H: {
-    priority: 70,
-    parse: function (string, token, match, _options) {
-      switch (token) {
-        case 'H':
-          return parseNumericPattern(numericPatterns.hour23h, string);
-
-        case 'Ho':
-          return match.ordinalNumber(string, {
-            unit: 'hour'
-          });
-
-        default:
-          return parseNDigits(token.length, string);
-      }
-    },
-    validate: function (_date, value, _options) {
-      return value >= 0 && value <= 23;
-    },
-    set: function (date, _flags, value, _options) {
-      date.setUTCHours(value, 0, 0, 0);
-      return date;
-    },
-    incompatibleTokens: ['a', 'b', 'h', 'K', 'k', 't', 'T']
-  },
-  // Hour [0-11]
-  K: {
-    priority: 70,
-    parse: function (string, token, match, _options) {
-      switch (token) {
-        case 'K':
-          return parseNumericPattern(numericPatterns.hour11h, string);
-
-        case 'Ko':
-          return match.ordinalNumber(string, {
-            unit: 'hour'
-          });
-
-        default:
-          return parseNDigits(token.length, string);
-      }
-    },
-    validate: function (_date, value, _options) {
-      return value >= 0 && value <= 11;
-    },
-    set: function (date, _flags, value, _options) {
-      var isPM = date.getUTCHours() >= 12;
-
-      if (isPM && value < 12) {
-        date.setUTCHours(value + 12, 0, 0, 0);
-      } else {
-        date.setUTCHours(value, 0, 0, 0);
-      }
-
-      return date;
-    },
-    incompatibleTokens: ['h', 'H', 'k', 't', 'T']
-  },
-  // Hour [1-24]
-  k: {
-    priority: 70,
-    parse: function (string, token, match, _options) {
-      switch (token) {
-        case 'k':
-          return parseNumericPattern(numericPatterns.hour24h, string);
-
-        case 'ko':
-          return match.ordinalNumber(string, {
-            unit: 'hour'
-          });
-
-        default:
-          return parseNDigits(token.length, string);
-      }
-    },
-    validate: function (_date, value, _options) {
-      return value >= 1 && value <= 24;
-    },
-    set: function (date, _flags, value, _options) {
-      var hours = value <= 24 ? value % 24 : value;
-      date.setUTCHours(hours, 0, 0, 0);
-      return date;
-    },
-    incompatibleTokens: ['a', 'b', 'h', 'H', 'K', 't', 'T']
-  },
-  // Minute
-  m: {
-    priority: 60,
-    parse: function (string, token, match, _options) {
-      switch (token) {
-        case 'm':
-          return parseNumericPattern(numericPatterns.minute, string);
-
-        case 'mo':
-          return match.ordinalNumber(string, {
-            unit: 'minute'
-          });
-
-        default:
-          return parseNDigits(token.length, string);
-      }
-    },
-    validate: function (_date, value, _options) {
-      return value >= 0 && value <= 59;
-    },
-    set: function (date, _flags, value, _options) {
-      date.setUTCMinutes(value, 0, 0);
-      return date;
-    },
-    incompatibleTokens: ['t', 'T']
-  },
-  // Second
-  s: {
-    priority: 50,
-    parse: function (string, token, match, _options) {
-      switch (token) {
-        case 's':
-          return parseNumericPattern(numericPatterns.second, string);
-
-        case 'so':
-          return match.ordinalNumber(string, {
-            unit: 'second'
-          });
-
-        default:
-          return parseNDigits(token.length, string);
-      }
-    },
-    validate: function (_date, value, _options) {
-      return value >= 0 && value <= 59;
-    },
-    set: function (date, _flags, value, _options) {
-      date.setUTCSeconds(value, 0);
-      return date;
-    },
-    incompatibleTokens: ['t', 'T']
-  },
-  // Fraction of second
-  S: {
-    priority: 30,
-    parse: function (string, token, _match, _options) {
-      var valueCallback = function (value) {
-        return Math.floor(value * Math.pow(10, -token.length + 3));
-      };
-
-      return parseNDigits(token.length, string, valueCallback);
-    },
-    set: function (date, _flags, value, _options) {
-      date.setUTCMilliseconds(value);
-      return date;
-    },
-    incompatibleTokens: ['t', 'T']
-  },
-  // Timezone (ISO-8601. +00:00 is `'Z'`)
-  X: {
-    priority: 10,
-    parse: function (string, token, _match, _options) {
-      switch (token) {
-        case 'X':
-          return parseTimezonePattern(timezonePatterns.basicOptionalMinutes, string);
-
-        case 'XX':
-          return parseTimezonePattern(timezonePatterns.basic, string);
-
-        case 'XXXX':
-          return parseTimezonePattern(timezonePatterns.basicOptionalSeconds, string);
-
-        case 'XXXXX':
-          return parseTimezonePattern(timezonePatterns.extendedOptionalSeconds, string);
-
-        case 'XXX':
-        default:
-          return parseTimezonePattern(timezonePatterns.extended, string);
-      }
-    },
-    set: function (date, flags, value, _options) {
-      if (flags.timestampIsSet) {
-        return date;
-      }
-
-      return new Date(date.getTime() - value);
-    },
-    incompatibleTokens: ['t', 'T', 'x']
-  },
-  // Timezone (ISO-8601)
-  x: {
-    priority: 10,
-    parse: function (string, token, _match, _options) {
-      switch (token) {
-        case 'x':
-          return parseTimezonePattern(timezonePatterns.basicOptionalMinutes, string);
-
-        case 'xx':
-          return parseTimezonePattern(timezonePatterns.basic, string);
-
-        case 'xxxx':
-          return parseTimezonePattern(timezonePatterns.basicOptionalSeconds, string);
-
-        case 'xxxxx':
-          return parseTimezonePattern(timezonePatterns.extendedOptionalSeconds, string);
-
-        case 'xxx':
-        default:
-          return parseTimezonePattern(timezonePatterns.extended, string);
-      }
-    },
-    set: function (date, flags, value, _options) {
-      if (flags.timestampIsSet) {
-        return date;
-      }
-
-      return new Date(date.getTime() - value);
-    },
-    incompatibleTokens: ['t', 'T', 'X']
-  },
-  // Seconds timestamp
-  t: {
-    priority: 40,
-    parse: function (string, _token, _match, _options) {
-      return parseAnyDigitsSigned(string);
-    },
-    set: function (_date, _flags, value, _options) {
-      return [new Date(value * 1000), {
-        timestampIsSet: true
-      }];
-    },
-    incompatibleTokens: '*'
-  },
-  // Milliseconds timestamp
-  T: {
-    priority: 20,
-    parse: function (string, _token, _match, _options) {
-      return parseAnyDigitsSigned(string);
-    },
-    set: function (_date, _flags, value, _options) {
-      return [new Date(value), {
-        timestampIsSet: true
-      }];
-    },
-    incompatibleTokens: '*'
-  }
+  G: new _EraParser_js__WEBPACK_IMPORTED_MODULE_0__.EraParser(),
+  y: new _YearParser_js__WEBPACK_IMPORTED_MODULE_1__.YearParser(),
+  Y: new _LocalWeekYearParser_js__WEBPACK_IMPORTED_MODULE_2__.LocalWeekYearParser(),
+  R: new _ISOWeekYearParser_js__WEBPACK_IMPORTED_MODULE_3__.ISOWeekYearParser(),
+  u: new _ExtendedYearParser_js__WEBPACK_IMPORTED_MODULE_4__.ExtendedYearParser(),
+  Q: new _QuarterParser_js__WEBPACK_IMPORTED_MODULE_5__.QuarterParser(),
+  q: new _StandAloneQuarterParser_js__WEBPACK_IMPORTED_MODULE_6__.StandAloneQuarterParser(),
+  M: new _MonthParser_js__WEBPACK_IMPORTED_MODULE_7__.MonthParser(),
+  L: new _StandAloneMonthParser_js__WEBPACK_IMPORTED_MODULE_8__.StandAloneMonthParser(),
+  w: new _LocalWeekParser_js__WEBPACK_IMPORTED_MODULE_9__.LocalWeekParser(),
+  I: new _ISOWeekParser_js__WEBPACK_IMPORTED_MODULE_10__.ISOWeekParser(),
+  d: new _DateParser_js__WEBPACK_IMPORTED_MODULE_11__.DateParser(),
+  D: new _DayOfYearParser_js__WEBPACK_IMPORTED_MODULE_12__.DayOfYearParser(),
+  E: new _DayParser_js__WEBPACK_IMPORTED_MODULE_13__.DayParser(),
+  e: new _LocalDayParser_js__WEBPACK_IMPORTED_MODULE_14__.LocalDayParser(),
+  c: new _StandAloneLocalDayParser_js__WEBPACK_IMPORTED_MODULE_15__.StandAloneLocalDayParser(),
+  i: new _ISODayParser_js__WEBPACK_IMPORTED_MODULE_16__.ISODayParser(),
+  a: new _AMPMParser_js__WEBPACK_IMPORTED_MODULE_17__.AMPMParser(),
+  b: new _AMPMMidnightParser_js__WEBPACK_IMPORTED_MODULE_18__.AMPMMidnightParser(),
+  B: new _DayPeriodParser_js__WEBPACK_IMPORTED_MODULE_19__.DayPeriodParser(),
+  h: new _Hour1to12Parser_js__WEBPACK_IMPORTED_MODULE_20__.Hour1to12Parser(),
+  H: new _Hour0to23Parser_js__WEBPACK_IMPORTED_MODULE_21__.Hour0to23Parser(),
+  K: new _Hour0To11Parser_js__WEBPACK_IMPORTED_MODULE_22__.Hour0To11Parser(),
+  k: new _Hour1To24Parser_js__WEBPACK_IMPORTED_MODULE_23__.Hour1To24Parser(),
+  m: new _MinuteParser_js__WEBPACK_IMPORTED_MODULE_24__.MinuteParser(),
+  s: new _SecondParser_js__WEBPACK_IMPORTED_MODULE_25__.SecondParser(),
+  S: new _FractionOfSecondParser_js__WEBPACK_IMPORTED_MODULE_26__.FractionOfSecondParser(),
+  X: new _ISOTimezoneWithZParser_js__WEBPACK_IMPORTED_MODULE_27__.ISOTimezoneWithZParser(),
+  x: new _ISOTimezoneParser_js__WEBPACK_IMPORTED_MODULE_28__.ISOTimezoneParser(),
+  t: new _TimestampSecondsParser_js__WEBPACK_IMPORTED_MODULE_29__.TimestampSecondsParser(),
+  T: new _TimestampMillisecondsParser_js__WEBPACK_IMPORTED_MODULE_30__.TimestampMillisecondsParser()
 };
-/* harmony default export */ const __WEBPACK_DEFAULT_EXPORT__ = (parsers);
+
+/***/ }),
+
+/***/ "./node_modules/date-fns/esm/parse/_lib/utils.js":
+/*!*******************************************************!*\
+  !*** ./node_modules/date-fns/esm/parse/_lib/utils.js ***!
+  \*******************************************************/
+/***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
+
+"use strict";
+__webpack_require__.r(__webpack_exports__);
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   "dayPeriodEnumToHours": () => (/* binding */ dayPeriodEnumToHours),
+/* harmony export */   "isLeapYearIndex": () => (/* binding */ isLeapYearIndex),
+/* harmony export */   "mapValue": () => (/* binding */ mapValue),
+/* harmony export */   "normalizeTwoDigitYear": () => (/* binding */ normalizeTwoDigitYear),
+/* harmony export */   "parseAnyDigitsSigned": () => (/* binding */ parseAnyDigitsSigned),
+/* harmony export */   "parseNDigits": () => (/* binding */ parseNDigits),
+/* harmony export */   "parseNDigitsSigned": () => (/* binding */ parseNDigitsSigned),
+/* harmony export */   "parseNumericPattern": () => (/* binding */ parseNumericPattern),
+/* harmony export */   "parseTimezonePattern": () => (/* binding */ parseTimezonePattern)
+/* harmony export */ });
+/* harmony import */ var _constants_index_js__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ../../constants/index.js */ "./node_modules/date-fns/esm/constants/index.js");
+/* harmony import */ var _constants_js__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ./constants.js */ "./node_modules/date-fns/esm/parse/_lib/constants.js");
+
+
+function mapValue(parseFnResult, mapFn) {
+  if (!parseFnResult) {
+    return parseFnResult;
+  }
+
+  return {
+    value: mapFn(parseFnResult.value),
+    rest: parseFnResult.rest
+  };
+}
+function parseNumericPattern(pattern, dateString) {
+  var matchResult = dateString.match(pattern);
+
+  if (!matchResult) {
+    return null;
+  }
+
+  return {
+    value: parseInt(matchResult[0], 10),
+    rest: dateString.slice(matchResult[0].length)
+  };
+}
+function parseTimezonePattern(pattern, dateString) {
+  var matchResult = dateString.match(pattern);
+
+  if (!matchResult) {
+    return null;
+  } // Input is 'Z'
+
+
+  if (matchResult[0] === 'Z') {
+    return {
+      value: 0,
+      rest: dateString.slice(1)
+    };
+  }
+
+  var sign = matchResult[1] === '+' ? 1 : -1;
+  var hours = matchResult[2] ? parseInt(matchResult[2], 10) : 0;
+  var minutes = matchResult[3] ? parseInt(matchResult[3], 10) : 0;
+  var seconds = matchResult[5] ? parseInt(matchResult[5], 10) : 0;
+  return {
+    value: sign * (hours * _constants_index_js__WEBPACK_IMPORTED_MODULE_0__.millisecondsInHour + minutes * _constants_index_js__WEBPACK_IMPORTED_MODULE_0__.millisecondsInMinute + seconds * _constants_index_js__WEBPACK_IMPORTED_MODULE_0__.millisecondsInSecond),
+    rest: dateString.slice(matchResult[0].length)
+  };
+}
+function parseAnyDigitsSigned(dateString) {
+  return parseNumericPattern(_constants_js__WEBPACK_IMPORTED_MODULE_1__.numericPatterns.anyDigitsSigned, dateString);
+}
+function parseNDigits(n, dateString) {
+  switch (n) {
+    case 1:
+      return parseNumericPattern(_constants_js__WEBPACK_IMPORTED_MODULE_1__.numericPatterns.singleDigit, dateString);
+
+    case 2:
+      return parseNumericPattern(_constants_js__WEBPACK_IMPORTED_MODULE_1__.numericPatterns.twoDigits, dateString);
+
+    case 3:
+      return parseNumericPattern(_constants_js__WEBPACK_IMPORTED_MODULE_1__.numericPatterns.threeDigits, dateString);
+
+    case 4:
+      return parseNumericPattern(_constants_js__WEBPACK_IMPORTED_MODULE_1__.numericPatterns.fourDigits, dateString);
+
+    default:
+      return parseNumericPattern(new RegExp('^\\d{1,' + n + '}'), dateString);
+  }
+}
+function parseNDigitsSigned(n, dateString) {
+  switch (n) {
+    case 1:
+      return parseNumericPattern(_constants_js__WEBPACK_IMPORTED_MODULE_1__.numericPatterns.singleDigitSigned, dateString);
+
+    case 2:
+      return parseNumericPattern(_constants_js__WEBPACK_IMPORTED_MODULE_1__.numericPatterns.twoDigitsSigned, dateString);
+
+    case 3:
+      return parseNumericPattern(_constants_js__WEBPACK_IMPORTED_MODULE_1__.numericPatterns.threeDigitsSigned, dateString);
+
+    case 4:
+      return parseNumericPattern(_constants_js__WEBPACK_IMPORTED_MODULE_1__.numericPatterns.fourDigitsSigned, dateString);
+
+    default:
+      return parseNumericPattern(new RegExp('^-?\\d{1,' + n + '}'), dateString);
+  }
+}
+function dayPeriodEnumToHours(dayPeriod) {
+  switch (dayPeriod) {
+    case 'morning':
+      return 4;
+
+    case 'evening':
+      return 17;
+
+    case 'pm':
+    case 'noon':
+    case 'afternoon':
+      return 12;
+
+    case 'am':
+    case 'midnight':
+    case 'night':
+    default:
+      return 0;
+  }
+}
+function normalizeTwoDigitYear(twoDigitYear, currentYear) {
+  var isCommonEra = currentYear > 0; // Absolute number of the current year:
+  // 1 -> 1 AC
+  // 0 -> 1 BC
+  // -1 -> 2 BC
+
+  var absCurrentYear = isCommonEra ? currentYear : 1 - currentYear;
+  var result;
+
+  if (absCurrentYear <= 50) {
+    result = twoDigitYear || 100;
+  } else {
+    var rangeEnd = absCurrentYear + 50;
+    var rangeEndCentury = Math.floor(rangeEnd / 100) * 100;
+    var isPreviousCentury = twoDigitYear >= rangeEnd % 100;
+    result = twoDigitYear + rangeEndCentury - (isPreviousCentury ? 100 : 0);
+  }
+
+  return isCommonEra ? result : 1 - result;
+}
+function isLeapYearIndex(year) {
+  return year % 400 === 0 || year % 4 === 0 && year % 100 !== 0;
+}
 
 /***/ }),
 
@@ -26258,16 +27787,18 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony export */ __webpack_require__.d(__webpack_exports__, {
 /* harmony export */   "default": () => (/* binding */ parse)
 /* harmony export */ });
-/* harmony import */ var _locale_en_US_index_js__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ../locale/en-US/index.js */ "./node_modules/date-fns/esm/locale/en-US/index.js");
-/* harmony import */ var _subMilliseconds_index_js__WEBPACK_IMPORTED_MODULE_7__ = __webpack_require__(/*! ../subMilliseconds/index.js */ "./node_modules/date-fns/esm/subMilliseconds/index.js");
-/* harmony import */ var _toDate_index_js__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__(/*! ../toDate/index.js */ "./node_modules/date-fns/esm/toDate/index.js");
-/* harmony import */ var _lib_assign_index_js__WEBPACK_IMPORTED_MODULE_9__ = __webpack_require__(/*! ../_lib/assign/index.js */ "./node_modules/date-fns/esm/_lib/assign/index.js");
-/* harmony import */ var _lib_format_longFormatters_index_js__WEBPACK_IMPORTED_MODULE_4__ = __webpack_require__(/*! ../_lib/format/longFormatters/index.js */ "./node_modules/date-fns/esm/_lib/format/longFormatters/index.js");
-/* harmony import */ var _lib_getTimezoneOffsetInMilliseconds_index_js__WEBPACK_IMPORTED_MODULE_8__ = __webpack_require__(/*! ../_lib/getTimezoneOffsetInMilliseconds/index.js */ "./node_modules/date-fns/esm/_lib/getTimezoneOffsetInMilliseconds/index.js");
-/* harmony import */ var _lib_protectedTokens_index_js__WEBPACK_IMPORTED_MODULE_5__ = __webpack_require__(/*! ../_lib/protectedTokens/index.js */ "./node_modules/date-fns/esm/_lib/protectedTokens/index.js");
-/* harmony import */ var _lib_toInteger_index_js__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! ../_lib/toInteger/index.js */ "./node_modules/date-fns/esm/_lib/toInteger/index.js");
-/* harmony import */ var _lib_parsers_index_js__WEBPACK_IMPORTED_MODULE_6__ = __webpack_require__(/*! ./_lib/parsers/index.js */ "./node_modules/date-fns/esm/parse/_lib/parsers/index.js");
+/* harmony import */ var _lib_defaultLocale_index_js__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! ../_lib/defaultLocale/index.js */ "./node_modules/date-fns/esm/_lib/defaultLocale/index.js");
+/* harmony import */ var _subMilliseconds_index_js__WEBPACK_IMPORTED_MODULE_9__ = __webpack_require__(/*! ../subMilliseconds/index.js */ "./node_modules/date-fns/esm/subMilliseconds/index.js");
+/* harmony import */ var _toDate_index_js__WEBPACK_IMPORTED_MODULE_4__ = __webpack_require__(/*! ../toDate/index.js */ "./node_modules/date-fns/esm/toDate/index.js");
+/* harmony import */ var _lib_assign_index_js__WEBPACK_IMPORTED_MODULE_11__ = __webpack_require__(/*! ../_lib/assign/index.js */ "./node_modules/date-fns/esm/_lib/assign/index.js");
+/* harmony import */ var _lib_format_longFormatters_index_js__WEBPACK_IMPORTED_MODULE_6__ = __webpack_require__(/*! ../_lib/format/longFormatters/index.js */ "./node_modules/date-fns/esm/_lib/format/longFormatters/index.js");
+/* harmony import */ var _lib_getTimezoneOffsetInMilliseconds_index_js__WEBPACK_IMPORTED_MODULE_10__ = __webpack_require__(/*! ../_lib/getTimezoneOffsetInMilliseconds/index.js */ "./node_modules/date-fns/esm/_lib/getTimezoneOffsetInMilliseconds/index.js");
+/* harmony import */ var _lib_protectedTokens_index_js__WEBPACK_IMPORTED_MODULE_7__ = __webpack_require__(/*! ../_lib/protectedTokens/index.js */ "./node_modules/date-fns/esm/_lib/protectedTokens/index.js");
+/* harmony import */ var _lib_toInteger_index_js__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__(/*! ../_lib/toInteger/index.js */ "./node_modules/date-fns/esm/_lib/toInteger/index.js");
 /* harmony import */ var _lib_requiredArgs_index_js__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ../_lib/requiredArgs/index.js */ "./node_modules/date-fns/esm/_lib/requiredArgs/index.js");
+/* harmony import */ var _lib_Setter_js__WEBPACK_IMPORTED_MODULE_5__ = __webpack_require__(/*! ./_lib/Setter.js */ "./node_modules/date-fns/esm/parse/_lib/Setter.js");
+/* harmony import */ var _lib_parsers_index_js__WEBPACK_IMPORTED_MODULE_8__ = __webpack_require__(/*! ./_lib/parsers/index.js */ "./node_modules/date-fns/esm/parse/_lib/parsers/index.js");
+/* harmony import */ var _lib_defaultOptions_index_js__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ../_lib/defaultOptions/index.js */ "./node_modules/date-fns/esm/_lib/defaultOptions/index.js");
 
 
 
@@ -26278,7 +27809,8 @@ __webpack_require__.r(__webpack_exports__);
 
 
 
-var TIMEZONE_UNIT_PRIORITY = 10; // This RegExp consists of three parts separated by `|`:
+
+ // This RegExp consists of three parts separated by `|`:
 // - [yYQqMLwIdDecihHKkms]o matches any available ordinal number token
 //   (one of the certain letters followed by `o`)
 // - (\w)\1* matches any sequences of the same letter
@@ -26307,7 +27839,7 @@ var unescapedLatinCharacterRegExp = /[a-zA-Z]/;
  * Return the date parsed from string using the given format string.
  *
  * > ⚠️ Please note that the `format` tokens differ from Moment.js and other libraries.
- * > See: https://git.io/fxCyr
+ * > See: https://github.com/date-fns/date-fns/blob/master/docs/unicodeTokens.md
  *
  * The characters in the format string wrapped between two single quotes characters (') are escaped.
  * Two single quotes in a row, whether inside or outside a quoted sequence, represent a 'real' single quote.
@@ -26530,10 +28062,10 @@ var unescapedLatinCharacterRegExp = /[a-zA-Z]/;
  *    - `p`: long localized time
  *
  * 6. `YY` and `YYYY` tokens represent week-numbering years but they are often confused with years.
- *    You should enable `options.useAdditionalWeekYearTokens` to use them. See: https://git.io/fxCyr
+ *    You should enable `options.useAdditionalWeekYearTokens` to use them. See: https://github.com/date-fns/date-fns/blob/master/docs/unicodeTokens.md
  *
  * 7. `D` and `DD` tokens represent days of the year but they are ofthen confused with days of the month.
- *    You should enable `options.useAdditionalDayOfYearTokens` to use them. See: https://git.io/fxCyr
+ *    You should enable `options.useAdditionalDayOfYearTokens` to use them. See: https://github.com/date-fns/date-fns/blob/master/docs/unicodeTokens.md
  *
  * 8. `P+` tokens do not have a defined priority since they are merely aliases to other tokens based
  *    on the given locale.
@@ -26564,23 +28096,6 @@ var unescapedLatinCharacterRegExp = /[a-zA-Z]/;
  * Invalid Date is a Date, whose time value is NaN.
  * Time value of Date: http://es5.github.io/#x15.9.1.1
  *
- * ### v2.0.0 breaking changes:
- *
- * - [Changes that are common for the whole library](https://github.com/date-fns/date-fns/blob/master/docs/upgradeGuide.md#Common-Changes).
- *
- * - Old `parse` was renamed to `toDate`.
- *   Now `parse` is a new function which parses a string using a provided format.
- *
- *   ```javascript
- *   // Before v2.0.0
- *   parse('2016-01-01')
- *
- *   // v2.0.0 onward (toDate no longer accepts a string)
- *   toDate(1392098430000) // Unix to timestamp
- *   toDate(new Date(2014, 1, 11, 11, 30, 30)) // Cloning the date
- *   parse('2016-01-01', 'yyyy-MM-dd', new Date())
- *   ```
- *
  * @param {String} dateString - the string to parse
  * @param {String} formatString - the string of tokens
  * @param {Date|Number} referenceDate - defines values missing from the parsed dateString
@@ -26589,18 +28104,18 @@ var unescapedLatinCharacterRegExp = /[a-zA-Z]/;
  * @param {0|1|2|3|4|5|6} [options.weekStartsOn=0] - the index of the first day of the week (0 - Sunday)
  * @param {1|2|3|4|5|6|7} [options.firstWeekContainsDate=1] - the day of January, which is always in the first week of the year
  * @param {Boolean} [options.useAdditionalWeekYearTokens=false] - if true, allows usage of the week-numbering year tokens `YY` and `YYYY`;
- *   see: https://git.io/fxCyr
+ *   see: https://github.com/date-fns/date-fns/blob/master/docs/unicodeTokens.md
  * @param {Boolean} [options.useAdditionalDayOfYearTokens=false] - if true, allows usage of the day of year tokens `D` and `DD`;
- *   see: https://git.io/fxCyr
+ *   see: https://github.com/date-fns/date-fns/blob/master/docs/unicodeTokens.md
  * @returns {Date} the parsed date
  * @throws {TypeError} 3 arguments required
  * @throws {RangeError} `options.weekStartsOn` must be between 0 and 6
  * @throws {RangeError} `options.firstWeekContainsDate` must be between 1 and 7
  * @throws {RangeError} `options.locale` must contain `match` property
- * @throws {RangeError} use `yyyy` instead of `YYYY` for formatting years using [format provided] to the input [input provided]; see: https://git.io/fxCyr
- * @throws {RangeError} use `yy` instead of `YY` for formatting years using [format provided] to the input [input provided]; see: https://git.io/fxCyr
- * @throws {RangeError} use `d` instead of `D` for formatting days of the month using [format provided] to the input [input provided]; see: https://git.io/fxCyr
- * @throws {RangeError} use `dd` instead of `DD` for formatting days of the month using [format provided] to the input [input provided]; see: https://git.io/fxCyr
+ * @throws {RangeError} use `yyyy` instead of `YYYY` for formatting years using [format provided] to the input [input provided]; see: https://github.com/date-fns/date-fns/blob/master/docs/unicodeTokens.md
+ * @throws {RangeError} use `yy` instead of `YY` for formatting years using [format provided] to the input [input provided]; see: https://github.com/date-fns/date-fns/blob/master/docs/unicodeTokens.md
+ * @throws {RangeError} use `d` instead of `D` for formatting days of the month using [format provided] to the input [input provided]; see: https://github.com/date-fns/date-fns/blob/master/docs/unicodeTokens.md
+ * @throws {RangeError} use `dd` instead of `DD` for formatting days of the month using [format provided] to the input [input provided]; see: https://github.com/date-fns/date-fns/blob/master/docs/unicodeTokens.md
  * @throws {RangeError} format string contains an unescaped latin alphabet character
  *
  * @example
@@ -26617,28 +28132,26 @@ var unescapedLatinCharacterRegExp = /[a-zA-Z]/;
  * //=> Sun Feb 28 2010 00:00:00
  */
 
-function parse(dirtyDateString, dirtyFormatString, dirtyReferenceDate, dirtyOptions) {
+function parse(dirtyDateString, dirtyFormatString, dirtyReferenceDate, options) {
+  var _ref, _options$locale, _ref2, _ref3, _ref4, _options$firstWeekCon, _options$locale2, _options$locale2$opti, _defaultOptions$local, _defaultOptions$local2, _ref5, _ref6, _ref7, _options$weekStartsOn, _options$locale3, _options$locale3$opti, _defaultOptions$local3, _defaultOptions$local4;
+
   (0,_lib_requiredArgs_index_js__WEBPACK_IMPORTED_MODULE_0__["default"])(3, arguments);
   var dateString = String(dirtyDateString);
   var formatString = String(dirtyFormatString);
-  var options = dirtyOptions || {};
-  var locale = options.locale || _locale_en_US_index_js__WEBPACK_IMPORTED_MODULE_1__["default"];
+  var defaultOptions = (0,_lib_defaultOptions_index_js__WEBPACK_IMPORTED_MODULE_1__.getDefaultOptions)();
+  var locale = (_ref = (_options$locale = options === null || options === void 0 ? void 0 : options.locale) !== null && _options$locale !== void 0 ? _options$locale : defaultOptions.locale) !== null && _ref !== void 0 ? _ref : _lib_defaultLocale_index_js__WEBPACK_IMPORTED_MODULE_2__["default"];
 
   if (!locale.match) {
     throw new RangeError('locale must contain match property');
   }
 
-  var localeFirstWeekContainsDate = locale.options && locale.options.firstWeekContainsDate;
-  var defaultFirstWeekContainsDate = localeFirstWeekContainsDate == null ? 1 : (0,_lib_toInteger_index_js__WEBPACK_IMPORTED_MODULE_2__["default"])(localeFirstWeekContainsDate);
-  var firstWeekContainsDate = options.firstWeekContainsDate == null ? defaultFirstWeekContainsDate : (0,_lib_toInteger_index_js__WEBPACK_IMPORTED_MODULE_2__["default"])(options.firstWeekContainsDate); // Test if weekStartsOn is between 1 and 7 _and_ is not NaN
+  var firstWeekContainsDate = (0,_lib_toInteger_index_js__WEBPACK_IMPORTED_MODULE_3__["default"])((_ref2 = (_ref3 = (_ref4 = (_options$firstWeekCon = options === null || options === void 0 ? void 0 : options.firstWeekContainsDate) !== null && _options$firstWeekCon !== void 0 ? _options$firstWeekCon : options === null || options === void 0 ? void 0 : (_options$locale2 = options.locale) === null || _options$locale2 === void 0 ? void 0 : (_options$locale2$opti = _options$locale2.options) === null || _options$locale2$opti === void 0 ? void 0 : _options$locale2$opti.firstWeekContainsDate) !== null && _ref4 !== void 0 ? _ref4 : defaultOptions.firstWeekContainsDate) !== null && _ref3 !== void 0 ? _ref3 : (_defaultOptions$local = defaultOptions.locale) === null || _defaultOptions$local === void 0 ? void 0 : (_defaultOptions$local2 = _defaultOptions$local.options) === null || _defaultOptions$local2 === void 0 ? void 0 : _defaultOptions$local2.firstWeekContainsDate) !== null && _ref2 !== void 0 ? _ref2 : 1); // Test if weekStartsOn is between 1 and 7 _and_ is not NaN
 
   if (!(firstWeekContainsDate >= 1 && firstWeekContainsDate <= 7)) {
     throw new RangeError('firstWeekContainsDate must be between 1 and 7 inclusively');
   }
 
-  var localeWeekStartsOn = locale.options && locale.options.weekStartsOn;
-  var defaultWeekStartsOn = localeWeekStartsOn == null ? 0 : (0,_lib_toInteger_index_js__WEBPACK_IMPORTED_MODULE_2__["default"])(localeWeekStartsOn);
-  var weekStartsOn = options.weekStartsOn == null ? defaultWeekStartsOn : (0,_lib_toInteger_index_js__WEBPACK_IMPORTED_MODULE_2__["default"])(options.weekStartsOn); // Test if weekStartsOn is between 0 and 6 _and_ is not NaN
+  var weekStartsOn = (0,_lib_toInteger_index_js__WEBPACK_IMPORTED_MODULE_3__["default"])((_ref5 = (_ref6 = (_ref7 = (_options$weekStartsOn = options === null || options === void 0 ? void 0 : options.weekStartsOn) !== null && _options$weekStartsOn !== void 0 ? _options$weekStartsOn : options === null || options === void 0 ? void 0 : (_options$locale3 = options.locale) === null || _options$locale3 === void 0 ? void 0 : (_options$locale3$opti = _options$locale3.options) === null || _options$locale3$opti === void 0 ? void 0 : _options$locale3$opti.weekStartsOn) !== null && _ref7 !== void 0 ? _ref7 : defaultOptions.weekStartsOn) !== null && _ref6 !== void 0 ? _ref6 : (_defaultOptions$local3 = defaultOptions.locale) === null || _defaultOptions$local3 === void 0 ? void 0 : (_defaultOptions$local4 = _defaultOptions$local3.options) === null || _defaultOptions$local4 === void 0 ? void 0 : _defaultOptions$local4.weekStartsOn) !== null && _ref5 !== void 0 ? _ref5 : 0); // Test if weekStartsOn is between 0 and 6 _and_ is not NaN
 
   if (!(weekStartsOn >= 0 && weekStartsOn <= 6)) {
     throw new RangeError('weekStartsOn must be between 0 and 6 inclusively');
@@ -26646,7 +28159,7 @@ function parse(dirtyDateString, dirtyFormatString, dirtyReferenceDate, dirtyOpti
 
   if (formatString === '') {
     if (dateString === '') {
-      return (0,_toDate_index_js__WEBPACK_IMPORTED_MODULE_3__["default"])(dirtyReferenceDate);
+      return (0,_toDate_index_js__WEBPACK_IMPORTED_MODULE_4__["default"])(dirtyReferenceDate);
     } else {
       return new Date(NaN);
     }
@@ -26658,79 +28171,60 @@ function parse(dirtyDateString, dirtyFormatString, dirtyReferenceDate, dirtyOpti
     locale: locale
   }; // If timezone isn't specified, it will be set to the system timezone
 
-  var setters = [{
-    priority: TIMEZONE_UNIT_PRIORITY,
-    subPriority: -1,
-    set: dateToSystemTimezone,
-    index: 0
-  }];
-  var i;
+  var setters = [new _lib_Setter_js__WEBPACK_IMPORTED_MODULE_5__.DateToSystemTimezoneSetter()];
   var tokens = formatString.match(longFormattingTokensRegExp).map(function (substring) {
     var firstCharacter = substring[0];
 
-    if (firstCharacter === 'p' || firstCharacter === 'P') {
-      var longFormatter = _lib_format_longFormatters_index_js__WEBPACK_IMPORTED_MODULE_4__["default"][firstCharacter];
-      return longFormatter(substring, locale.formatLong, subFnOptions);
+    if (firstCharacter in _lib_format_longFormatters_index_js__WEBPACK_IMPORTED_MODULE_6__["default"]) {
+      var longFormatter = _lib_format_longFormatters_index_js__WEBPACK_IMPORTED_MODULE_6__["default"][firstCharacter];
+      return longFormatter(substring, locale.formatLong);
     }
 
     return substring;
   }).join('').match(formattingTokensRegExp);
   var usedTokens = [];
 
-  for (i = 0; i < tokens.length; i++) {
-    var token = tokens[i];
-
-    if (!options.useAdditionalWeekYearTokens && (0,_lib_protectedTokens_index_js__WEBPACK_IMPORTED_MODULE_5__.isProtectedWeekYearToken)(token)) {
-      (0,_lib_protectedTokens_index_js__WEBPACK_IMPORTED_MODULE_5__.throwProtectedError)(token, formatString, dirtyDateString);
+  var _loop = function (_token) {
+    if (!(options !== null && options !== void 0 && options.useAdditionalWeekYearTokens) && (0,_lib_protectedTokens_index_js__WEBPACK_IMPORTED_MODULE_7__.isProtectedWeekYearToken)(_token)) {
+      (0,_lib_protectedTokens_index_js__WEBPACK_IMPORTED_MODULE_7__.throwProtectedError)(_token, formatString, dirtyDateString);
     }
 
-    if (!options.useAdditionalDayOfYearTokens && (0,_lib_protectedTokens_index_js__WEBPACK_IMPORTED_MODULE_5__.isProtectedDayOfYearToken)(token)) {
-      (0,_lib_protectedTokens_index_js__WEBPACK_IMPORTED_MODULE_5__.throwProtectedError)(token, formatString, dirtyDateString);
+    if (!(options !== null && options !== void 0 && options.useAdditionalDayOfYearTokens) && (0,_lib_protectedTokens_index_js__WEBPACK_IMPORTED_MODULE_7__.isProtectedDayOfYearToken)(_token)) {
+      (0,_lib_protectedTokens_index_js__WEBPACK_IMPORTED_MODULE_7__.throwProtectedError)(_token, formatString, dirtyDateString);
     }
 
-    var firstCharacter = token[0];
-    var parser = _lib_parsers_index_js__WEBPACK_IMPORTED_MODULE_6__["default"][firstCharacter];
+    var firstCharacter = _token[0];
+    var parser = _lib_parsers_index_js__WEBPACK_IMPORTED_MODULE_8__.parsers[firstCharacter];
 
     if (parser) {
       var incompatibleTokens = parser.incompatibleTokens;
 
       if (Array.isArray(incompatibleTokens)) {
-        var incompatibleToken = void 0;
-
-        for (var _i = 0; _i < usedTokens.length; _i++) {
-          var usedToken = usedTokens[_i].token;
-
-          if (incompatibleTokens.indexOf(usedToken) !== -1 || usedToken === firstCharacter) {
-            incompatibleToken = usedTokens[_i];
-            break;
-          }
-        }
+        var incompatibleToken = usedTokens.find(function (usedToken) {
+          return incompatibleTokens.includes(usedToken.token) || usedToken.token === firstCharacter;
+        });
 
         if (incompatibleToken) {
-          throw new RangeError("The format string mustn't contain `".concat(incompatibleToken.fullToken, "` and `").concat(token, "` at the same time"));
+          throw new RangeError("The format string mustn't contain `".concat(incompatibleToken.fullToken, "` and `").concat(_token, "` at the same time"));
         }
-      } else if (parser.incompatibleTokens === '*' && usedTokens.length) {
-        throw new RangeError("The format string mustn't contain `".concat(token, "` and any other token at the same time"));
+      } else if (parser.incompatibleTokens === '*' && usedTokens.length > 0) {
+        throw new RangeError("The format string mustn't contain `".concat(_token, "` and any other token at the same time"));
       }
 
       usedTokens.push({
         token: firstCharacter,
-        fullToken: token
+        fullToken: _token
       });
-      var parseResult = parser.parse(dateString, token, locale.match, subFnOptions);
+      var parseResult = parser.run(dateString, _token, locale.match, subFnOptions);
 
       if (!parseResult) {
-        return new Date(NaN);
+        token = _token;
+        return {
+          v: new Date(NaN)
+        };
       }
 
-      setters.push({
-        priority: parser.priority,
-        subPriority: parser.subPriority || 0,
-        set: parser.set,
-        validate: parser.validate,
-        value: parseResult.value,
-        index: setters.length
-      });
+      setters.push(parseResult.setter);
       dateString = parseResult.rest;
     } else {
       if (firstCharacter.match(unescapedLatinCharacterRegExp)) {
@@ -26738,19 +28232,30 @@ function parse(dirtyDateString, dirtyFormatString, dirtyReferenceDate, dirtyOpti
       } // Replace two single quote characters with one single quote character
 
 
-      if (token === "''") {
-        token = "'";
+      if (_token === "''") {
+        _token = "'";
       } else if (firstCharacter === "'") {
-        token = cleanEscapedString(token);
+        _token = cleanEscapedString(_token);
       } // Cut token from string, or, if string doesn't match the token, return Invalid Date
 
 
-      if (dateString.indexOf(token) === 0) {
-        dateString = dateString.slice(token.length);
+      if (dateString.indexOf(_token) === 0) {
+        dateString = dateString.slice(_token.length);
       } else {
-        return new Date(NaN);
+        token = _token;
+        return {
+          v: new Date(NaN)
+        };
       }
     }
+
+    token = _token;
+  };
+
+  for (var token of tokens) {
+    var _ret = _loop(token);
+
+    if (typeof _ret === "object") return _ret.v;
   } // Check if the remaining input contains something other than whitespace
 
 
@@ -26773,30 +28278,26 @@ function parse(dirtyDateString, dirtyFormatString, dirtyReferenceDate, dirtyOpti
   }).map(function (setterArray) {
     return setterArray[0];
   });
-  var date = (0,_toDate_index_js__WEBPACK_IMPORTED_MODULE_3__["default"])(dirtyReferenceDate);
+  var date = (0,_toDate_index_js__WEBPACK_IMPORTED_MODULE_4__["default"])(dirtyReferenceDate);
 
-  if (isNaN(date)) {
+  if (isNaN(date.getTime())) {
     return new Date(NaN);
   } // Convert the date in system timezone to the same date in UTC+00:00 timezone.
-  // This ensures that when UTC functions will be implemented, locales will be compatible with them.
-  // See an issue about UTC functions: https://github.com/date-fns/date-fns/issues/37
 
 
-  var utcDate = (0,_subMilliseconds_index_js__WEBPACK_IMPORTED_MODULE_7__["default"])(date, (0,_lib_getTimezoneOffsetInMilliseconds_index_js__WEBPACK_IMPORTED_MODULE_8__["default"])(date));
+  var utcDate = (0,_subMilliseconds_index_js__WEBPACK_IMPORTED_MODULE_9__["default"])(date, (0,_lib_getTimezoneOffsetInMilliseconds_index_js__WEBPACK_IMPORTED_MODULE_10__["default"])(date));
   var flags = {};
 
-  for (i = 0; i < uniquePrioritySetters.length; i++) {
-    var setter = uniquePrioritySetters[i];
-
-    if (setter.validate && !setter.validate(utcDate, setter.value, subFnOptions)) {
+  for (var setter of uniquePrioritySetters) {
+    if (!setter.validate(utcDate, subFnOptions)) {
       return new Date(NaN);
     }
 
-    var result = setter.set(utcDate, flags, setter.value, subFnOptions); // Result is tuple (date, flags)
+    var result = setter.set(utcDate, flags, subFnOptions); // Result is tuple (date, flags)
 
-    if (result[0]) {
+    if (Array.isArray(result)) {
       utcDate = result[0];
-      (0,_lib_assign_index_js__WEBPACK_IMPORTED_MODULE_9__["default"])(flags, result[1]); // Result is date
+      (0,_lib_assign_index_js__WEBPACK_IMPORTED_MODULE_11__["default"])(flags, result[1]); // Result is date
     } else {
       utcDate = result;
     }
@@ -26805,19 +28306,291 @@ function parse(dirtyDateString, dirtyFormatString, dirtyReferenceDate, dirtyOpti
   return utcDate;
 }
 
-function dateToSystemTimezone(date, flags) {
-  if (flags.timestampIsSet) {
-    return date;
-  }
-
-  var convertedDate = new Date(0);
-  convertedDate.setFullYear(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate());
-  convertedDate.setHours(date.getUTCHours(), date.getUTCMinutes(), date.getUTCSeconds(), date.getUTCMilliseconds());
-  return convertedDate;
-}
-
 function cleanEscapedString(input) {
   return input.match(escapedStringRegExp)[1].replace(doubleQuoteRegExp, "'");
+}
+
+/***/ }),
+
+/***/ "./node_modules/date-fns/esm/parseISO/index.js":
+/*!*****************************************************!*\
+  !*** ./node_modules/date-fns/esm/parseISO/index.js ***!
+  \*****************************************************/
+/***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
+
+"use strict";
+__webpack_require__.r(__webpack_exports__);
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   "default": () => (/* binding */ parseISO)
+/* harmony export */ });
+/* harmony import */ var _constants_index_js__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! ../constants/index.js */ "./node_modules/date-fns/esm/constants/index.js");
+/* harmony import */ var _lib_requiredArgs_index_js__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ../_lib/requiredArgs/index.js */ "./node_modules/date-fns/esm/_lib/requiredArgs/index.js");
+/* harmony import */ var _lib_toInteger_index_js__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ../_lib/toInteger/index.js */ "./node_modules/date-fns/esm/_lib/toInteger/index.js");
+
+
+
+/**
+ * @name parseISO
+ * @category Common Helpers
+ * @summary Parse ISO string
+ *
+ * @description
+ * Parse the given string in ISO 8601 format and return an instance of Date.
+ *
+ * Function accepts complete ISO 8601 formats as well as partial implementations.
+ * ISO 8601: http://en.wikipedia.org/wiki/ISO_8601
+ *
+ * If the argument isn't a string, the function cannot parse the string or
+ * the values are invalid, it returns Invalid Date.
+ *
+ * @param {String} argument - the value to convert
+ * @param {Object} [options] - an object with options.
+ * @param {0|1|2} [options.additionalDigits=2] - the additional number of digits in the extended year format
+ * @returns {Date} the parsed date in the local time zone
+ * @throws {TypeError} 1 argument required
+ * @throws {RangeError} `options.additionalDigits` must be 0, 1 or 2
+ *
+ * @example
+ * // Convert string '2014-02-11T11:30:30' to date:
+ * const result = parseISO('2014-02-11T11:30:30')
+ * //=> Tue Feb 11 2014 11:30:30
+ *
+ * @example
+ * // Convert string '+02014101' to date,
+ * // if the additional number of digits in the extended year format is 1:
+ * const result = parseISO('+02014101', { additionalDigits: 1 })
+ * //=> Fri Apr 11 2014 00:00:00
+ */
+
+function parseISO(argument, options) {
+  var _options$additionalDi;
+
+  (0,_lib_requiredArgs_index_js__WEBPACK_IMPORTED_MODULE_0__["default"])(1, arguments);
+  var additionalDigits = (0,_lib_toInteger_index_js__WEBPACK_IMPORTED_MODULE_1__["default"])((_options$additionalDi = options === null || options === void 0 ? void 0 : options.additionalDigits) !== null && _options$additionalDi !== void 0 ? _options$additionalDi : 2);
+
+  if (additionalDigits !== 2 && additionalDigits !== 1 && additionalDigits !== 0) {
+    throw new RangeError('additionalDigits must be 0, 1 or 2');
+  }
+
+  if (!(typeof argument === 'string' || Object.prototype.toString.call(argument) === '[object String]')) {
+    return new Date(NaN);
+  }
+
+  var dateStrings = splitDateString(argument);
+  var date;
+
+  if (dateStrings.date) {
+    var parseYearResult = parseYear(dateStrings.date, additionalDigits);
+    date = parseDate(parseYearResult.restDateString, parseYearResult.year);
+  }
+
+  if (!date || isNaN(date.getTime())) {
+    return new Date(NaN);
+  }
+
+  var timestamp = date.getTime();
+  var time = 0;
+  var offset;
+
+  if (dateStrings.time) {
+    time = parseTime(dateStrings.time);
+
+    if (isNaN(time)) {
+      return new Date(NaN);
+    }
+  }
+
+  if (dateStrings.timezone) {
+    offset = parseTimezone(dateStrings.timezone);
+
+    if (isNaN(offset)) {
+      return new Date(NaN);
+    }
+  } else {
+    var dirtyDate = new Date(timestamp + time); // js parsed string assuming it's in UTC timezone
+    // but we need it to be parsed in our timezone
+    // so we use utc values to build date in our timezone.
+    // Year values from 0 to 99 map to the years 1900 to 1999
+    // so set year explicitly with setFullYear.
+
+    var result = new Date(0);
+    result.setFullYear(dirtyDate.getUTCFullYear(), dirtyDate.getUTCMonth(), dirtyDate.getUTCDate());
+    result.setHours(dirtyDate.getUTCHours(), dirtyDate.getUTCMinutes(), dirtyDate.getUTCSeconds(), dirtyDate.getUTCMilliseconds());
+    return result;
+  }
+
+  return new Date(timestamp + time + offset);
+}
+var patterns = {
+  dateTimeDelimiter: /[T ]/,
+  timeZoneDelimiter: /[Z ]/i,
+  timezone: /([Z+-].*)$/
+};
+var dateRegex = /^-?(?:(\d{3})|(\d{2})(?:-?(\d{2}))?|W(\d{2})(?:-?(\d{1}))?|)$/;
+var timeRegex = /^(\d{2}(?:[.,]\d*)?)(?::?(\d{2}(?:[.,]\d*)?))?(?::?(\d{2}(?:[.,]\d*)?))?$/;
+var timezoneRegex = /^([+-])(\d{2})(?::?(\d{2}))?$/;
+
+function splitDateString(dateString) {
+  var dateStrings = {};
+  var array = dateString.split(patterns.dateTimeDelimiter);
+  var timeString; // The regex match should only return at maximum two array elements.
+  // [date], [time], or [date, time].
+
+  if (array.length > 2) {
+    return dateStrings;
+  }
+
+  if (/:/.test(array[0])) {
+    timeString = array[0];
+  } else {
+    dateStrings.date = array[0];
+    timeString = array[1];
+
+    if (patterns.timeZoneDelimiter.test(dateStrings.date)) {
+      dateStrings.date = dateString.split(patterns.timeZoneDelimiter)[0];
+      timeString = dateString.substr(dateStrings.date.length, dateString.length);
+    }
+  }
+
+  if (timeString) {
+    var token = patterns.timezone.exec(timeString);
+
+    if (token) {
+      dateStrings.time = timeString.replace(token[1], '');
+      dateStrings.timezone = token[1];
+    } else {
+      dateStrings.time = timeString;
+    }
+  }
+
+  return dateStrings;
+}
+
+function parseYear(dateString, additionalDigits) {
+  var regex = new RegExp('^(?:(\\d{4}|[+-]\\d{' + (4 + additionalDigits) + '})|(\\d{2}|[+-]\\d{' + (2 + additionalDigits) + '})$)');
+  var captures = dateString.match(regex); // Invalid ISO-formatted year
+
+  if (!captures) return {
+    year: NaN,
+    restDateString: ''
+  };
+  var year = captures[1] ? parseInt(captures[1]) : null;
+  var century = captures[2] ? parseInt(captures[2]) : null; // either year or century is null, not both
+
+  return {
+    year: century === null ? year : century * 100,
+    restDateString: dateString.slice((captures[1] || captures[2]).length)
+  };
+}
+
+function parseDate(dateString, year) {
+  // Invalid ISO-formatted year
+  if (year === null) return new Date(NaN);
+  var captures = dateString.match(dateRegex); // Invalid ISO-formatted string
+
+  if (!captures) return new Date(NaN);
+  var isWeekDate = !!captures[4];
+  var dayOfYear = parseDateUnit(captures[1]);
+  var month = parseDateUnit(captures[2]) - 1;
+  var day = parseDateUnit(captures[3]);
+  var week = parseDateUnit(captures[4]);
+  var dayOfWeek = parseDateUnit(captures[5]) - 1;
+
+  if (isWeekDate) {
+    if (!validateWeekDate(year, week, dayOfWeek)) {
+      return new Date(NaN);
+    }
+
+    return dayOfISOWeekYear(year, week, dayOfWeek);
+  } else {
+    var date = new Date(0);
+
+    if (!validateDate(year, month, day) || !validateDayOfYearDate(year, dayOfYear)) {
+      return new Date(NaN);
+    }
+
+    date.setUTCFullYear(year, month, Math.max(dayOfYear, day));
+    return date;
+  }
+}
+
+function parseDateUnit(value) {
+  return value ? parseInt(value) : 1;
+}
+
+function parseTime(timeString) {
+  var captures = timeString.match(timeRegex);
+  if (!captures) return NaN; // Invalid ISO-formatted time
+
+  var hours = parseTimeUnit(captures[1]);
+  var minutes = parseTimeUnit(captures[2]);
+  var seconds = parseTimeUnit(captures[3]);
+
+  if (!validateTime(hours, minutes, seconds)) {
+    return NaN;
+  }
+
+  return hours * _constants_index_js__WEBPACK_IMPORTED_MODULE_2__.millisecondsInHour + minutes * _constants_index_js__WEBPACK_IMPORTED_MODULE_2__.millisecondsInMinute + seconds * 1000;
+}
+
+function parseTimeUnit(value) {
+  return value && parseFloat(value.replace(',', '.')) || 0;
+}
+
+function parseTimezone(timezoneString) {
+  if (timezoneString === 'Z') return 0;
+  var captures = timezoneString.match(timezoneRegex);
+  if (!captures) return 0;
+  var sign = captures[1] === '+' ? -1 : 1;
+  var hours = parseInt(captures[2]);
+  var minutes = captures[3] && parseInt(captures[3]) || 0;
+
+  if (!validateTimezone(hours, minutes)) {
+    return NaN;
+  }
+
+  return sign * (hours * _constants_index_js__WEBPACK_IMPORTED_MODULE_2__.millisecondsInHour + minutes * _constants_index_js__WEBPACK_IMPORTED_MODULE_2__.millisecondsInMinute);
+}
+
+function dayOfISOWeekYear(isoWeekYear, week, day) {
+  var date = new Date(0);
+  date.setUTCFullYear(isoWeekYear, 0, 4);
+  var fourthOfJanuaryDay = date.getUTCDay() || 7;
+  var diff = (week - 1) * 7 + day + 1 - fourthOfJanuaryDay;
+  date.setUTCDate(date.getUTCDate() + diff);
+  return date;
+} // Validation functions
+// February is null to handle the leap year (using ||)
+
+
+var daysInMonths = [31, null, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+
+function isLeapYearIndex(year) {
+  return year % 400 === 0 || year % 4 === 0 && year % 100 !== 0;
+}
+
+function validateDate(year, month, date) {
+  return month >= 0 && month <= 11 && date >= 1 && date <= (daysInMonths[month] || (isLeapYearIndex(year) ? 29 : 28));
+}
+
+function validateDayOfYearDate(year, dayOfYear) {
+  return dayOfYear >= 1 && dayOfYear <= (isLeapYearIndex(year) ? 366 : 365);
+}
+
+function validateWeekDate(_year, week, day) {
+  return week >= 1 && week <= 53 && day >= 0 && day <= 6;
+}
+
+function validateTime(hours, minutes, seconds) {
+  if (hours === 24) {
+    return minutes === 0 && seconds === 0;
+  }
+
+  return seconds >= 0 && seconds < 60 && minutes >= 0 && minutes < 60 && hours >= 0 && hours < 25;
+}
+
+function validateTimezone(_hours, minutes) {
+  return minutes >= 0 && minutes <= 59;
 }
 
 /***/ }),
@@ -26872,12 +28645,12 @@ __webpack_require__.r(__webpack_exports__);
  *
  * @example
  * // Transform 1 September 2014 into 20 October 2015 in a single line:
- * var result = set(new Date(2014, 8, 20), { year: 2015, month: 9, date: 20 })
+ * const result = set(new Date(2014, 8, 20), { year: 2015, month: 9, date: 20 })
  * //=> Tue Oct 20 2015 00:00:00
  *
  * @example
  * // Set 12 PM to 1 September 2014 01:23:45 to 1 September 2014 12:00:00:
- * var result = set(new Date(2014, 8, 1, 1, 23, 45), { hours: 12 })
+ * const result = set(new Date(2014, 8, 1, 1, 23, 45), { hours: 12 })
  * //=> Mon Sep 01 2014 12:23:45
  */
 function set(dirtyDate, values) {
@@ -26951,10 +28724,6 @@ __webpack_require__.r(__webpack_exports__);
  * @description
  * Set the hours to the given date.
  *
- * ### v2.0.0 breaking changes:
- *
- * - [Changes that are common for the whole library](https://github.com/date-fns/date-fns/blob/master/docs/upgradeGuide.md#Common-Changes).
- *
  * @param {Date|Number} date - the date to be changed
  * @param {Number} hours - the hours of the new date
  * @returns {Date} the new date with the hours set
@@ -26962,7 +28731,7 @@ __webpack_require__.r(__webpack_exports__);
  *
  * @example
  * // Set 4 hours to 1 September 2014 11:30:00:
- * var result = setHours(new Date(2014, 8, 1, 11, 30), 4)
+ * const result = setHours(new Date(2014, 8, 1, 11, 30), 4)
  * //=> Mon Sep 01 2014 04:30:00
  */
 
@@ -27000,10 +28769,6 @@ __webpack_require__.r(__webpack_exports__);
  *
  * @description
  * Set the milliseconds to the given date.
- *
- * ### v2.0.0 breaking changes:
- *
- * - [Changes that are common for the whole library](https://github.com/date-fns/date-fns/blob/master/docs/upgradeGuide.md#Common-Changes).
  *
  * @param {Date|Number} date - the date to be changed
  * @param {Number} milliseconds - the milliseconds of the new date
@@ -27050,10 +28815,6 @@ __webpack_require__.r(__webpack_exports__);
  *
  * @description
  * Set the minutes to the given date.
- *
- * ### v2.0.0 breaking changes:
- *
- * - [Changes that are common for the whole library](https://github.com/date-fns/date-fns/blob/master/docs/upgradeGuide.md#Common-Changes).
  *
  * @param {Date|Number} date - the date to be changed
  * @param {Number} minutes - the minutes of the new date
@@ -27102,10 +28863,6 @@ __webpack_require__.r(__webpack_exports__);
  *
  * @description
  * Set the month to the given date.
- *
- * ### v2.0.0 breaking changes:
- *
- * - [Changes that are common for the whole library](https://github.com/date-fns/date-fns/blob/master/docs/upgradeGuide.md#Common-Changes).
  *
  * @param {Date|Number} date - the date to be changed
  * @param {Number} month - the month of the new date
@@ -27161,10 +28918,6 @@ __webpack_require__.r(__webpack_exports__);
  * @description
  * Set the seconds to the given date.
  *
- * ### v2.0.0 breaking changes:
- *
- * - [Changes that are common for the whole library](https://github.com/date-fns/date-fns/blob/master/docs/upgradeGuide.md#Common-Changes).
- *
  * @param {Date|Number} date - the date to be changed
  * @param {Number} seconds - the seconds of the new date
  * @returns {Date} the new date with the seconds set
@@ -27210,10 +28963,6 @@ __webpack_require__.r(__webpack_exports__);
  *
  * @description
  * Set the year to the given date.
- *
- * ### v2.0.0 breaking changes:
- *
- * - [Changes that are common for the whole library](https://github.com/date-fns/date-fns/blob/master/docs/upgradeGuide.md#Common-Changes).
  *
  * @param {Date|Number} date - the date to be changed
  * @param {Number} year - the year of the new date
@@ -27265,10 +29014,6 @@ __webpack_require__.r(__webpack_exports__);
  * Return the start of a day for the given date.
  * The result will be in the local timezone.
  *
- * ### v2.0.0 breaking changes:
- *
- * - [Changes that are common for the whole library](https://github.com/date-fns/date-fns/blob/master/docs/upgradeGuide.md#Common-Changes).
- *
  * @param {Date|Number} date - the original date
  * @returns {Date} the start of a day
  * @throws {TypeError} 1 argument required
@@ -27314,17 +29059,13 @@ __webpack_require__.r(__webpack_exports__);
  *
  * ISO week-numbering year: http://en.wikipedia.org/wiki/ISO_week_date
  *
- * ### v2.0.0 breaking changes:
- *
- * - [Changes that are common for the whole library](https://github.com/date-fns/date-fns/blob/master/docs/upgradeGuide.md#Common-Changes).
- *
  * @param {Date|Number} date - the original date
  * @returns {Date} the start of an ISO week
  * @throws {TypeError} 1 argument required
  *
  * @example
  * // The start of an ISO week for 2 September 2014 11:55:00:
- * var result = startOfISOWeek(new Date(2014, 8, 2, 11, 55, 0))
+ * const result = startOfISOWeek(new Date(2014, 8, 2, 11, 55, 0))
  * //=> Mon Sep 01 2014 00:00:00
  */
 
@@ -27366,10 +29107,6 @@ __webpack_require__.r(__webpack_exports__);
  *
  * ISO week-numbering year: http://en.wikipedia.org/wiki/ISO_week_date
  *
- * ### v2.0.0 breaking changes:
- *
- * - [Changes that are common for the whole library](https://github.com/date-fns/date-fns/blob/master/docs/upgradeGuide.md#Common-Changes).
- *
  * @param {Date|Number} date - the original date
  * @returns {Date} the start of an ISO week-numbering year
  * @throws {TypeError} 1 argument required
@@ -27403,9 +29140,11 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony export */ __webpack_require__.d(__webpack_exports__, {
 /* harmony export */   "default": () => (/* binding */ startOfWeek)
 /* harmony export */ });
-/* harmony import */ var _toDate_index_js__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! ../toDate/index.js */ "./node_modules/date-fns/esm/toDate/index.js");
-/* harmony import */ var _lib_toInteger_index_js__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ../_lib/toInteger/index.js */ "./node_modules/date-fns/esm/_lib/toInteger/index.js");
+/* harmony import */ var _toDate_index_js__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__(/*! ../toDate/index.js */ "./node_modules/date-fns/esm/toDate/index.js");
+/* harmony import */ var _lib_toInteger_index_js__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! ../_lib/toInteger/index.js */ "./node_modules/date-fns/esm/_lib/toInteger/index.js");
 /* harmony import */ var _lib_requiredArgs_index_js__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ../_lib/requiredArgs/index.js */ "./node_modules/date-fns/esm/_lib/requiredArgs/index.js");
+/* harmony import */ var _lib_defaultOptions_index_js__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ../_lib/defaultOptions/index.js */ "./node_modules/date-fns/esm/_lib/defaultOptions/index.js");
+
 
 
 
@@ -27417,10 +29156,6 @@ __webpack_require__.r(__webpack_exports__);
  * @description
  * Return the start of a week for the given date.
  * The result will be in the local timezone.
- *
- * ### v2.0.0 breaking changes:
- *
- * - [Changes that are common for the whole library](https://github.com/date-fns/date-fns/blob/master/docs/upgradeGuide.md#Common-Changes).
  *
  * @param {Date|Number} date - the original date
  * @param {Object} [options] - an object with options.
@@ -27441,19 +29176,18 @@ __webpack_require__.r(__webpack_exports__);
  * //=> Mon Sep 01 2014 00:00:00
  */
 
-function startOfWeek(dirtyDate, dirtyOptions) {
+function startOfWeek(dirtyDate, options) {
+  var _ref, _ref2, _ref3, _options$weekStartsOn, _options$locale, _options$locale$optio, _defaultOptions$local, _defaultOptions$local2;
+
   (0,_lib_requiredArgs_index_js__WEBPACK_IMPORTED_MODULE_0__["default"])(1, arguments);
-  var options = dirtyOptions || {};
-  var locale = options.locale;
-  var localeWeekStartsOn = locale && locale.options && locale.options.weekStartsOn;
-  var defaultWeekStartsOn = localeWeekStartsOn == null ? 0 : (0,_lib_toInteger_index_js__WEBPACK_IMPORTED_MODULE_1__["default"])(localeWeekStartsOn);
-  var weekStartsOn = options.weekStartsOn == null ? defaultWeekStartsOn : (0,_lib_toInteger_index_js__WEBPACK_IMPORTED_MODULE_1__["default"])(options.weekStartsOn); // Test if weekStartsOn is between 0 and 6 _and_ is not NaN
+  var defaultOptions = (0,_lib_defaultOptions_index_js__WEBPACK_IMPORTED_MODULE_1__.getDefaultOptions)();
+  var weekStartsOn = (0,_lib_toInteger_index_js__WEBPACK_IMPORTED_MODULE_2__["default"])((_ref = (_ref2 = (_ref3 = (_options$weekStartsOn = options === null || options === void 0 ? void 0 : options.weekStartsOn) !== null && _options$weekStartsOn !== void 0 ? _options$weekStartsOn : options === null || options === void 0 ? void 0 : (_options$locale = options.locale) === null || _options$locale === void 0 ? void 0 : (_options$locale$optio = _options$locale.options) === null || _options$locale$optio === void 0 ? void 0 : _options$locale$optio.weekStartsOn) !== null && _ref3 !== void 0 ? _ref3 : defaultOptions.weekStartsOn) !== null && _ref2 !== void 0 ? _ref2 : (_defaultOptions$local = defaultOptions.locale) === null || _defaultOptions$local === void 0 ? void 0 : (_defaultOptions$local2 = _defaultOptions$local.options) === null || _defaultOptions$local2 === void 0 ? void 0 : _defaultOptions$local2.weekStartsOn) !== null && _ref !== void 0 ? _ref : 0); // Test if weekStartsOn is between 0 and 6 _and_ is not NaN
 
   if (!(weekStartsOn >= 0 && weekStartsOn <= 6)) {
     throw new RangeError('weekStartsOn must be between 0 and 6 inclusively');
   }
 
-  var date = (0,_toDate_index_js__WEBPACK_IMPORTED_MODULE_2__["default"])(dirtyDate);
+  var date = (0,_toDate_index_js__WEBPACK_IMPORTED_MODULE_3__["default"])(dirtyDate);
   var day = date.getDay();
   var diff = (day < weekStartsOn ? 7 : 0) + day - weekStartsOn;
   date.setDate(date.getDate() - diff);
@@ -27557,9 +29291,9 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony export */ __webpack_require__.d(__webpack_exports__, {
 /* harmony export */   "default": () => (/* binding */ subDays)
 /* harmony export */ });
-/* harmony import */ var _lib_toInteger_index_js__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ../_lib/toInteger/index.js */ "./node_modules/date-fns/esm/_lib/toInteger/index.js");
 /* harmony import */ var _addDays_index_js__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! ../addDays/index.js */ "./node_modules/date-fns/esm/addDays/index.js");
 /* harmony import */ var _lib_requiredArgs_index_js__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ../_lib/requiredArgs/index.js */ "./node_modules/date-fns/esm/_lib/requiredArgs/index.js");
+/* harmony import */ var _lib_toInteger_index_js__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ../_lib/toInteger/index.js */ "./node_modules/date-fns/esm/_lib/toInteger/index.js");
 
 
 
@@ -27570,10 +29304,6 @@ __webpack_require__.r(__webpack_exports__);
  *
  * @description
  * Subtract the specified number of days from the given date.
- *
- * ### v2.0.0 breaking changes:
- *
- * - [Changes that are common for the whole library](https://github.com/date-fns/date-fns/blob/master/docs/upgradeGuide.md#Common-Changes).
  *
  * @param {Date|Number} date - the date to be changed
  * @param {Number} amount - the amount of days to be subtracted. Positive decimals will be rounded using `Math.floor`, decimals less than zero will be rounded using `Math.ceil`.
@@ -27605,9 +29335,9 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony export */ __webpack_require__.d(__webpack_exports__, {
 /* harmony export */   "default": () => (/* binding */ subMilliseconds)
 /* harmony export */ });
-/* harmony import */ var _lib_toInteger_index_js__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ../_lib/toInteger/index.js */ "./node_modules/date-fns/esm/_lib/toInteger/index.js");
 /* harmony import */ var _addMilliseconds_index_js__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! ../addMilliseconds/index.js */ "./node_modules/date-fns/esm/addMilliseconds/index.js");
 /* harmony import */ var _lib_requiredArgs_index_js__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ../_lib/requiredArgs/index.js */ "./node_modules/date-fns/esm/_lib/requiredArgs/index.js");
+/* harmony import */ var _lib_toInteger_index_js__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ../_lib/toInteger/index.js */ "./node_modules/date-fns/esm/_lib/toInteger/index.js");
 
 
 
@@ -27618,10 +29348,6 @@ __webpack_require__.r(__webpack_exports__);
  *
  * @description
  * Subtract the specified number of milliseconds from the given date.
- *
- * ### v2.0.0 breaking changes:
- *
- * - [Changes that are common for the whole library](https://github.com/date-fns/date-fns/blob/master/docs/upgradeGuide.md#Common-Changes).
  *
  * @param {Date|Number} date - the date to be changed
  * @param {Number} amount - the amount of milliseconds to be subtracted. Positive decimals will be rounded using `Math.floor`, decimals less than zero will be rounded using `Math.ceil`.
@@ -27667,10 +29393,6 @@ __webpack_require__.r(__webpack_exports__);
  * @description
  * Subtract the specified number of months from the given date.
  *
- * ### v2.0.0 breaking changes:
- *
- * - [Changes that are common for the whole library](https://github.com/date-fns/date-fns/blob/master/docs/upgradeGuide.md#Common-Changes).
- *
  * @param {Date|Number} date - the date to be changed
  * @param {Number} amount - the amount of months to be subtracted. Positive decimals will be rounded using `Math.floor`, decimals less than zero will be rounded using `Math.ceil`.
  * @returns {Date} the new date with the months subtracted
@@ -27714,10 +29436,6 @@ __webpack_require__.r(__webpack_exports__);
  *
  * @description
  * Subtract the specified number of years from the given date.
- *
- * ### v2.0.0 breaking changes:
- *
- * - [Changes that are common for the whole library](https://github.com/date-fns/date-fns/blob/master/docs/upgradeGuide.md#Common-Changes).
  *
  * @param {Date|Number} date - the date to be changed
  * @param {Number} amount - the amount of years to be subtracted. Positive decimals will be rounded using `Math.floor`, decimals less than zero will be rounded using `Math.ceil`.
@@ -27794,7 +29512,7 @@ function toDate(argument) {
   } else {
     if ((typeof argument === 'string' || argStr === '[object String]') && typeof console !== 'undefined') {
       // eslint-disable-next-line no-console
-      console.warn("Starting with v2.0.0-beta.1 date-fns doesn't accept strings as date arguments. Please use `parseISO` to parse strings. See: https://git.io/fjule"); // eslint-disable-next-line no-console
+      console.warn("Starting with v2.0.0-beta.1 date-fns doesn't accept strings as date arguments. Please use `parseISO` to parse strings. See: https://github.com/date-fns/date-fns/blob/master/docs/upgradeGuide.md#string-arguments"); // eslint-disable-next-line no-console
 
       console.warn(new Error().stack);
     }
@@ -39338,6 +41056,36 @@ var update = _node_modules_style_loader_dist_runtime_injectStylesIntoStyleTag_js
 
 /***/ }),
 
+/***/ "./node_modules/style-loader/dist/cjs.js!./node_modules/css-loader/dist/cjs.js??clonedRuleSet-11.use[1]!./node_modules/vue-loader/dist/stylePostLoader.js!./node_modules/postcss-loader/dist/cjs.js??clonedRuleSet-11.use[2]!./node_modules/vue-loader/dist/index.js??ruleSet[0].use[0]!./resources/js/vueComponents/CarrinhoItensAdicionais.vue?vue&type=style&index=0&id=f1f40558&scoped=true&lang=css":
+/*!***************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************!*\
+  !*** ./node_modules/style-loader/dist/cjs.js!./node_modules/css-loader/dist/cjs.js??clonedRuleSet-11.use[1]!./node_modules/vue-loader/dist/stylePostLoader.js!./node_modules/postcss-loader/dist/cjs.js??clonedRuleSet-11.use[2]!./node_modules/vue-loader/dist/index.js??ruleSet[0].use[0]!./resources/js/vueComponents/CarrinhoItensAdicionais.vue?vue&type=style&index=0&id=f1f40558&scoped=true&lang=css ***!
+  \***************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************/
+/***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
+
+"use strict";
+__webpack_require__.r(__webpack_exports__);
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   "default": () => (__WEBPACK_DEFAULT_EXPORT__)
+/* harmony export */ });
+/* harmony import */ var _node_modules_style_loader_dist_runtime_injectStylesIntoStyleTag_js__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! !../../../node_modules/style-loader/dist/runtime/injectStylesIntoStyleTag.js */ "./node_modules/style-loader/dist/runtime/injectStylesIntoStyleTag.js");
+/* harmony import */ var _node_modules_style_loader_dist_runtime_injectStylesIntoStyleTag_js__WEBPACK_IMPORTED_MODULE_0___default = /*#__PURE__*/__webpack_require__.n(_node_modules_style_loader_dist_runtime_injectStylesIntoStyleTag_js__WEBPACK_IMPORTED_MODULE_0__);
+/* harmony import */ var _node_modules_css_loader_dist_cjs_js_clonedRuleSet_11_use_1_node_modules_vue_loader_dist_stylePostLoader_js_node_modules_postcss_loader_dist_cjs_js_clonedRuleSet_11_use_2_node_modules_vue_loader_dist_index_js_ruleSet_0_use_0_CarrinhoItensAdicionais_vue_vue_type_style_index_0_id_f1f40558_scoped_true_lang_css__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! !!../../../node_modules/css-loader/dist/cjs.js??clonedRuleSet-11.use[1]!../../../node_modules/vue-loader/dist/stylePostLoader.js!../../../node_modules/postcss-loader/dist/cjs.js??clonedRuleSet-11.use[2]!../../../node_modules/vue-loader/dist/index.js??ruleSet[0].use[0]!./CarrinhoItensAdicionais.vue?vue&type=style&index=0&id=f1f40558&scoped=true&lang=css */ "./node_modules/css-loader/dist/cjs.js??clonedRuleSet-11.use[1]!./node_modules/vue-loader/dist/stylePostLoader.js!./node_modules/postcss-loader/dist/cjs.js??clonedRuleSet-11.use[2]!./node_modules/vue-loader/dist/index.js??ruleSet[0].use[0]!./resources/js/vueComponents/CarrinhoItensAdicionais.vue?vue&type=style&index=0&id=f1f40558&scoped=true&lang=css");
+
+            
+
+var options = {};
+
+options.insert = "head";
+options.singleton = false;
+
+var update = _node_modules_style_loader_dist_runtime_injectStylesIntoStyleTag_js__WEBPACK_IMPORTED_MODULE_0___default()(_node_modules_css_loader_dist_cjs_js_clonedRuleSet_11_use_1_node_modules_vue_loader_dist_stylePostLoader_js_node_modules_postcss_loader_dist_cjs_js_clonedRuleSet_11_use_2_node_modules_vue_loader_dist_index_js_ruleSet_0_use_0_CarrinhoItensAdicionais_vue_vue_type_style_index_0_id_f1f40558_scoped_true_lang_css__WEBPACK_IMPORTED_MODULE_1__["default"], options);
+
+
+
+/* harmony default export */ const __WEBPACK_DEFAULT_EXPORT__ = (_node_modules_css_loader_dist_cjs_js_clonedRuleSet_11_use_1_node_modules_vue_loader_dist_stylePostLoader_js_node_modules_postcss_loader_dist_cjs_js_clonedRuleSet_11_use_2_node_modules_vue_loader_dist_index_js_ruleSet_0_use_0_CarrinhoItensAdicionais_vue_vue_type_style_index_0_id_f1f40558_scoped_true_lang_css__WEBPACK_IMPORTED_MODULE_1__["default"].locals || {});
+
+/***/ }),
+
 /***/ "./node_modules/style-loader/dist/cjs.js!./node_modules/css-loader/dist/cjs.js??clonedRuleSet-11.use[1]!./node_modules/vue-loader/dist/stylePostLoader.js!./node_modules/postcss-loader/dist/cjs.js??clonedRuleSet-11.use[2]!./node_modules/vue-loader/dist/index.js??ruleSet[0].use[0]!./resources/js/vueComponents/CarrinhoQuantidadeItem.vue?vue&type=style&index=0&id=01c08e1c&scoped=true&lang=css":
 /*!**************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************!*\
   !*** ./node_modules/style-loader/dist/cjs.js!./node_modules/css-loader/dist/cjs.js??clonedRuleSet-11.use[1]!./node_modules/vue-loader/dist/stylePostLoader.js!./node_modules/postcss-loader/dist/cjs.js??clonedRuleSet-11.use[2]!./node_modules/vue-loader/dist/index.js??ruleSet[0].use[0]!./resources/js/vueComponents/CarrinhoQuantidadeItem.vue?vue&type=style&index=0&id=01c08e1c&scoped=true&lang=css ***!
@@ -39789,6 +41537,37 @@ if (false) {}
 
 /***/ }),
 
+/***/ "./resources/js/vueComponents/CarrinhoItensAdicionais.vue":
+/*!****************************************************************!*\
+  !*** ./resources/js/vueComponents/CarrinhoItensAdicionais.vue ***!
+  \****************************************************************/
+/***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
+
+"use strict";
+__webpack_require__.r(__webpack_exports__);
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   "default": () => (__WEBPACK_DEFAULT_EXPORT__)
+/* harmony export */ });
+/* harmony import */ var _CarrinhoItensAdicionais_vue_vue_type_template_id_f1f40558_scoped_true__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ./CarrinhoItensAdicionais.vue?vue&type=template&id=f1f40558&scoped=true */ "./resources/js/vueComponents/CarrinhoItensAdicionais.vue?vue&type=template&id=f1f40558&scoped=true");
+/* harmony import */ var _CarrinhoItensAdicionais_vue_vue_type_script_lang_js__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ./CarrinhoItensAdicionais.vue?vue&type=script&lang=js */ "./resources/js/vueComponents/CarrinhoItensAdicionais.vue?vue&type=script&lang=js");
+/* harmony import */ var _CarrinhoItensAdicionais_vue_vue_type_style_index_0_id_f1f40558_scoped_true_lang_css__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! ./CarrinhoItensAdicionais.vue?vue&type=style&index=0&id=f1f40558&scoped=true&lang=css */ "./resources/js/vueComponents/CarrinhoItensAdicionais.vue?vue&type=style&index=0&id=f1f40558&scoped=true&lang=css");
+/* harmony import */ var _var_www_html_agroarca_node_modules_vue_loader_dist_exportHelper_js__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__(/*! ./node_modules/vue-loader/dist/exportHelper.js */ "./node_modules/vue-loader/dist/exportHelper.js");
+
+
+
+
+;
+
+
+const __exports__ = /*#__PURE__*/(0,_var_www_html_agroarca_node_modules_vue_loader_dist_exportHelper_js__WEBPACK_IMPORTED_MODULE_3__["default"])(_CarrinhoItensAdicionais_vue_vue_type_script_lang_js__WEBPACK_IMPORTED_MODULE_1__["default"], [['render',_CarrinhoItensAdicionais_vue_vue_type_template_id_f1f40558_scoped_true__WEBPACK_IMPORTED_MODULE_0__.render],['__scopeId',"data-v-f1f40558"],['__file',"resources/js/vueComponents/CarrinhoItensAdicionais.vue"]])
+/* hot reload */
+if (false) {}
+
+
+/* harmony default export */ const __WEBPACK_DEFAULT_EXPORT__ = (__exports__);
+
+/***/ }),
+
 /***/ "./resources/js/vueComponents/CarrinhoQuantidadeItem.vue":
 /*!***************************************************************!*\
   !*** ./resources/js/vueComponents/CarrinhoQuantidadeItem.vue ***!
@@ -39927,6 +41706,22 @@ __webpack_require__.r(__webpack_exports__);
 
 /***/ }),
 
+/***/ "./resources/js/vueComponents/CarrinhoItensAdicionais.vue?vue&type=script&lang=js":
+/*!****************************************************************************************!*\
+  !*** ./resources/js/vueComponents/CarrinhoItensAdicionais.vue?vue&type=script&lang=js ***!
+  \****************************************************************************************/
+/***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
+
+"use strict";
+__webpack_require__.r(__webpack_exports__);
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   "default": () => (/* reexport safe */ _node_modules_babel_loader_lib_index_js_clonedRuleSet_5_use_0_node_modules_vue_loader_dist_index_js_ruleSet_0_use_0_CarrinhoItensAdicionais_vue_vue_type_script_lang_js__WEBPACK_IMPORTED_MODULE_0__["default"])
+/* harmony export */ });
+/* harmony import */ var _node_modules_babel_loader_lib_index_js_clonedRuleSet_5_use_0_node_modules_vue_loader_dist_index_js_ruleSet_0_use_0_CarrinhoItensAdicionais_vue_vue_type_script_lang_js__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! -!../../../node_modules/babel-loader/lib/index.js??clonedRuleSet-5.use[0]!../../../node_modules/vue-loader/dist/index.js??ruleSet[0].use[0]!./CarrinhoItensAdicionais.vue?vue&type=script&lang=js */ "./node_modules/babel-loader/lib/index.js??clonedRuleSet-5.use[0]!./node_modules/vue-loader/dist/index.js??ruleSet[0].use[0]!./resources/js/vueComponents/CarrinhoItensAdicionais.vue?vue&type=script&lang=js");
+ 
+
+/***/ }),
+
 /***/ "./resources/js/vueComponents/CarrinhoQuantidadeItem.vue?vue&type=script&lang=js":
 /*!***************************************************************************************!*\
   !*** ./resources/js/vueComponents/CarrinhoQuantidadeItem.vue?vue&type=script&lang=js ***!
@@ -40023,6 +41818,22 @@ __webpack_require__.r(__webpack_exports__);
 
 /***/ }),
 
+/***/ "./resources/js/vueComponents/CarrinhoItensAdicionais.vue?vue&type=template&id=f1f40558&scoped=true":
+/*!**********************************************************************************************************!*\
+  !*** ./resources/js/vueComponents/CarrinhoItensAdicionais.vue?vue&type=template&id=f1f40558&scoped=true ***!
+  \**********************************************************************************************************/
+/***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
+
+"use strict";
+__webpack_require__.r(__webpack_exports__);
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   "render": () => (/* reexport safe */ _node_modules_babel_loader_lib_index_js_clonedRuleSet_5_use_0_node_modules_vue_loader_dist_templateLoader_js_ruleSet_1_rules_2_node_modules_vue_loader_dist_index_js_ruleSet_0_use_0_CarrinhoItensAdicionais_vue_vue_type_template_id_f1f40558_scoped_true__WEBPACK_IMPORTED_MODULE_0__.render)
+/* harmony export */ });
+/* harmony import */ var _node_modules_babel_loader_lib_index_js_clonedRuleSet_5_use_0_node_modules_vue_loader_dist_templateLoader_js_ruleSet_1_rules_2_node_modules_vue_loader_dist_index_js_ruleSet_0_use_0_CarrinhoItensAdicionais_vue_vue_type_template_id_f1f40558_scoped_true__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! -!../../../node_modules/babel-loader/lib/index.js??clonedRuleSet-5.use[0]!../../../node_modules/vue-loader/dist/templateLoader.js??ruleSet[1].rules[2]!../../../node_modules/vue-loader/dist/index.js??ruleSet[0].use[0]!./CarrinhoItensAdicionais.vue?vue&type=template&id=f1f40558&scoped=true */ "./node_modules/babel-loader/lib/index.js??clonedRuleSet-5.use[0]!./node_modules/vue-loader/dist/templateLoader.js??ruleSet[1].rules[2]!./node_modules/vue-loader/dist/index.js??ruleSet[0].use[0]!./resources/js/vueComponents/CarrinhoItensAdicionais.vue?vue&type=template&id=f1f40558&scoped=true");
+
+
+/***/ }),
+
 /***/ "./resources/js/vueComponents/CarrinhoQuantidadeItem.vue?vue&type=template&id=01c08e1c&scoped=true":
 /*!*********************************************************************************************************!*\
   !*** ./resources/js/vueComponents/CarrinhoQuantidadeItem.vue?vue&type=template&id=01c08e1c&scoped=true ***!
@@ -40093,6 +41904,19 @@ __webpack_require__.r(__webpack_exports__);
 "use strict";
 __webpack_require__.r(__webpack_exports__);
 /* harmony import */ var _node_modules_style_loader_dist_cjs_js_node_modules_css_loader_dist_cjs_js_clonedRuleSet_11_use_1_node_modules_vue_loader_dist_stylePostLoader_js_node_modules_postcss_loader_dist_cjs_js_clonedRuleSet_11_use_2_node_modules_vue_loader_dist_index_js_ruleSet_0_use_0_CarrinhoItem_vue_vue_type_style_index_0_id_95d3e364_lang_css__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! -!../../../node_modules/style-loader/dist/cjs.js!../../../node_modules/css-loader/dist/cjs.js??clonedRuleSet-11.use[1]!../../../node_modules/vue-loader/dist/stylePostLoader.js!../../../node_modules/postcss-loader/dist/cjs.js??clonedRuleSet-11.use[2]!../../../node_modules/vue-loader/dist/index.js??ruleSet[0].use[0]!./CarrinhoItem.vue?vue&type=style&index=0&id=95d3e364&lang=css */ "./node_modules/style-loader/dist/cjs.js!./node_modules/css-loader/dist/cjs.js??clonedRuleSet-11.use[1]!./node_modules/vue-loader/dist/stylePostLoader.js!./node_modules/postcss-loader/dist/cjs.js??clonedRuleSet-11.use[2]!./node_modules/vue-loader/dist/index.js??ruleSet[0].use[0]!./resources/js/vueComponents/CarrinhoItem.vue?vue&type=style&index=0&id=95d3e364&lang=css");
+
+
+/***/ }),
+
+/***/ "./resources/js/vueComponents/CarrinhoItensAdicionais.vue?vue&type=style&index=0&id=f1f40558&scoped=true&lang=css":
+/*!************************************************************************************************************************!*\
+  !*** ./resources/js/vueComponents/CarrinhoItensAdicionais.vue?vue&type=style&index=0&id=f1f40558&scoped=true&lang=css ***!
+  \************************************************************************************************************************/
+/***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
+
+"use strict";
+__webpack_require__.r(__webpack_exports__);
+/* harmony import */ var _node_modules_style_loader_dist_cjs_js_node_modules_css_loader_dist_cjs_js_clonedRuleSet_11_use_1_node_modules_vue_loader_dist_stylePostLoader_js_node_modules_postcss_loader_dist_cjs_js_clonedRuleSet_11_use_2_node_modules_vue_loader_dist_index_js_ruleSet_0_use_0_CarrinhoItensAdicionais_vue_vue_type_style_index_0_id_f1f40558_scoped_true_lang_css__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! -!../../../node_modules/style-loader/dist/cjs.js!../../../node_modules/css-loader/dist/cjs.js??clonedRuleSet-11.use[1]!../../../node_modules/vue-loader/dist/stylePostLoader.js!../../../node_modules/postcss-loader/dist/cjs.js??clonedRuleSet-11.use[2]!../../../node_modules/vue-loader/dist/index.js??ruleSet[0].use[0]!./CarrinhoItensAdicionais.vue?vue&type=style&index=0&id=f1f40558&scoped=true&lang=css */ "./node_modules/style-loader/dist/cjs.js!./node_modules/css-loader/dist/cjs.js??clonedRuleSet-11.use[1]!./node_modules/vue-loader/dist/stylePostLoader.js!./node_modules/postcss-loader/dist/cjs.js??clonedRuleSet-11.use[2]!./node_modules/vue-loader/dist/index.js??ruleSet[0].use[0]!./resources/js/vueComponents/CarrinhoItensAdicionais.vue?vue&type=style&index=0&id=f1f40558&scoped=true&lang=css");
 
 
 /***/ }),

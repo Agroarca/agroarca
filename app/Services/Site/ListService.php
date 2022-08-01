@@ -64,7 +64,7 @@ class ListService
                 'itensListaPreco' => function ($query) use ($item) {
                     $query = $query->select('itens_lista_preco.*')
                         ->where('itens_lista_preco.dominio_id', DominioService::getDominioId())
-                        ->selectRaw('juroItemListaPreco(itens_lista_preco.id, ?) as preco_item',  [PedidoService::getDataPagamento()])
+                        ->selectRaw('juroItemListaPreco(itens_lista_preco.id, ?) as preco_item',  [Carbon::now()->toAtomString()])
                         ->selectRaw('case when exists(select * from itens_lista_preco as ilp join pedido_itens on ilp.id = pedido_itens.item_lista_preco_id
                             where pedido_itens.pedido_item_pai_id = ? and ilp.id = itens_lista_preco.id) then true else false end as adicionado', [$item->id]);
 
@@ -80,9 +80,9 @@ class ListService
                                 ->from('itens_lista_preco as ilpc')
                                 ->join('pedido_itens', 'pedido_itens.item_lista_preco_id', '=', 'ilpc.id')
                                 ->where('pedido_itens.id', $item->id);
-                        })->orderByRaw('juroItemListaPreco(itens_lista_preco.id, ?)', [PedidoService::getDataPagamento()]);
+                        })->orderByRaw('juroItemListaPreco(itens_lista_preco.id, ?)', [Carbon::now()->toAtomString()]);
 
-                    ProdutoService::queryItensListaPrecoOrdenadosValor($query, PedidoService::getDataPagamento());
+                    ProdutoService::queryItensListaPrecoOrdenadosValor($query, Carbon::now()->toAtomString());
                 }
             ]);
     }

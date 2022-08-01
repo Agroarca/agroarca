@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Site;
 
 use App\Enums\Pedidos\ModalidadeFormaPagamento;
+use App\Enums\Pedidos\StatusPedido;
 use App\Events\Site\CarrinhoAlteradoEvent;
 use App\Exceptions\OperacaoIlegalException;
 use App\Http\Controllers\Controller;
@@ -36,39 +37,6 @@ class CarrinhoController extends Controller
         return response()->json(['carrinho' => CarrinhoService::getCarrinho()]);
     }
 
-    public function editar($pedidoItemId)
-    {
-        $pedidoItem = PedidoItem::findOrFail($pedidoItemId);
-        $produtos = [];
-
-        if ($pedidoItem->quantidade > 0) {
-            $produtos = ListService::queryItensAdicionaisPedido($pedidoItem)->get();
-        }
-
-        return view('site.carrinho.editar.editar', compact('pedidoItem'), compact('produtos'));
-    }
-
-    public function salvar(Request $request, $pedidoItemId)
-    {
-        $pedidoItem = PedidoItem::findOrFail($pedidoItemId);
-        $pedidoItem->update([
-            'quantidade' => $request->input('quantidade')
-        ]);
-
-        if (!$request->has('adicional')) {
-            return redirect()->route('site.carrinho.editar', $pedidoItemId)->withInput();
-        }
-
-        foreach ($request->input('adicional') as $adicional) {
-            $itemAdicional = ItemListaPreco::findOrFail($adicional);
-            PedidoService::adicionarItemAdicional($pedidoItem, $itemAdicional);
-        }
-
-        PedidoService::removerAdicionaisExceto($pedidoItem, $request->input('adicional'));
-
-        return redirect()->route('site.carrinho');
-    }
-
     public function alterar_quantidade(Request $request, $itemId)
     {
         if (!$request->input('quantidade') > 0) {
@@ -76,6 +44,11 @@ class CarrinhoController extends Controller
         }
 
         $item = PedidoItem::findOrFail($itemId);
+
+        if ($item->pedido->status != StatusPedido::Aberto) {
+            throw new OperacaoIlegalException("Não é permitido alterar um item de um pedido que não esteja aberto");
+        }
+
         $item->quantidade = $request->input('quantidade');
         $item->save();
 
@@ -182,10 +155,22 @@ class CarrinhoController extends Controller
             return response()->json(['erros' => [$e->getMessage()], 'checkout' => CarrinhoService::getDadosPedidoFinalizacao()]);
         }
 
+        CarrinhoAlteradoEvent::dispatch();
         return response()->json(['redirect' => route('site.carrinho.resumo')]);
     }
 
     public function resumo()
+    {
+    }
+
+    public function adicionais($pedidoItemId)
+    {
+        $pedidoItem = PedidoItem::findOrFail($pedidoItemId);
+        $adicionais = CarrinhoService::adicionaisPedidoItem($pedidoItem);
+        return response()->json(['adicionais' => $adicionais]);
+    }
+
+    public function salvarAdicionais()
     {
     }
 }

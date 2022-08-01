@@ -28,6 +28,13 @@ class CarrinhoAlteradoListener
     public function handle(CarrinhoAlteradoEvent $event)
     {
         $pedido = PedidoService::getPedido();
+        $pedido->load([
+            'pedidoItens',
+            'pedidoItens.itemListaPreco',
+            'pedidoItens.itemListaPreco.centroDistribuicao',
+            'pedidoItens.pedidoItensAdicionais',
+            'endereco',
+        ]);
         PedidoService::atualizarQuantidadeCarrinho($pedido);
         PedidoService::calcularPedido($pedido);
         PedidoService::verificarEnderecoPadrao($pedido);

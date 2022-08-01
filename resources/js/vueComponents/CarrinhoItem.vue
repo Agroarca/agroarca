@@ -1,11 +1,13 @@
 <script>
 import CarrinhoQuantidadeItem from './CarrinhoQuantidadeItem.vue'
+import CarrinhoItensAdicionais from './CarrinhoItensAdicionais.vue'
 import axios from "axios"
 export default{
     inject: ['adicionarErro'],
     props: ['carrinhoitem'],
     components: {
-        CarrinhoQuantidadeItem
+        CarrinhoQuantidadeItem,
+        CarrinhoItensAdicionais
     },
     methods: {
         alterarquantidade(quantidade){
@@ -75,6 +77,7 @@ export default{
                 </span>
             </div>
             <div class="detalhes d-flex flex-row align-items-end justify-content-center justify-content-md-end col-12 col-md-4">
+                <CarrinhoItensAdicionais :pedidoItem="carrinhoitem" v-if="carrinhoitem.tem_adicionais"></CarrinhoItensAdicionais>
                 <CarrinhoQuantidadeItem class='quantidade-item component-carrinho-quantidade-item' :value='carrinhoitem.quantidade' name='quantidade' @alterarquantidade="alterarquantidade" />
                 <a href='#' @click="removerItem">
                     <button class="remover"><i class="fa fa-trash"></i></button>
@@ -149,23 +152,6 @@ export default{
     gap: 10px;
     padding-top: 1rem;
 }
-/*
-.carrinho .carrinho-item .detalhes {
-    display: flex;
-    align-items: flex-end;
-    justify-content: flex-end;
-    flex: auto;
-}*/
-
-/* .cart .cart-data-item .cart-item-details .seed-tsi {
-    width: 56px;
-    height: 56px;
-    padding: 4px;
-    border-radius: 12px;
-    border: unset;
-    background: url("/img/semente-maca.svg") top center no-repeat;
-    background-color: var(--verde-claro);
-} */
 
 .carrinho .carrinho-item .quantidade-item {
     height: 56px;
@@ -173,6 +159,16 @@ export default{
 }
 
 .carrinho .carrinho-item .remover {
+    width: 56px;
+    height: 56px;
+    color: var(--borda);
+    border: 1px solid var(--borda);
+    background: var(--branco);
+    font-size: 24px;
+    border-radius: 12px;
+}
+
+.carrinho .carrinho-item .adicionais {
     width: 56px;
     height: 56px;
     color: var(--borda);
