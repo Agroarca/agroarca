@@ -25,14 +25,15 @@
 .dp__input::-moz-placeholder {
   opacity: 0.7;
 }
-.dp__input:-ms-input-placeholder {
-  opacity: 0.7;
-}
 .dp__input::placeholder {
   opacity: 0.7;
 }
 .dp__input:hover {
   border-color: var(--dp-border-color-hover);
+}
+
+.dp__input_reg {
+  caret-color: transparent;
 }
 
 .dp__input_focus {
@@ -43,9 +44,6 @@
   background: var(--dp-disabled-color);
 }
 .dp__disabled::-moz-placeholder {
-  color: var(--dp-disabled-color-text);
-}
-.dp__disabled:-ms-input-placeholder {
   color: var(--dp-disabled-color-text);
 }
 .dp__disabled::placeholder {
@@ -111,7 +109,6 @@
   font-size: 1rem;
   -webkit-user-select: none;
      -moz-user-select: none;
-      -ms-user-select: none;
           user-select: none;
   border: 1px solid var(--dp-menu-border-color);
   box-sizing: border-box;
@@ -504,8 +501,15 @@
   outline: none;
 }
 
-.dp__overlay_container {
+.dp__container_flex {
   display: flex;
+}
+
+.dp__container_block {
+  display: block;
+}
+
+.dp__overlay_container {
   height: 100%;
   flex-direction: column;
 }
@@ -603,7 +607,6 @@
   justify-content: center;
   -webkit-user-select: none;
      -moz-user-select: none;
-      -ms-user-select: none;
           user-select: none;
   font-family: -apple-system, blinkmacsystemfont, "Segoe UI", roboto, oxygen, ubuntu, cantarell, "Open Sans", "Helvetica Neue", sans-serif;
   color: var(--dp-text-color);
@@ -780,7 +783,6 @@
   font-family: -apple-system, blinkmacsystemfont, "Segoe UI", roboto, oxygen, ubuntu, cantarell, "Open Sans", "Helvetica Neue", sans-serif;
   -webkit-user-select: none;
      -moz-user-select: none;
-      -ms-user-select: none;
           user-select: none;
   box-sizing: border-box;
 }

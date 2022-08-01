@@ -1,165 +1,9 @@
 /******/ (() => { // webpackBootstrap
 /******/ 	var __webpack_modules__ = ({
 
-/***/ "./resources/js/script.js":
-/*!********************************!*\
-  !*** ./resources/js/script.js ***!
-  \********************************/
-/***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
-
-"use strict";
-__webpack_require__.r(__webpack_exports__);
-/* harmony import */ var reqwest__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! reqwest */ "./node_modules/reqwest/reqwest.js");
-/* harmony import */ var reqwest__WEBPACK_IMPORTED_MODULE_0___default = /*#__PURE__*/__webpack_require__.n(reqwest__WEBPACK_IMPORTED_MODULE_0__);
-/* harmony import */ var toastr__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! toastr */ "./node_modules/toastr/toastr.js");
-/* harmony import */ var toastr__WEBPACK_IMPORTED_MODULE_1___default = /*#__PURE__*/__webpack_require__.n(toastr__WEBPACK_IMPORTED_MODULE_1__);
-/* harmony import */ var toastr_build_toastr_css__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! toastr/build/toastr.css */ "./node_modules/toastr/build/toastr.css");
-/* harmony import */ var owl_carousel_dist_assets_owl_carousel_css__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__(/*! owl.carousel/dist/assets/owl.carousel.css */ "./node_modules/owl.carousel/dist/assets/owl.carousel.css");
-/* harmony import */ var owl_carousel__WEBPACK_IMPORTED_MODULE_4__ = __webpack_require__(/*! owl.carousel */ "./node_modules/owl.carousel/dist/owl.carousel.js");
-/* harmony import */ var owl_carousel__WEBPACK_IMPORTED_MODULE_4___default = /*#__PURE__*/__webpack_require__.n(owl_carousel__WEBPACK_IMPORTED_MODULE_4__);
-/* provided dependency */ var $ = __webpack_require__(/*! jquery */ "./node_modules/jquery/dist/jquery.js");
-function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
-
-function _defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } }
-
-function _createClass(Constructor, protoProps, staticProps) { if (protoProps) _defineProperties(Constructor.prototype, protoProps); if (staticProps) _defineProperties(Constructor, staticProps); Object.defineProperty(Constructor, "prototype", { writable: false }); return Constructor; }
-
-function _defineProperty(obj, key, value) { if (key in obj) { Object.defineProperty(obj, key, { value: value, enumerable: true, configurable: true, writable: true }); } else { obj[key] = value; } return obj; }
-
-
-
-
-
-
-
-var owlCarouselInit = function owlCarouselInit(_ref) {
-  var element = _ref.element,
-      _ref$options = _ref.options,
-      options = _ref$options === void 0 ? {} : _ref$options,
-      _ref$nav = _ref.nav,
-      nav = _ref$nav === void 0 ? false : _ref$nav;
-  var instance = $(element).owlCarousel(options);
-
-  if (nav) {
-    var right = nav.right,
-        left = nav.left;
-    $(right).click(function () {
-      instance.trigger("next.owl.carousel");
-    });
-    $(left).click(function () {
-      instance.trigger("prev.owl.carousel", [300]);
-    });
-  }
-};
-
-owlCarouselInit({
-  element: "#recently-viewed-carousel",
-  nav: {
-    right: "#recently-viewed-nav-right",
-    left: "#recently-viewed-nav-left"
-  },
-  options: {
-    margin: 10,
-    loop: true,
-    nav: false,
-    responsive: {
-      0: {
-        items: 1
-      },
-      600: {
-        items: 3
-      },
-      1000: {
-        items: 5
-      }
-    }
-  }
-});
-owlCarouselInit({
-  element: "#flash-sale-carousel",
-  nav: {
-    right: "#flashsale-nav-right",
-    left: "#flashsale-nav-left"
-  },
-  options: {
-    margin: 10,
-    loop: true,
-    nav: false,
-    responsive: {
-      0: {
-        items: 2
-      },
-      600: {
-        items: 2
-      },
-      1000: {
-        items: 2
-      }
-    }
-  }
-});
-owlCarouselInit({
-  element: "#banners-carousel",
-  options: {
-    animateOut: "fadeOut",
-    margin: 10,
-    loop: true,
-    nav: false,
-    autoplay: true,
-    autoplayTimeout: 3500,
-    autoplayHoverPause: true,
-    items: 1
-  },
-  nav: {
-    right: "#banners-nav-right",
-    left: "#banners-nav-left"
-  }
-});
-
-window.verificarCep = function (input) {
-  var cep = input.value.replace(/\D/g, '');
-
-  if (cep.length == 8) {
-    input.form.submit();
-  }
-}; //
-
-
-var Loader = /*#__PURE__*/function () {
-  function Loader() {
-    _classCallCheck(this, Loader);
-
-    _defineProperty(this, "ativo", false);
-  }
-
-  _createClass(Loader, [{
-    key: "mostrar",
-    value: function mostrar() {
-      if (!this.ativo) {
-        $('.loader').fadeIn('fast');
-        this.ativo = true;
-      }
-    }
-  }, {
-    key: "esconder",
-    value: function esconder() {
-      if (this.ativo) {
-        $('.loader').fadeOut('fast');
-        this.ativo = false;
-      }
-    }
-  }]);
-
-  return Loader;
-}();
-
-window.loader = new Loader();
-
-/***/ }),
-
-/***/ "./node_modules/css-loader/dist/cjs.js??clonedRuleSet-11.use[1]!./node_modules/postcss-loader/dist/cjs.js??clonedRuleSet-11.use[2]!./node_modules/owl.carousel/dist/assets/owl.carousel.css":
+/***/ "./node_modules/css-loader/dist/cjs.js??clonedRuleSet-15.use[1]!./node_modules/postcss-loader/dist/cjs.js??clonedRuleSet-15.use[2]!./node_modules/owl.carousel/dist/assets/owl.carousel.css":
 /*!**************************************************************************************************************************************************************************************************!*\
-  !*** ./node_modules/css-loader/dist/cjs.js??clonedRuleSet-11.use[1]!./node_modules/postcss-loader/dist/cjs.js??clonedRuleSet-11.use[2]!./node_modules/owl.carousel/dist/assets/owl.carousel.css ***!
+  !*** ./node_modules/css-loader/dist/cjs.js??clonedRuleSet-15.use[1]!./node_modules/postcss-loader/dist/cjs.js??clonedRuleSet-15.use[2]!./node_modules/owl.carousel/dist/assets/owl.carousel.css ***!
   \**************************************************************************************************************************************************************************************************/
 /***/ ((module, __webpack_exports__, __webpack_require__) => {
 
@@ -187,9 +31,9 @@ ___CSS_LOADER_EXPORT___.push([module.id, "/**\n * Owl Carousel v2.3.4\n * Copyri
 
 /***/ }),
 
-/***/ "./node_modules/css-loader/dist/cjs.js??clonedRuleSet-11.use[1]!./node_modules/postcss-loader/dist/cjs.js??clonedRuleSet-11.use[2]!./node_modules/toastr/build/toastr.css":
+/***/ "./node_modules/css-loader/dist/cjs.js??clonedRuleSet-15.use[1]!./node_modules/postcss-loader/dist/cjs.js??clonedRuleSet-15.use[2]!./node_modules/toastr/build/toastr.css":
 /*!********************************************************************************************************************************************************************************!*\
-  !*** ./node_modules/css-loader/dist/cjs.js??clonedRuleSet-11.use[1]!./node_modules/postcss-loader/dist/cjs.js??clonedRuleSet-11.use[2]!./node_modules/toastr/build/toastr.css ***!
+  !*** ./node_modules/css-loader/dist/cjs.js??clonedRuleSet-15.use[1]!./node_modules/postcss-loader/dist/cjs.js??clonedRuleSet-15.use[2]!./node_modules/toastr/build/toastr.css ***!
   \********************************************************************************************************************************************************************************/
 /***/ ((module, __webpack_exports__, __webpack_require__) => {
 
@@ -11238,45 +11082,6 @@ return jQuery;
 
 /***/ }),
 
-/***/ "./resources/sass/custom.scss":
-/*!************************************!*\
-  !*** ./resources/sass/custom.scss ***!
-  \************************************/
-/***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
-
-"use strict";
-__webpack_require__.r(__webpack_exports__);
-// extracted by mini-css-extract-plugin
-
-
-/***/ }),
-
-/***/ "./resources/css/style.css":
-/*!*********************************!*\
-  !*** ./resources/css/style.css ***!
-  \*********************************/
-/***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
-
-"use strict";
-__webpack_require__.r(__webpack_exports__);
-// extracted by mini-css-extract-plugin
-
-
-/***/ }),
-
-/***/ "./resources/css/admin.css":
-/*!*********************************!*\
-  !*** ./resources/css/admin.css ***!
-  \*********************************/
-/***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
-
-"use strict";
-__webpack_require__.r(__webpack_exports__);
-// extracted by mini-css-extract-plugin
-
-
-/***/ }),
-
 /***/ "./node_modules/owl.carousel/dist/owl.carousel.js":
 /*!********************************************************!*\
   !*** ./node_modules/owl.carousel/dist/owl.carousel.js ***!
@@ -15394,7 +15199,7 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony export */ });
 /* harmony import */ var _style_loader_dist_runtime_injectStylesIntoStyleTag_js__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! !../../../style-loader/dist/runtime/injectStylesIntoStyleTag.js */ "./node_modules/style-loader/dist/runtime/injectStylesIntoStyleTag.js");
 /* harmony import */ var _style_loader_dist_runtime_injectStylesIntoStyleTag_js__WEBPACK_IMPORTED_MODULE_0___default = /*#__PURE__*/__webpack_require__.n(_style_loader_dist_runtime_injectStylesIntoStyleTag_js__WEBPACK_IMPORTED_MODULE_0__);
-/* harmony import */ var _css_loader_dist_cjs_js_clonedRuleSet_11_use_1_postcss_loader_dist_cjs_js_clonedRuleSet_11_use_2_owl_carousel_css__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! !!../../../css-loader/dist/cjs.js??clonedRuleSet-11.use[1]!../../../postcss-loader/dist/cjs.js??clonedRuleSet-11.use[2]!./owl.carousel.css */ "./node_modules/css-loader/dist/cjs.js??clonedRuleSet-11.use[1]!./node_modules/postcss-loader/dist/cjs.js??clonedRuleSet-11.use[2]!./node_modules/owl.carousel/dist/assets/owl.carousel.css");
+/* harmony import */ var _css_loader_dist_cjs_js_clonedRuleSet_15_use_1_postcss_loader_dist_cjs_js_clonedRuleSet_15_use_2_owl_carousel_css__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! !!../../../css-loader/dist/cjs.js??clonedRuleSet-15.use[1]!../../../postcss-loader/dist/cjs.js??clonedRuleSet-15.use[2]!./owl.carousel.css */ "./node_modules/css-loader/dist/cjs.js??clonedRuleSet-15.use[1]!./node_modules/postcss-loader/dist/cjs.js??clonedRuleSet-15.use[2]!./node_modules/owl.carousel/dist/assets/owl.carousel.css");
 
             
 
@@ -15403,11 +15208,11 @@ var options = {};
 options.insert = "head";
 options.singleton = false;
 
-var update = _style_loader_dist_runtime_injectStylesIntoStyleTag_js__WEBPACK_IMPORTED_MODULE_0___default()(_css_loader_dist_cjs_js_clonedRuleSet_11_use_1_postcss_loader_dist_cjs_js_clonedRuleSet_11_use_2_owl_carousel_css__WEBPACK_IMPORTED_MODULE_1__["default"], options);
+var update = _style_loader_dist_runtime_injectStylesIntoStyleTag_js__WEBPACK_IMPORTED_MODULE_0___default()(_css_loader_dist_cjs_js_clonedRuleSet_15_use_1_postcss_loader_dist_cjs_js_clonedRuleSet_15_use_2_owl_carousel_css__WEBPACK_IMPORTED_MODULE_1__["default"], options);
 
 
 
-/* harmony default export */ const __WEBPACK_DEFAULT_EXPORT__ = (_css_loader_dist_cjs_js_clonedRuleSet_11_use_1_postcss_loader_dist_cjs_js_clonedRuleSet_11_use_2_owl_carousel_css__WEBPACK_IMPORTED_MODULE_1__["default"].locals || {});
+/* harmony default export */ const __WEBPACK_DEFAULT_EXPORT__ = (_css_loader_dist_cjs_js_clonedRuleSet_15_use_1_postcss_loader_dist_cjs_js_clonedRuleSet_15_use_2_owl_carousel_css__WEBPACK_IMPORTED_MODULE_1__["default"].locals || {});
 
 /***/ }),
 
@@ -15424,7 +15229,7 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony export */ });
 /* harmony import */ var _style_loader_dist_runtime_injectStylesIntoStyleTag_js__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! !../../style-loader/dist/runtime/injectStylesIntoStyleTag.js */ "./node_modules/style-loader/dist/runtime/injectStylesIntoStyleTag.js");
 /* harmony import */ var _style_loader_dist_runtime_injectStylesIntoStyleTag_js__WEBPACK_IMPORTED_MODULE_0___default = /*#__PURE__*/__webpack_require__.n(_style_loader_dist_runtime_injectStylesIntoStyleTag_js__WEBPACK_IMPORTED_MODULE_0__);
-/* harmony import */ var _css_loader_dist_cjs_js_clonedRuleSet_11_use_1_postcss_loader_dist_cjs_js_clonedRuleSet_11_use_2_toastr_css__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! !!../../css-loader/dist/cjs.js??clonedRuleSet-11.use[1]!../../postcss-loader/dist/cjs.js??clonedRuleSet-11.use[2]!./toastr.css */ "./node_modules/css-loader/dist/cjs.js??clonedRuleSet-11.use[1]!./node_modules/postcss-loader/dist/cjs.js??clonedRuleSet-11.use[2]!./node_modules/toastr/build/toastr.css");
+/* harmony import */ var _css_loader_dist_cjs_js_clonedRuleSet_15_use_1_postcss_loader_dist_cjs_js_clonedRuleSet_15_use_2_toastr_css__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! !!../../css-loader/dist/cjs.js??clonedRuleSet-15.use[1]!../../postcss-loader/dist/cjs.js??clonedRuleSet-15.use[2]!./toastr.css */ "./node_modules/css-loader/dist/cjs.js??clonedRuleSet-15.use[1]!./node_modules/postcss-loader/dist/cjs.js??clonedRuleSet-15.use[2]!./node_modules/toastr/build/toastr.css");
 
             
 
@@ -15433,11 +15238,11 @@ var options = {};
 options.insert = "head";
 options.singleton = false;
 
-var update = _style_loader_dist_runtime_injectStylesIntoStyleTag_js__WEBPACK_IMPORTED_MODULE_0___default()(_css_loader_dist_cjs_js_clonedRuleSet_11_use_1_postcss_loader_dist_cjs_js_clonedRuleSet_11_use_2_toastr_css__WEBPACK_IMPORTED_MODULE_1__["default"], options);
+var update = _style_loader_dist_runtime_injectStylesIntoStyleTag_js__WEBPACK_IMPORTED_MODULE_0___default()(_css_loader_dist_cjs_js_clonedRuleSet_15_use_1_postcss_loader_dist_cjs_js_clonedRuleSet_15_use_2_toastr_css__WEBPACK_IMPORTED_MODULE_1__["default"], options);
 
 
 
-/* harmony default export */ const __WEBPACK_DEFAULT_EXPORT__ = (_css_loader_dist_cjs_js_clonedRuleSet_11_use_1_postcss_loader_dist_cjs_js_clonedRuleSet_11_use_2_toastr_css__WEBPACK_IMPORTED_MODULE_1__["default"].locals || {});
+/* harmony default export */ const __WEBPACK_DEFAULT_EXPORT__ = (_css_loader_dist_cjs_js_clonedRuleSet_15_use_1_postcss_loader_dist_cjs_js_clonedRuleSet_15_use_2_toastr_css__WEBPACK_IMPORTED_MODULE_1__["default"].locals || {});
 
 /***/ }),
 
@@ -16237,46 +16042,11 @@ var __WEBPACK_AMD_DEFINE_ARRAY__, __WEBPACK_AMD_DEFINE_RESULT__;/*
 /******/ 		return module.exports;
 /******/ 	}
 /******/ 	
-/******/ 	// expose the modules object (__webpack_modules__)
-/******/ 	__webpack_require__.m = __webpack_modules__;
-/******/ 	
 /************************************************************************/
 /******/ 	/* webpack/runtime/amd define */
 /******/ 	(() => {
 /******/ 		__webpack_require__.amdD = function () {
 /******/ 			throw new Error('define cannot be used indirect');
-/******/ 		};
-/******/ 	})();
-/******/ 	
-/******/ 	/* webpack/runtime/chunk loaded */
-/******/ 	(() => {
-/******/ 		var deferred = [];
-/******/ 		__webpack_require__.O = (result, chunkIds, fn, priority) => {
-/******/ 			if(chunkIds) {
-/******/ 				priority = priority || 0;
-/******/ 				for(var i = deferred.length; i > 0 && deferred[i - 1][2] > priority; i--) deferred[i] = deferred[i - 1];
-/******/ 				deferred[i] = [chunkIds, fn, priority];
-/******/ 				return;
-/******/ 			}
-/******/ 			var notFulfilled = Infinity;
-/******/ 			for (var i = 0; i < deferred.length; i++) {
-/******/ 				var [chunkIds, fn, priority] = deferred[i];
-/******/ 				var fulfilled = true;
-/******/ 				for (var j = 0; j < chunkIds.length; j++) {
-/******/ 					if ((priority & 1 === 0 || notFulfilled >= priority) && Object.keys(__webpack_require__.O).every((key) => (__webpack_require__.O[key](chunkIds[j])))) {
-/******/ 						chunkIds.splice(j--, 1);
-/******/ 					} else {
-/******/ 						fulfilled = false;
-/******/ 						if(priority < notFulfilled) notFulfilled = priority;
-/******/ 					}
-/******/ 				}
-/******/ 				if(fulfilled) {
-/******/ 					deferred.splice(i--, 1)
-/******/ 					var r = fn();
-/******/ 					if (r !== undefined) result = r;
-/******/ 				}
-/******/ 			}
-/******/ 			return result;
 /******/ 		};
 /******/ 	})();
 /******/ 	
@@ -16320,76 +16090,166 @@ var __WEBPACK_AMD_DEFINE_ARRAY__, __WEBPACK_AMD_DEFINE_RESULT__;/*
 /******/ 		};
 /******/ 	})();
 /******/ 	
-/******/ 	/* webpack/runtime/jsonp chunk loading */
-/******/ 	(() => {
-/******/ 		// no baseURI
-/******/ 		
-/******/ 		// object to store loaded and loading chunks
-/******/ 		// undefined = chunk not loaded, null = chunk preloaded/prefetched
-/******/ 		// [resolve, reject, Promise] = chunk loading, 0 = chunk loaded
-/******/ 		var installedChunks = {
-/******/ 			"/js/script": 0,
-/******/ 			"css/style": 0,
-/******/ 			"css/admin": 0
-/******/ 		};
-/******/ 		
-/******/ 		// no chunk on demand loading
-/******/ 		
-/******/ 		// no prefetching
-/******/ 		
-/******/ 		// no preloaded
-/******/ 		
-/******/ 		// no HMR
-/******/ 		
-/******/ 		// no HMR manifest
-/******/ 		
-/******/ 		__webpack_require__.O.j = (chunkId) => (installedChunks[chunkId] === 0);
-/******/ 		
-/******/ 		// install a JSONP callback for chunk loading
-/******/ 		var webpackJsonpCallback = (parentChunkLoadingFunction, data) => {
-/******/ 			var [chunkIds, moreModules, runtime] = data;
-/******/ 			// add "moreModules" to the modules object,
-/******/ 			// then flag all "chunkIds" as loaded and fire callback
-/******/ 			var moduleId, chunkId, i = 0;
-/******/ 			if(chunkIds.some((id) => (installedChunks[id] !== 0))) {
-/******/ 				for(moduleId in moreModules) {
-/******/ 					if(__webpack_require__.o(moreModules, moduleId)) {
-/******/ 						__webpack_require__.m[moduleId] = moreModules[moduleId];
-/******/ 					}
-/******/ 				}
-/******/ 				if(runtime) var result = runtime(__webpack_require__);
-/******/ 			}
-/******/ 			if(parentChunkLoadingFunction) parentChunkLoadingFunction(data);
-/******/ 			for(;i < chunkIds.length; i++) {
-/******/ 				chunkId = chunkIds[i];
-/******/ 				if(__webpack_require__.o(installedChunks, chunkId) && installedChunks[chunkId]) {
-/******/ 					installedChunks[chunkId][0]();
-/******/ 				}
-/******/ 				installedChunks[chunkId] = 0;
-/******/ 			}
-/******/ 			return __webpack_require__.O(result);
-/******/ 		}
-/******/ 		
-/******/ 		var chunkLoadingGlobal = self["webpackChunk"] = self["webpackChunk"] || [];
-/******/ 		chunkLoadingGlobal.forEach(webpackJsonpCallback.bind(null, 0));
-/******/ 		chunkLoadingGlobal.push = webpackJsonpCallback.bind(null, chunkLoadingGlobal.push.bind(chunkLoadingGlobal));
-/******/ 	})();
-/******/ 	
 /******/ 	/* webpack/runtime/nonce */
 /******/ 	(() => {
 /******/ 		__webpack_require__.nc = undefined;
 /******/ 	})();
 /******/ 	
 /************************************************************************/
-/******/ 	
-/******/ 	// startup
-/******/ 	// Load entry module and return exports
-/******/ 	// This entry module depends on other loaded chunks and execution need to be delayed
-/******/ 	__webpack_require__.O(undefined, ["css/style","css/admin"], () => (__webpack_require__("./resources/js/script.js")))
-/******/ 	__webpack_require__.O(undefined, ["css/style","css/admin"], () => (__webpack_require__("./resources/sass/custom.scss")))
-/******/ 	__webpack_require__.O(undefined, ["css/style","css/admin"], () => (__webpack_require__("./resources/css/style.css")))
-/******/ 	var __webpack_exports__ = __webpack_require__.O(undefined, ["css/style","css/admin"], () => (__webpack_require__("./resources/css/admin.css")))
-/******/ 	__webpack_exports__ = __webpack_require__.O(__webpack_exports__);
-/******/ 	
+var __webpack_exports__ = {};
+// This entry need to be wrapped in an IIFE because it need to be in strict mode.
+(() => {
+"use strict";
+/*!********************************!*\
+  !*** ./resources/js/script.js ***!
+  \********************************/
+__webpack_require__.r(__webpack_exports__);
+/* harmony import */ var reqwest__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! reqwest */ "./node_modules/reqwest/reqwest.js");
+/* harmony import */ var reqwest__WEBPACK_IMPORTED_MODULE_0___default = /*#__PURE__*/__webpack_require__.n(reqwest__WEBPACK_IMPORTED_MODULE_0__);
+/* harmony import */ var toastr__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! toastr */ "./node_modules/toastr/toastr.js");
+/* harmony import */ var toastr__WEBPACK_IMPORTED_MODULE_1___default = /*#__PURE__*/__webpack_require__.n(toastr__WEBPACK_IMPORTED_MODULE_1__);
+/* harmony import */ var toastr_build_toastr_css__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! toastr/build/toastr.css */ "./node_modules/toastr/build/toastr.css");
+/* harmony import */ var owl_carousel_dist_assets_owl_carousel_css__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__(/*! owl.carousel/dist/assets/owl.carousel.css */ "./node_modules/owl.carousel/dist/assets/owl.carousel.css");
+/* harmony import */ var owl_carousel__WEBPACK_IMPORTED_MODULE_4__ = __webpack_require__(/*! owl.carousel */ "./node_modules/owl.carousel/dist/owl.carousel.js");
+/* harmony import */ var owl_carousel__WEBPACK_IMPORTED_MODULE_4___default = /*#__PURE__*/__webpack_require__.n(owl_carousel__WEBPACK_IMPORTED_MODULE_4__);
+/* provided dependency */ var $ = __webpack_require__(/*! jquery */ "./node_modules/jquery/dist/jquery.js");
+function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
+
+function _defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } }
+
+function _createClass(Constructor, protoProps, staticProps) { if (protoProps) _defineProperties(Constructor.prototype, protoProps); if (staticProps) _defineProperties(Constructor, staticProps); Object.defineProperty(Constructor, "prototype", { writable: false }); return Constructor; }
+
+function _defineProperty(obj, key, value) { if (key in obj) { Object.defineProperty(obj, key, { value: value, enumerable: true, configurable: true, writable: true }); } else { obj[key] = value; } return obj; }
+
+
+
+
+
+
+
+var owlCarouselInit = function owlCarouselInit(_ref) {
+  var element = _ref.element,
+      _ref$options = _ref.options,
+      options = _ref$options === void 0 ? {} : _ref$options,
+      _ref$nav = _ref.nav,
+      nav = _ref$nav === void 0 ? false : _ref$nav;
+  var instance = $(element).owlCarousel(options);
+
+  if (nav) {
+    var right = nav.right,
+        left = nav.left;
+    $(right).click(function () {
+      instance.trigger("next.owl.carousel");
+    });
+    $(left).click(function () {
+      instance.trigger("prev.owl.carousel", [300]);
+    });
+  }
+};
+
+owlCarouselInit({
+  element: "#recently-viewed-carousel",
+  nav: {
+    right: "#recently-viewed-nav-right",
+    left: "#recently-viewed-nav-left"
+  },
+  options: {
+    margin: 10,
+    loop: true,
+    nav: false,
+    responsive: {
+      0: {
+        items: 1
+      },
+      600: {
+        items: 3
+      },
+      1000: {
+        items: 5
+      }
+    }
+  }
+});
+owlCarouselInit({
+  element: "#flash-sale-carousel",
+  nav: {
+    right: "#flashsale-nav-right",
+    left: "#flashsale-nav-left"
+  },
+  options: {
+    margin: 10,
+    loop: true,
+    nav: false,
+    responsive: {
+      0: {
+        items: 2
+      },
+      600: {
+        items: 2
+      },
+      1000: {
+        items: 2
+      }
+    }
+  }
+});
+owlCarouselInit({
+  element: "#banners-carousel",
+  options: {
+    animateOut: "fadeOut",
+    margin: 10,
+    loop: true,
+    nav: false,
+    autoplay: true,
+    autoplayTimeout: 3500,
+    autoplayHoverPause: true,
+    items: 1
+  },
+  nav: {
+    right: "#banners-nav-right",
+    left: "#banners-nav-left"
+  }
+});
+
+window.verificarCep = function (input) {
+  var cep = input.value.replace(/\D/g, '');
+
+  if (cep.length == 8) {
+    input.form.submit();
+  }
+}; //
+
+
+var Loader = /*#__PURE__*/function () {
+  function Loader() {
+    _classCallCheck(this, Loader);
+
+    _defineProperty(this, "ativo", false);
+  }
+
+  _createClass(Loader, [{
+    key: "mostrar",
+    value: function mostrar() {
+      if (!this.ativo) {
+        $('.loader').fadeIn('fast');
+        this.ativo = true;
+      }
+    }
+  }, {
+    key: "esconder",
+    value: function esconder() {
+      if (this.ativo) {
+        $('.loader').fadeOut('fast');
+        this.ativo = false;
+      }
+    }
+  }]);
+
+  return Loader;
+}();
+
+window.loader = new Loader();
+})();
+
 /******/ })()
 ;
